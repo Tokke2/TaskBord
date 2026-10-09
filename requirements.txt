@@ -1,0 +1,23 @@
+# DesktopTodoPy v6.4.1 v7 - requirements.txt
+# =============================================
+# AUTO-BOOTSTRAP: Denna fil installeras AUTOMATISKT vid första start av main.pyw.
+# Efter lyckad installation tas filen BORT automatiskt.
+# Om filen finns kvar = något paket fattas fortfarande (eller pip misslyckades).
+#
+# Manuell installation:  pip install -r requirements.txt
+# Skippa bootstrap:      pythonw.exe main.pyw --no-bootstrap
+# =============================================
+
+# --- Obligatoriska (kravs for att appen ska starta) ---
+PySide6>=6.5.0                          # Qt6 GUI (widget-fonster, tray, dialoger)
+pywin32>=306; sys_platform == "win32"   # Win32-API (HWND, z-order, systray)
+psutil>=5.9.0                           # Process-/minnes-info (stability, backup)
+
+# --- Valfria (snabbare / battre) ---
+orjson>=3.9.0                           # Snabbare JSON I/O for store + utils
+
+# --- Standardbibliotek (behöver INTE installeras) ---
+# argparse, atexit, ctypes, datetime, functools, gc, json, locale,
+# logging, os, platform, re, shutil, signal, socket, struct, subprocess,
+# sys, tempfile, threading, time, traceback, uuid, weakref, winreg,
+# zipfile, copy, io, secrets, unicodedata, importlib, errno

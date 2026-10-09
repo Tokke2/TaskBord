@@ -1,0 +1,119 @@
+2026-09-22 08:17:43.088 | INFO     | LoggerSetup          | [MainThread  #139973932114816] | setup_full_logging  :608  | ======================================================================
+2026-09-22 08:17:43.088 | INFO     | LoggerSetup          | [MainThread  #139973932114816] | setup_full_logging  :609  | [LOG] Full logging aktiverat (debug=True)
+2026-09-22 08:17:43.088 | INFO     | LoggerSetup          | [MainThread  #139973932114816] | setup_full_logging  :610  | [LOG] Logs dir: /home/user/DesktopTodoPy/ui/debug/data/logs
+2026-09-22 08:17:43.088 | INFO     | LoggerSetup          | [MainThread  #139973932114816] | setup_full_logging  :611  | [LOG] App log: /home/user/DesktopTodoPy/ui/debug/data/logs/app_20260922.log
+2026-09-22 08:17:43.088 | INFO     | LoggerSetup          | [MainThread  #139973932114816] | setup_full_logging  :612  | [LOG] Debug log: /home/user/DesktopTodoPy/ui/debug/data/logs/debug_20260922.log
+2026-09-22 08:17:43.088 | INFO     | LoggerSetup          | [MainThread  #139973932114816] | setup_full_logging  :613  | [LOG] Session log: /home/user/DesktopTodoPy/ui/debug/data/logs/session_20260922_081743.log
+2026-09-22 08:17:43.088 | INFO     | LoggerSetup          | [MainThread  #139973932114816] | setup_full_logging  :614  | [LOG] Python: 3.13.14
+2026-09-22 08:17:43.089 | INFO     | LoggerSetup          | [MainThread  #139973932114816] | setup_full_logging  :615  | [LOG] Platform: linux
+2026-09-22 08:17:43.089 | INFO     | LoggerSetup          | [MainThread  #139973932114816] | setup_full_logging  :616  | [LOG] Hostname: e2b.local
+2026-09-22 08:17:43.089 | INFO     | LoggerSetup          | [MainThread  #139973932114816] | setup_full_logging  :617  | [LOG] Process: 1902
+2026-09-22 08:17:43.089 | INFO     | LoggerSetup          | [MainThread  #139973932114816] | setup_full_logging  :618  | [LOG] Working dir: /home/user/DesktopTodoPy
+2026-09-22 08:17:43.089 | INFO     | LoggerSetup          | [MainThread  #139973932114816] | setup_full_logging  :619  | [LOG] Script: /home/user/DesktopTodoPy/core/logger_setup.py
+2026-09-22 08:17:43.089 | INFO     | LoggerSetup          | [MainThread  #139973932114816] | setup_full_logging  :620  | [LOG] capture_stdout: True
+2026-09-22 08:17:43.089 | INFO     | LoggerSetup          | [MainThread  #139973932114816] | setup_full_logging  :621  | [LOG] capture_exceptions: True
+2026-09-22 08:17:43.089 | INFO     | LoggerSetup          | [MainThread  #139973932114816] | setup_full_logging  :622  | [LOG] capture_threads: True
+2026-09-22 08:17:43.089 | INFO     | LoggerSetup          | [MainThread  #139973932114816] | setup_full_logging  :623  | [LOG] Qt event-filter: False
+2026-09-22 08:17:43.089 | INFO     | LoggerSetup          | [MainThread  #139973932114816] | setup_full_logging  :624  | ======================================================================
+2026-09-22 08:17:43.089 | INFO     | DebugRun             | [MainThread  #139973932114816] | <module>            :81   | ======================================================================
+2026-09-22 08:17:43.089 | INFO     | DebugRun             | [MainThread  #139973932114816] | <module>            :82   | DEBUG RUN STARTAD (v6.4.1)
+2026-09-22 08:17:43.089 | INFO     | DebugRun             | [MainThread  #139973932114816] | <module>            :83   | ======================================================================
+2026-09-22 08:17:43.089 | INFO     | DebugRun             | [MainThread  #139973932114816] | <module>            :84   | Python: 3.13.14 (main, Jul 14 2026, 04:45:36) [GCC 14.2.0]
+2026-09-22 08:17:43.089 | INFO     | DebugRun             | [MainThread  #139973932114816] | <module>            :85   | Executable: /usr/local/bin/python3
+2026-09-22 08:17:43.089 | INFO     | DebugRun             | [MainThread  #139973932114816] | <module>            :86   | Platform: linux
+2026-09-22 08:17:43.089 | INFO     | DebugRun             | [MainThread  #139973932114816] | <module>            :87   | Working dir: /home/user/DesktopTodoPy
+2026-09-22 08:17:43.089 | INFO     | DebugRun             | [MainThread  #139973932114816] | <module>            :88   | PROJECT_ROOT: /home/user/DesktopTodoPy
+2026-09-22 08:17:43.089 | INFO     | DebugRun             | [MainThread  #139973932114816] | <module>            :89   | SCRIPT_DIR: /home/user/DesktopTodoPy/ui/debug
+2026-09-22 08:17:43.089 | INFO     | DebugRun             | [MainThread  #139973932114816] | <module>            :90   | Script: ui/debug/debug_run.py
+2026-09-22 08:17:43.089 | INFO     | DebugRun             | [MainThread  #139973932114816] | <module>            :91   | Logs dir: /home/user/DesktopTodoPy/ui/debug/data/logs
+2026-09-22 08:17:43.089 | INFO     | DebugRun             | [MainThread  #139973932114816] | <module>            :92   | pyw: False
+2026-09-22 08:17:43.090 | CRITICAL | UncaughtException    | [MainThread  #139973932114816] | exception_hook      :408  | OHANTERAT UNDANTAG (fångat av logger_setup):
+Traceback (most recent call last):
+  File "<string>", line 10, in <module>
+    exec(compile(src, 'ui/debug/debug_run.py', 'exec'), fake.__dict__)
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "ui/debug/debug_run.py", line 173, in <module>
+    @contextmanager
+     ^^^^^^^^^^^^^^
+NameError: name 'contextmanager' is not defined
+2026-09-22 08:17:43.093 | INFO     | stdout               | [MainThread  #139973932114816] | write               :369  | Traceback (most recent call last):
+2026-09-22 08:17:43.094 | INFO     | stdout               | [MainThread  #139973932114816] | write               :369  |   File "<string>", line 10, in <module>
+2026-09-22 08:17:43.094 | INFO     | stdout               | [MainThread  #139973932114816] | write               :369  |     exec(compile(src, 'ui/debug/debug_run.py', 'exec'), fake.__dict__)
+2026-09-22 08:17:43.094 | INFO     | stdout               | [MainThread  #139973932114816] | write               :369  |     ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-09-22 08:17:43.094 | INFO     | stdout               | [MainThread  #139973932114816] | write               :369  |   File "ui/debug/debug_run.py", line 173, in <module>
+2026-09-22 08:17:43.094 | INFO     | stdout               | [MainThread  #139973932114816] | write               :369  |     @contextmanager
+2026-09-22 08:17:43.094 | INFO     | stdout               | [MainThread  #139973932114816] | write               :369  |      ^^^^^^^^^^^^^^
+2026-09-22 08:17:43.094 | INFO     | stdout               | [MainThread  #139973932114816] | write               :369  | NameError: name 'contextmanager' is not defined
+2026-09-22 08:19:00.669 | INFO     | LoggerSetup          | [MainThread  #139892629713792] | setup_full_logging  :608  | ======================================================================
+2026-09-22 08:19:00.669 | INFO     | LoggerSetup          | [MainThread  #139892629713792] | setup_full_logging  :609  | [LOG] Full logging aktiverat (debug=True)
+2026-09-22 08:19:00.669 | INFO     | LoggerSetup          | [MainThread  #139892629713792] | setup_full_logging  :610  | [LOG] Logs dir: /home/user/DesktopTodoPy/ui/debug/data/logs
+2026-09-22 08:19:00.669 | INFO     | LoggerSetup          | [MainThread  #139892629713792] | setup_full_logging  :611  | [LOG] App log: /home/user/DesktopTodoPy/ui/debug/data/logs/app_20260922.log
+2026-09-22 08:19:00.669 | INFO     | LoggerSetup          | [MainThread  #139892629713792] | setup_full_logging  :612  | [LOG] Debug log: /home/user/DesktopTodoPy/ui/debug/data/logs/debug_20260922.log
+2026-09-22 08:19:00.669 | INFO     | LoggerSetup          | [MainThread  #139892629713792] | setup_full_logging  :613  | [LOG] Session log: /home/user/DesktopTodoPy/ui/debug/data/logs/session_20260922_081900.log
+2026-09-22 08:19:00.669 | INFO     | LoggerSetup          | [MainThread  #139892629713792] | setup_full_logging  :614  | [LOG] Python: 3.13.14
+2026-09-22 08:19:00.669 | INFO     | LoggerSetup          | [MainThread  #139892629713792] | setup_full_logging  :615  | [LOG] Platform: linux
+2026-09-22 08:19:00.670 | INFO     | LoggerSetup          | [MainThread  #139892629713792] | setup_full_logging  :616  | [LOG] Hostname: e2b.local
+2026-09-22 08:19:00.670 | INFO     | LoggerSetup          | [MainThread  #139892629713792] | setup_full_logging  :617  | [LOG] Process: 1987
+2026-09-22 08:19:00.670 | INFO     | LoggerSetup          | [MainThread  #139892629713792] | setup_full_logging  :618  | [LOG] Working dir: /home/user/DesktopTodoPy
+2026-09-22 08:19:00.670 | INFO     | LoggerSetup          | [MainThread  #139892629713792] | setup_full_logging  :619  | [LOG] Script: /home/user/DesktopTodoPy/core/logger_setup.py
+2026-09-22 08:19:00.670 | INFO     | LoggerSetup          | [MainThread  #139892629713792] | setup_full_logging  :620  | [LOG] capture_stdout: True
+2026-09-22 08:19:00.670 | INFO     | LoggerSetup          | [MainThread  #139892629713792] | setup_full_logging  :621  | [LOG] capture_exceptions: True
+2026-09-22 08:19:00.670 | INFO     | LoggerSetup          | [MainThread  #139892629713792] | setup_full_logging  :622  | [LOG] capture_threads: True
+2026-09-22 08:19:00.670 | INFO     | LoggerSetup          | [MainThread  #139892629713792] | setup_full_logging  :623  | [LOG] Qt event-filter: False
+2026-09-22 08:19:00.670 | INFO     | LoggerSetup          | [MainThread  #139892629713792] | setup_full_logging  :624  | ======================================================================
+2026-09-22 08:19:00.670 | INFO     | DebugWindow          | [MainThread  #139892629713792] | <module>            :76   | ======================================================================
+2026-09-22 08:19:00.670 | INFO     | DebugWindow          | [MainThread  #139892629713792] | <module>            :77   | DEBUG WINDOW STARTAD (v6.4.1)
+2026-09-22 08:19:00.670 | INFO     | DebugWindow          | [MainThread  #139892629713792] | <module>            :78   | ======================================================================
+2026-09-22 08:19:00.670 | INFO     | DebugWindow          | [MainThread  #139892629713792] | <module>            :79   | Python: 3.13.14 (main, Jul 14 2026, 04:45:36) [GCC 14.2.0]
+2026-09-22 08:19:00.670 | INFO     | DebugWindow          | [MainThread  #139892629713792] | <module>            :80   | Executable: /usr/local/bin/python3
+2026-09-22 08:19:00.670 | INFO     | DebugWindow          | [MainThread  #139892629713792] | <module>            :81   | Platform: linux
+2026-09-22 08:19:00.670 | INFO     | DebugWindow          | [MainThread  #139892629713792] | <module>            :82   | PROJECT_ROOT: /home/user/DesktopTodoPy
+2026-09-22 08:19:00.670 | INFO     | DebugWindow          | [MainThread  #139892629713792] | <module>            :83   | SCRIPT_DIR: /home/user/DesktopTodoPy/ui/debug
+2026-09-22 08:19:00.670 | INFO     | DebugWindow          | [MainThread  #139892629713792] | <module>            :84   | Logs dir: /home/user/DesktopTodoPy/ui/debug/data/logs
+2026-09-22 08:19:00.670 | INFO     | DebugWindow          | [MainThread  #139892629713792] | <module>            :85   | pyw: False
+2026-09-22 08:19:00.676 | INFO     | LoggerSetup          | [MainThread  #139892629713792] | setup_full_logging  :608  | ======================================================================
+2026-09-22 08:19:00.676 | INFO     | LoggerSetup          | [MainThread  #139892629713792] | setup_full_logging  :609  | [LOG] Full logging aktiverat (debug=True)
+2026-09-22 08:19:00.676 | INFO     | LoggerSetup          | [MainThread  #139892629713792] | setup_full_logging  :610  | [LOG] Logs dir: /home/user/DesktopTodoPy/ui/debug/data/logs
+2026-09-22 08:19:00.676 | INFO     | LoggerSetup          | [MainThread  #139892629713792] | setup_full_logging  :611  | [LOG] App log: /home/user/DesktopTodoPy/ui/debug/data/logs/app_20260922.log
+2026-09-22 08:19:00.676 | INFO     | LoggerSetup          | [MainThread  #139892629713792] | setup_full_logging  :612  | [LOG] Debug log: /home/user/DesktopTodoPy/ui/debug/data/logs/debug_20260922.log
+2026-09-22 08:19:00.676 | INFO     | LoggerSetup          | [MainThread  #139892629713792] | setup_full_logging  :613  | [LOG] Session log: /home/user/DesktopTodoPy/ui/debug/data/logs/session_20260922_081900.log
+2026-09-22 08:19:00.676 | INFO     | LoggerSetup          | [MainThread  #139892629713792] | setup_full_logging  :614  | [LOG] Python: 3.13.14
+2026-09-22 08:19:00.677 | INFO     | LoggerSetup          | [MainThread  #139892629713792] | setup_full_logging  :615  | [LOG] Platform: linux
+2026-09-22 08:19:00.677 | INFO     | LoggerSetup          | [MainThread  #139892629713792] | setup_full_logging  :616  | [LOG] Hostname: e2b.local
+2026-09-22 08:19:00.677 | INFO     | LoggerSetup          | [MainThread  #139892629713792] | setup_full_logging  :617  | [LOG] Process: 1987
+2026-09-22 08:19:00.677 | INFO     | LoggerSetup          | [MainThread  #139892629713792] | setup_full_logging  :618  | [LOG] Working dir: /home/user/DesktopTodoPy
+2026-09-22 08:19:00.677 | INFO     | LoggerSetup          | [MainThread  #139892629713792] | setup_full_logging  :619  | [LOG] Script: /home/user/DesktopTodoPy/core/logger_setup.py
+2026-09-22 08:19:00.677 | INFO     | LoggerSetup          | [MainThread  #139892629713792] | setup_full_logging  :620  | [LOG] capture_stdout: True
+2026-09-22 08:19:00.677 | INFO     | LoggerSetup          | [MainThread  #139892629713792] | setup_full_logging  :621  | [LOG] capture_exceptions: True
+2026-09-22 08:19:00.677 | INFO     | LoggerSetup          | [MainThread  #139892629713792] | setup_full_logging  :622  | [LOG] capture_threads: True
+2026-09-22 08:19:00.677 | INFO     | LoggerSetup          | [MainThread  #139892629713792] | setup_full_logging  :623  | [LOG] Qt event-filter: False
+2026-09-22 08:19:00.677 | INFO     | LoggerSetup          | [MainThread  #139892629713792] | setup_full_logging  :624  | ======================================================================
+2026-09-22 08:19:00.677 | INFO     | DebugWindow          | [MainThread  #139892629713792] | <module>            :76   | ======================================================================
+2026-09-22 08:19:00.677 | INFO     | DebugWindow          | [MainThread  #139892629713792] | <module>            :77   | DEBUG WINDOW STARTAD (v6.4.1)
+2026-09-22 08:19:00.677 | INFO     | DebugWindow          | [MainThread  #139892629713792] | <module>            :78   | ======================================================================
+2026-09-22 08:19:00.677 | INFO     | DebugWindow          | [MainThread  #139892629713792] | <module>            :79   | Python: 3.13.14 (main, Jul 14 2026, 04:45:36) [GCC 14.2.0]
+2026-09-22 08:19:00.677 | INFO     | DebugWindow          | [MainThread  #139892629713792] | <module>            :80   | Executable: /usr/local/bin/python3
+2026-09-22 08:19:00.677 | INFO     | DebugWindow          | [MainThread  #139892629713792] | <module>            :81   | Platform: linux
+2026-09-22 08:19:00.677 | INFO     | DebugWindow          | [MainThread  #139892629713792] | <module>            :82   | PROJECT_ROOT: /home/user/DesktopTodoPy
+2026-09-22 08:19:00.677 | INFO     | DebugWindow          | [MainThread  #139892629713792] | <module>            :83   | SCRIPT_DIR: /home/user/DesktopTodoPy/ui/debug
+2026-09-22 08:19:00.677 | INFO     | DebugWindow          | [MainThread  #139892629713792] | <module>            :84   | Logs dir: /home/user/DesktopTodoPy/ui/debug/data/logs
+2026-09-22 08:19:00.677 | INFO     | DebugWindow          | [MainThread  #139892629713792] | <module>            :85   | pyw: False
+2026-09-22 08:19:00.677 | INFO     | stdout               | [MainThread  #139892629713792] | write               :369  | ======================================================================
+2026-09-22 08:19:00.678 | INFO     | stdout               | [MainThread  #139892629713792] | write               :369  | debug_window.py 6.4.1-v7 — v7 Self-Test
+2026-09-22 08:19:00.678 | INFO     | stdout               | [MainThread  #139892629713792] | write               :369  | ======================================================================
+2026-09-22 08:19:00.678 | INFO     | stdout               | [MainThread  #139892629713792] | write               :369  |   ✓ _describe_debug_exception: 'Debug-filen hittades inte: data/x'
+2026-09-22 08:19:00.678 | INFO     | stdout               | [MainThread  #139892629713792] | write               :369  |   ✓ _categorize_debug_exception: 'user_input'
+2026-09-22 08:19:00.678 | DEBUG    | DebugWindow          | [MainThread  #139892629713792] | safe_run            :169  | [DebugWindow] safe_run START: test-op
+2026-09-22 08:19:00.678 | DEBUG    | DebugWindow          | [MainThread  #139892629713792] | safe_run            :173  | [DebugWindow] safe_run OK: test-op (0.04ms)
+2026-09-22 08:19:00.678 | DEBUG    | DebugWindow          | [MainThread  #139892629713792] | safe_run            :169  | [DebugWindow] safe_run START: test-fail
+2026-09-22 08:19:00.678 | ERROR    | DebugWindow          | [MainThread  #139892629713792] | safe_run            :182  | [DebugWindow] safe_run FEL: test-fail (0.03ms, kategori=code_bug): Tekniskt fel (RuntimeError): dw-test
+2026-09-22 08:19:00.678 | INFO     | stdout               | [MainThread  #139892629713792] | write               :369  |   ✓ safe_run errors: 1
+2026-09-22 08:19:00.678 | INFO     | stdout               | [MainThread  #139892629713792] | write               :369  |   ✓ get_debug_window_plugin_deps: 1 deps
+2026-09-22 08:19:00.678 | DEBUG    | DebugWindow          | [MainThread  #139892629713792] | safe_run            :169  | [DebugWindow] safe_run START: get_debug_window_diagnostics
+2026-09-22 08:19:00.678 | WARNING  | DebugWindow          | [MainThread  #139892629713792] | _validate_debug_state:242  | [DebugWindow] _validate_debug_state: 1 problem
+2026-09-22 08:19:00.678 | DEBUG    | DebugWindow          | [MainThread  #139892629713792] | safe_run            :173  | [DebugWindow] safe_run OK: get_debug_window_diagnostics (0.10ms)
+2026-09-22 08:19:00.678 | INFO     | stdout               | [MainThread  #139892629713792] | write               :369  |   ✓ get_debug_window_diagnostics: '6.4.1-v7'
+2026-09-22 08:19:00.678 | INFO     | stdout               | [MainThread  #139892629713792] | write               :369  |   ✓ format_debug_window_health: 'v6.4.1-v7 • PySide6=nej • logs_dir=/home/user/DesktopTodoPy/ui/debug/data/logs'
+2026-09-22 08:19:00.678 | INFO     | stdout               | [MainThread  #139892629713792] | write               :369  | ======================================================================
+2026-09-22 08:19:00.678 | INFO     | stdout               | [MainThread  #139892629713792] | write               :369  | ✓ ALLA v7-TESTER PASSERADE (debug_window.py 6.4.1-v7)
+2026-09-22 08:19:00.678 | INFO     | stdout               | [MainThread  #139892629713792] | write               :369  | ======================================================================
