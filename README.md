@@ -5,12 +5,11 @@
 
 1. Ladda ner eller klona repot och öppna mappen `TaskBord`.
 2. Dubbelklicka på **`FORSTA_START.bat`**. Filen:
-   - installerar senaste stabila Python från python.org, om det saknas,
-   - installerar alla paket i `requirements.txt` och de valfria i `requirements-optional.txt`,
-   - startar TaskBord.
-3. Nästa gång: dubbelklicka på **`STARTA_HAR.bat`**.
-
-Om Python redan finns (3.10 eller nyare) hoppar filen över installationen av Python.
+   - hämtar senaste stabila Python-versionen från python.org (inget versionsnummer är hårdkodat),
+   - installerar Python om det saknas, eller uppgraderar det om installerad version är äldre än senaste,
+   - installerar eller uppgraderar alla paket i `requirements.txt` och `requirements-optional.txt` till senaste version,
+   - startar TaskBord med den nyaste Python som finns.
+3. Nästa gång: dubbelklicka på **`STARTA_HAR.bat`**. Den startar direkt med nyaste installerade Python och installerar bara om Python saknas.
 
 > Plattform: TaskBord är idag gjord för Windows. Den använder Windows-specifika funktioner för fönsterlägen och skrivbordsikoner.
 
