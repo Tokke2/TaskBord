@@ -5487,6 +5487,14 @@ if _QT_AVAILABLE:
                     exc_info=True,
                 )
 
+        def _on_open_donate(self) -> None:
+            """NY v8: visa donationsdialogen (frivilligt, ingen funktion låst)."""
+            try:
+                from ui.donate import open_donate_dialog
+                open_donate_dialog(self)
+            except Exception as e:
+                logger.warning(f"{LOG_PREFIX} _on_open_donate misslyckades: {e}")
+
         def _on_export_pdf(self) -> None:
             """
             NY v7-fix81: exportera aktiva uppgifter som PDF-checklista.
@@ -5821,6 +5829,9 @@ if _QT_AVAILABLE:
                 )
                 # NY v7-fix81: PDF-export även här (utom 📄-knappen + tray)
                 act_pdf = menu.addAction("📄 Exportera checklista → PDF…")
+                # NY v8: frivillig donation (öppnar ui/donate.py-dialogen)
+                menu.addSeparator()
+                act_donate = menu.addAction("💖 Stöd TaskBord…")
                 chosen = menu.exec(event.globalPos())
                 if chosen is act_center:
                     self._center_window(reset_size=False)
@@ -5830,6 +5841,8 @@ if _QT_AVAILABLE:
                     self._toggle_lock()
                 elif chosen is act_pdf:
                     self._on_export_pdf()
+                elif chosen is act_donate:
+                    self._on_open_donate()
             except Exception as e:
                 logger.warning(
                     f"{LOG_PREFIX} contextMenuEvent misslyckades: "
