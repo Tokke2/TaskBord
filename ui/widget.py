@@ -3858,6 +3858,43 @@ if _QT_AVAILABLE:
                     meta.addStretch(1)
                     vbox.addLayout(meta)
 
+                # Datumraden visas alltid: skapad-datum för aktiva och
+                # avslutsdatum för arkiverade uppgifter.
+                _timestamp_value = (
+                    task.get("completed") if archived else task.get("created")
+                )
+                try:
+                    if _timestamp_value:
+                        _timestamp_dt = datetime.fromisoformat(
+                            str(_timestamp_value).replace("Z", "+00:00")
+                        )
+                        if _timestamp_dt.tzinfo is not None:
+                            _timestamp_dt = _timestamp_dt.astimezone()
+                        _timestamp_text = _timestamp_dt.strftime("%Y-%m-%d")
+                    else:
+                        _timestamp_text = "datum saknas"
+                except (ValueError, TypeError, OverflowError):
+                    _timestamp_text = (
+                        str(_timestamp_value)[:10]
+                        if _timestamp_value else "datum saknas"
+                    )
+                _date_caption = "✓ Klar" if archived else "➕ Tillagd"
+                date_row = QHBoxLayout()
+                date_row.setSpacing(6)
+                date_row.addSpacing(34)
+                date_lbl = QLabel(
+                    f"{_date_caption}: {_timestamp_text}", container
+                )
+                date_lbl.setObjectName("taskDate")
+                date_lbl.setToolTip(
+                    ("Datum då uppgiften markerades som klar."
+                     if archived else "Datum då uppgiften lades till.")
+                    + (f"\n{_timestamp_value}" if _timestamp_value else "")
+                )
+                date_row.addWidget(date_lbl)
+                date_row.addStretch(1)
+                vbox.addLayout(date_row)
+
                 # --- NY v7-fix41: delmoment (checklista) -------------------
                 subs = [
                     dict(s) for s in (task.get("subtasks") or [])
@@ -4089,6 +4126,8 @@ if _QT_AVAILABLE:
                     "font-size: 10px; font-weight: 600; } "
                     "QLabel#subtaskDoneAll { color: #34d399; "
                     "font-size: 10px; font-weight: 600; } "
+                    f"QLabel#taskDate {{ color: {t['muted']}; "
+                    "font-size: 10px; font-weight: 500; } "
                 )
 
                 self.setObjectName("TodoWidget")
