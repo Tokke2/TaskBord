@@ -1314,7 +1314,7 @@ class TaskStore(QObject):
             logger.warning(f"{LOG_PREFIX} legacy-migrering misslyckades: {e}")
 
     def _migrate_and_load(self) -> None:
-        """Ladda + migrera till schema v5."""
+        """Ladda + migrera till schema v5 och håll arkiv/aktiva konsekventa."""
         try:
             self._data_dir.mkdir(parents=True, exist_ok=True)
             self._backup_dir.mkdir(exist_ok=True)
@@ -1324,6 +1324,37 @@ class TaskStore(QObject):
         with self._lock:
             self._load_file(self._active_path, "active")
             self._load_file(self._archive_path, "archive")
+
+            # Äldre versioner lät kryssade uppgifter ligga kvar bland aktiva.
+            # Flytta dem till arkivet vid inläsning så att uppgraderingen också
+            # rättar redan sparade uppgifter, inte bara nya avbockningar.
+            archived_ids = {task["id"] for task in self._archive_tasks}
+            active_tasks: List[Dict[str, Any]] = []
+            moved_done = 0
+            for task in self._active_tasks:
+                if task.get("done"):
+                    if task["id"] not in archived_ids:
+                        self._archive_tasks.append(task)
+                        archived_ids.add(task["id"])
+                    moved_done += 1
+                else:
+                    active_tasks.append(task)
+            if moved_done:
+                self._active_tasks = active_tasks
+
+            # Arkiverade uppgifter ska alltid vara markerade som klara.
+            normalized_archive = 0
+            for task in self._archive_tasks:
+                if not task.get("done"):
+                    task["done"] = True
+                    normalized_archive += 1
+            if moved_done or normalized_archive:
+                self._dirty = True
+                logger.info(
+                    f"{LOG_PREFIX} completion-migrering: "
+                    f"{moved_done} aktiva klara → arkiv, "
+                    f"{normalized_archive} arkivstatus korrigerade"
+                )
             self._rebuild_index()
 
     def _load_file(self, path: Path, kind: str) -> None:
@@ -1377,7 +1408,14 @@ class TaskStore(QObject):
                     f"{LOG_PREFIX} {kind}: migrerar v{version} → v{SCHEMA_VERSION}"
                 )
                 tasks = self._migrate_tasks(tasks, version, SCHEMA_VERSION)
-            # Coerce + filtrera
+                self._dirty = True
+            # Coerce + filtrera. Saknas created fylls det i av _coerce_task;
+            # markera då store som dirty så datumet blir beständigt efter save.
+            if any(
+                not isinstance(raw_task, dict) or not raw_task.get("created")
+                for raw_task in tasks
+            ):
+                self._dirty = True
             valid_tasks: List[Dict[str, Any]] = []
             for idx, raw_task in enumerate(tasks):
                 ct = _coerce_task(raw_task, idx=idx)
@@ -1791,46 +1829,124 @@ class TaskStore(QObject):
 
     @_log_crud("toggle_task")
     def toggle_task(self, task_id: str) -> bool:
-        """
-        Toggle done-status.
+        """Växla klarstatus och flytta klara uppgifter till arkivet.
 
-        NY v7-fix41: ÅTERKOMMANDE uppgifter återföds — när en recurring-
-        uppgift markeras klar återställs den direkt med NÄSTA förfallo-
-        datum (samma beteende som Todoist/TickTick). Ta bort uppgiften
-        för att avsluta serien.
+        Om en arkiverad uppgift bockas ur flyttas den tillbaka till aktiva.
+        Återkommande uppgifter arkiveras som avslutade tillfällen och får en
+        ny aktiv uppgift med nästa förfallodatum.
         """
+        moved_to_archive = False
+        moved_to_active = False
+        recurring_task_id: Optional[str] = None
         with self._lock:
             task = self._by_id.get(task_id)
             if task is None:
                 logger.warning(f"{LOG_PREFIX} toggle_task: {task_id!r} hittades inte")
                 return False
             before = _safe_copy(task)
-            task["done"] = not task["done"]
-            task["completed"] = _now_iso() if task["done"] else None
-            # NY v7-fix41: recurring → återföd med nästa datum
-            if task["done"] and isinstance(task.get("recurring"), dict):
-                rec = task["recurring"]
-                next_due = _next_recurring_due(
-                    task.get("due_date"), rec.get("interval")
-                )
-                if next_due:
+            new_done = not bool(task.get("done", False))
+            active_idx = self._active_index.get(task_id)
+            archive_idx = self._archive_index.get(task_id)
+
+            if active_idx is not None:
+                if new_done:
+                    recurring = task.get("recurring")
+                    next_due = (
+                        _next_recurring_due(
+                            task.get("due_date"), recurring.get("interval")
+                        )
+                        if isinstance(recurring, dict)
+                        else None
+                    )
+                    task["done"] = True
+                    task["completed"] = _now_iso()
+                    if next_due and isinstance(recurring, dict):
+                        recurring["next_due"] = next_due
+
+                    self._active_tasks.pop(active_idx)
+                    self._deindex_task(task)
+                    del self._active_index[task_id]
+                    self._reindex_active_after(active_idx)
+                    self._archive_tasks.append(task)
+                    self._archive_index[task_id] = len(self._archive_tasks) - 1
+                    self._index_task(task, archive=True)
+                    moved_to_archive = True
+
+                    if next_due:
+                        next_task = _safe_copy(task)
+                        recurring_task_id = _make_id()
+                        while recurring_task_id in self._by_id:
+                            recurring_task_id = _make_id()
+                        next_task["id"] = recurring_task_id
+                        next_task["done"] = False
+                        next_task["due_date"] = next_due
+                        next_task["created"] = _now_iso()
+                        next_task["completed"] = None
+                        next_task["snoozed_until"] = None
+                        for subtask in next_task.get("subtasks", []):
+                            if isinstance(subtask, dict):
+                                subtask["id"] = _make_id()
+                                subtask["done"] = False
+                        self._active_tasks.append(next_task)
+                        self._active_index[recurring_task_id] = len(self._active_tasks) - 1
+                        self._index_task(next_task)
+                else:
+                    # Städa även upp äldre aktiva poster som redan var klara.
                     task["done"] = False
                     task["completed"] = None
-                    task["due_date"] = next_due
-                    rec["next_due"] = next_due
-                    task["snoozed_until"] = None
-                    logger.info(
-                        f"{LOG_PREFIX} toggle_task: {task_id!r} ÅTERFÖDD "
-                        f"({rec.get('interval')}) → nästa {next_due}"
-                    )
+            elif archive_idx is not None:
+                if new_done:
+                    task["done"] = True
+                    task["completed"] = task.get("completed") or _now_iso()
+                else:
+                    self._archive_tasks.pop(archive_idx)
+                    self._deindex_task(task, archive=True)
+                    del self._archive_index[task_id]
+                    self._reindex_archive_after(archive_idx)
+                    task["done"] = False
+                    task["completed"] = None
+                    self._active_tasks.append(task)
+                    self._active_index[task_id] = len(self._active_tasks) - 1
+                    self._index_task(task)
+                    moved_to_active = True
+            else:
+                logger.warning(
+                    f"{LOG_PREFIX} toggle_task: {task_id!r} saknar list-index"
+                )
+                return False
+
             self._dirty = True
-        self._filter_cache.clear()  # FIX v7-fix79b: cache-koherens
+            after = _safe_copy(task)
+
+        self._filter_cache.clear()  # cache-koherens efter flytt/ändring
         self._find_cache.clear()
-        self._audit_log.add("toggle_task", task_id, before=before, after=_safe_copy(task))
-        logger.info(
-            f"{LOG_PREFIX} toggle_task: {task_id!r} → done={task['done']}"
+        reason = (
+            f"nästa återkommande uppgift: {recurring_task_id}"
+            if recurring_task_id
+            else "klar → arkiv" if moved_to_archive
+            else "arkiv → aktiv" if moved_to_active
+            else "klarstatus växlad"
         )
-        self._emit("task_toggled", task_id, task["done"])
+        self._audit_log.add(
+            "toggle_task", task_id, before=before, after=after, reason=reason
+        )
+        logger.info(
+            f"{LOG_PREFIX} toggle_task: {task_id!r} → done={new_done}, "
+            f"arkiv={moved_to_archive}, aktiv={moved_to_active}"
+            + (f", nästa={recurring_task_id}" if recurring_task_id else "")
+        )
+
+        self._emit("task_toggled", task_id, new_done)
+        if moved_to_archive:
+            self._emit("task_removed", task_id)
+            self._emit("archive_changed")
+        elif moved_to_active:
+            self._emit("task_added", task_id)
+            self._emit("archive_changed")
+        else:
+            self._emit("task_updated", task_id)
+        if recurring_task_id:
+            self._emit("task_added", recurring_task_id)
         self._emit("changed")
         return True
 
@@ -2013,8 +2129,10 @@ class TaskStore(QObject):
             self._deindex_task(task)
             del self._active_index[task_id]
             self._reindex_active_after(idx)
-            # Lägg till i archive
-            task["completed"] = _now_iso()
+            # Arkiv betyder klar: bevara tidigare sluttid om den finns,
+            # annars sätt sluttiden nu.
+            task["done"] = True
+            task["completed"] = task.get("completed") or _now_iso()
             self._archive_tasks.append(task)
             self._archive_index[task_id] = len(self._archive_tasks) - 1
             self._index_task(task, archive=True)
@@ -2040,7 +2158,8 @@ class TaskStore(QObject):
             self._deindex_task(task, archive=True)
             del self._archive_index[task_id]
             self._reindex_archive_after(idx)
-            # Lägg till i active
+            # Återställd uppgift är aktiv och därmed inte längre klar.
+            task["done"] = False
             task["completed"] = None
             self._active_tasks.append(task)
             self._active_index[task_id] = len(self._active_tasks) - 1
