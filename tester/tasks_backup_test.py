@@ -7,7 +7,6 @@ Använder en riktig TaskStore i en tillfällig mapp. Ingen Qt behövs.
 """
 from __future__ import annotations
 
-import json
 import sys
 import tempfile
 import zipfile

@@ -13,7 +13,6 @@ går att testa utan GUI.
 """
 from __future__ import annotations
 
-import io
 import json
 import logging
 import os
