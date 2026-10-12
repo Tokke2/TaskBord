@@ -101,9 +101,9 @@ except ImportError:
 # MODUL-KONSTANTER
 # ===========================================================================
 LOG_PREFIX: Final[str] = "[SETTINGS]"
-SETTINGS_VERSION: Final[int] = 10
+SETTINGS_VERSION: Final[int] = 11
 APP_VERSION_TAG: Final[str] = "6.4.1-v7"
-MIN_SUPPORTED_VERSION: Final[int] = 3  # v3 → v10 migrering
+MIN_SUPPORTED_VERSION: Final[int] = 3  # v3 → v11 migrering
 AUDIT_LOG_MAX_ENTRIES: Final[int] = 500
 DEFAULT_AUTOSTART_METHOD: Final[str] = "registry"  # registry | shortcut | schtask
 SAVE_TIMEOUT_SEC: Final[float] = 3.0
@@ -1219,6 +1219,21 @@ class Settings(QObject):
                     self._log.debug(
                         f"{LOG_PREFIX} Migration: lade till {key}={default!r}"
                     )
+        if old_version < 11:
+            # NY v8 (2026-10-12): v10 → v11 — lokal Google Calendar (OAuth):
+            # google_calendar_enabled, google_calendar_id,
+            # google_calendar_color_by_priority
+            self._log.debug(
+                f"{LOG_PREFIX} v10→v11: lägger till Google Calendar-inställningar "
+                f"(lokal OAuth-anslutning)"
+            )
+            defaults = self._default_settings()
+            for key, default in defaults.items():
+                if key not in data:
+                    data[key] = default
+                    self._log.debug(
+                        f"{LOG_PREFIX} Migration: lade till {key}={default!r}"
+                    )
         data["version"] = new_version
         self._log.info(
             f"{LOG_PREFIX} Migration klar: {len(data)} nycklar, version={new_version}"
@@ -1296,6 +1311,12 @@ class Settings(QObject):
             "mail_bridge_token": "",       # skapas automatiskt (secrets)
             "inbox_watch_enabled": True,   # bevaka data/inbox/ automatiskt
             "inbox_poll_seconds": 3,
+            # NY v8: lokal Google Calendar-anslutning (OAuth, loopback).
+            # OBS: själva åtkomstbeviset ligger i <data>/google/token.json —
+            # här finns bara användarens val.
+            "google_calendar_enabled": False,
+            "google_calendar_id": "primary",
+            "google_calendar_color_by_priority": True,
             "_meta": {
                 "schema_version": SETTINGS_VERSION,
                 "created_at": datetime.now(timezone.utc).isoformat(),
@@ -1346,6 +1367,10 @@ class Settings(QObject):
             "mail_bridge_token": lambda v: _coerce_str(v, "")[:64],
             "inbox_watch_enabled": lambda v: _coerce_bool(v, True),
             "inbox_poll_seconds": lambda v: _coerce_int(v, 3, 1, 60),
+            # NY v8: Google Calendar (kalender-id max 200 tecken)
+            "google_calendar_enabled": lambda v: _coerce_bool(v, False),
+            "google_calendar_id": lambda v: _coerce_str(v, "primary")[:200],
+            "google_calendar_color_by_priority": lambda v: _coerce_bool(v, True),
             "autostart_method": lambda v: _coerce_str(v, DEFAULT_AUTOSTART_METHOD, VALID_AUTOSTART_METHODS),
             "animations": lambda v: _coerce_bool(v, True),
             "start_minimized_to_tray": lambda v: _coerce_bool(v, False),
@@ -2678,6 +2703,69 @@ class Settings(QObject):
             self._data["inbox_poll_seconds"] = v
         self._dirty = True
         self._log.info(f"{LOG_PREFIX} inbox_poll_seconds: {v}")
+        self._save_async_worker(self._data)
+        return True
+
+    # ------------------------------------------------------------------
+    # NY v8 (2026-10-12): GOOGLE CALENDAR (lokal OAuth-anslutning)
+    # ------------------------------------------------------------------
+
+    @_log_call
+    def google_calendar_enabled(self) -> bool:
+        """
+        Är ett Google-konto kopplat?
+
+        Själva beviset är token-filen i <data>/google/token.json — denna
+        flagga är appens minne av att anslutningen gjordes (och slås av
+        när man kopplar från).
+        """
+        with self._lock:
+            return bool(self._data.get("google_calendar_enabled", False))
+
+    @_log_setter("google_calendar_enabled")
+    def set_google_calendar_enabled(self, enabled: bool) -> bool:
+        """Kom ihåg att Google Calendar är kopplad (eller inte)."""
+        v = _coerce_bool(enabled, False)
+        with self._lock:
+            self._data["google_calendar_enabled"] = v
+        self._dirty = True
+        self._log.info(f"{LOG_PREFIX} google_calendar_enabled: {v}")
+        self._save_async_worker(self._data)
+        return True
+
+    @_log_call
+    def google_calendar_id(self) -> str:
+        """Kalendern som uppgifterna skickas till ("primary" = huvudkalendern)."""
+        with self._lock:
+            return _coerce_str(
+                self._data.get("google_calendar_id", "primary"), "primary"
+            )[:200]
+
+    @_log_setter("google_calendar_id")
+    def set_google_calendar_id(self, calendar_id: str) -> bool:
+        """Välj vilken kalender händelserna ska hamna i."""
+        v = _coerce_str(calendar_id, "primary")[:200]
+        with self._lock:
+            self._data["google_calendar_id"] = v
+        self._dirty = True
+        self._log.info(f"{LOG_PREFIX} google_calendar_id: {v}")
+        self._save_async_worker(self._data)
+        return True
+
+    @_log_call
+    def google_calendar_color_by_priority(self) -> bool:
+        """Färga händelser efter uppgiftens prioritet (röd/gul/grön)?"""
+        with self._lock:
+            return bool(self._data.get("google_calendar_color_by_priority", True))
+
+    @_log_setter("google_calendar_color_by_priority")
+    def set_google_calendar_color_by_priority(self, enabled: bool) -> bool:
+        """Slå på/av färgkodning av händelser efter prioritet."""
+        v = _coerce_bool(enabled, True)
+        with self._lock:
+            self._data["google_calendar_color_by_priority"] = v
+        self._dirty = True
+        self._log.info(f"{LOG_PREFIX} google_calendar_color_by_priority: {v}")
         self._save_async_worker(self._data)
         return True
 

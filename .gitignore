@@ -2,3 +2,10 @@
 /data/
 __pycache__/
 *.pyc
+
+# Google Calendar (lokal OAuth) — hemligheter får aldrig hamna i git
+token.json
+token*.json
+credentials.json
+client_secret*.json
+/js/google/

@@ -2466,7 +2466,7 @@ if _QT_AVAILABLE:
                     "(förfallodatumet blir en heldagshändelse)"
                 )
                 act.triggered.connect(
-                    lambda _c, _t=dict(task): self._on_open_google_calendar(_t)
+                    lambda _c, _t=dict(task): self._on_open_task_in_google_calendar(_t)
                 )
                 act = menu.addAction("📅 Exportera uppgiften (.ics)…")
                 act.setToolTip(
@@ -2475,6 +2475,14 @@ if _QT_AVAILABLE:
                 )
                 act.triggered.connect(
                     lambda _c, _t=dict(task): self._on_export_task_ics(_t)
+                )
+                act = menu.addAction("☁️ Skicka till Google Calendar")
+                act.setToolTip(
+                    "Skickar uppgiften direkt till din Google-kalender\n"
+                    "(kräver att kontot är kopplat — se ☁️ Google Calendar)"
+                )
+                act.triggered.connect(
+                    lambda _c, _t=dict(task): self._on_push_task_to_google(_t)
                 )
                 menu.addSeparator()
 
@@ -5507,6 +5515,48 @@ if _QT_AVAILABLE:
                     exc_info=True,
                 )
 
+        def _on_open_google_calendar(self) -> None:
+            """
+            NY v8: öppna Google Calendar-dialogen (lokal OAuth-koppling).
+
+            Rickard 2026-10-12: "gör i appen att man lokalt kopplar OAuth"
+            — härifrån kopplas kontot, kalendern väljs och uppgifterna skickas.
+            """
+            try:
+                from ui.google_calendar_dialog import open_google_calendar_dialog
+                open_google_calendar_dialog(
+                    self,
+                    store=getattr(self, "store", None),
+                    settings=getattr(self, "settings", None),
+                )
+            except Exception as e:
+                logger.warning(
+                    f"{LOG_PREFIX} _on_open_google_calendar misslyckades: "
+                    f"{_describe_widget_error(e)}"
+                )
+
+        def _on_push_task_to_google(self, task: Dict[str, Any]) -> None:
+            """
+            NY v8: skicka EN uppgift till Google Calendar (från uppgiftsmenyn).
+
+            Nätverket sköts i bakgrunden av dialogen, så fönstret inte
+            fryser medan Google svarar.
+            """
+            try:
+                get_throttle().notify_activity()
+                from ui.google_calendar_dialog import push_task_with_dialog
+                push_task_with_dialog(
+                    self,
+                    task=dict(task or {}),
+                    store=getattr(self, "store", None),
+                    settings=getattr(self, "settings", None),
+                )
+            except Exception as e:
+                logger.warning(
+                    f"{LOG_PREFIX} _on_push_task_to_google misslyckades: "
+                    f"{_describe_widget_error(e)}"
+                )
+
         def _on_open_donate(self) -> None:
             """NY v8: visa donationsdialogen (frivilligt, ingen funktion låst)."""
             try:
@@ -5689,9 +5739,13 @@ if _QT_AVAILABLE:
                     exc_info=True,
                 )
 
-        def _on_open_google_calendar(self, task: Dict[str, Any]) -> None:
+        def _on_open_task_in_google_calendar(self, task: Dict[str, Any]) -> None:
             """
             NY v8: öppna Google Calendar med EN uppgift förifylld.
+
+            OBS: hette tidigare _on_open_google_calendar, vilket krockade med
+            metoden som öppnar OAuth-dialogen (samma namn två gånger i samma
+            klass = den sista vinner tyst, och menyvalet slutade fungera).
 
             Använder Googles egen "skapa händelse"-länk (action=TEMPLATE)
             — inget konto, ingen nyckel och ingen synk behövs. Ingenting
@@ -5725,7 +5779,7 @@ if _QT_AVAILABLE:
                     )
             except Exception as e:
                 logger.warning(
-                    f"{LOG_PREFIX} _on_open_google_calendar misslyckades: "
+                    f"{LOG_PREFIX} _on_open_task_in_google_calendar misslyckades: "
                     f"{_describe_widget_error(e)}"
                 )
 
@@ -6023,6 +6077,12 @@ if _QT_AVAILABLE:
                 act_pdf = menu.addAction("📄 Exportera checklista → PDF…")
                 # NY v8: kalenderexport (.ics) → Google Calendar m.fl.
                 act_cal = menu.addAction("📅 Exportera till kalender (.ics)…")
+                # NY v8: lokal OAuth-koppling till Google Calendar
+                act_google = menu.addAction("☁️ Google Calendar (koppla konto)…")
+                act_google.setToolTip(
+                    "Koppla ett Google-konto lokalt (OAuth i webbläsaren) och\n"
+                    "skicka uppgifter rakt in i din kalender."
+                )
                 # NY v8: frivillig donation (öppnar ui/donate.py-dialogen)
                 menu.addSeparator()
                 act_donate = menu.addAction("💖 Stöd TaskBord…")
@@ -6037,6 +6097,8 @@ if _QT_AVAILABLE:
                     self._on_export_pdf()
                 elif chosen is act_cal:
                     self._on_export_calendar_ics()
+                elif chosen is act_google:
+                    self._on_open_google_calendar()
                 elif chosen is act_donate:
                     self._on_open_donate()
             except Exception as e:

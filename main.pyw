@@ -1238,6 +1238,23 @@ PLUGIN_REGISTRY: Final[Tuple[PluginSpec, ...]] = (
         benefit_svenska="Spara uppgifter som PDF-checklista",
         required=False,
     ),
+    # NY v8 (2026-10-12): lokal Google Calendar-koppling (OAuth).
+    # Två paket: klienten (googleapiclient) och själva inloggningen
+    # (google_auth_oauthlib). Inga av dem kräver något konto hos oss.
+    PluginSpec(
+        pip_name="google-api-python-client",
+        import_name="googleapiclient",
+        description_svenska="Google Calendar-klient",
+        benefit_svenska="Skicka uppgifter till Google Calendar (☁️-menyn)",
+        required=False,
+    ),
+    PluginSpec(
+        pip_name="google-auth-oauthlib",
+        import_name="google_auth_oauthlib",
+        description_svenska="Google-inloggning (OAuth, lokalt)",
+        benefit_svenska="Koppla ditt Google-konto i appen — inget lösenord delas",
+        required=False,
+    ),
 )
 
 
@@ -6542,6 +6559,21 @@ class AppController:
             self._export_calendar_action.triggered.connect(self._export_calendar_ics)
             self._tray_menu.addAction(self._export_calendar_action)
 
+            # NY v8 (2026-10-12): lokal Google Calendar-koppling (OAuth)
+            self._google_calendar_action = self._QAction(
+                "☁️  Google Calendar (koppla konto)…",
+                self._tray_menu,
+            )
+            self._google_calendar_action.setToolTip(
+                "Koppla ett Google-konto lokalt: inloggningen sker i din\n"
+                "webbläsare och svaret kommer till 127.0.0.1. Därefter kan\n"
+                "uppgifter skickas rakt in i kalendern."
+            )
+            self._google_calendar_action.triggered.connect(
+                self._open_google_calendar
+            )
+            self._tray_menu.addAction(self._google_calendar_action)
+
             self._tray_menu.addSeparator()
 
             # NY v6.4.1: Autostart toggle (med live-status från registry)
@@ -8364,6 +8396,27 @@ class AppController:
         else:
             self._log.warning(
                 f"{LOG_PREFIX} PDF-export misslyckades (modul returnerade False)"
+            )
+
+    def _open_google_calendar(self) -> None:
+        """
+        NY v8 (2026-10-12): öppna Google Calendar-dialogen från tray-menyn.
+
+        Hela kopplingen (OAuth) och alla anrop till Google sköts av
+        ui/google_calendar_dialog.py, som kör nätverket i en egen tråd så
+        att appen inte fryser.
+        """
+        try:
+            from ui.google_calendar_dialog import open_google_calendar_dialog
+            open_google_calendar_dialog(
+                None,
+                store=getattr(self, "store", None),
+                settings=getattr(self, "settings", None),
+                data_dir=self._mail_bridge_data_dir(),
+            )
+        except Exception as e:
+            self._log.warning(
+                f"{LOG_PREFIX} kunde inte öppna Google Calendar-dialogen: {e}"
             )
 
     def _export_calendar_ics(self) -> None:

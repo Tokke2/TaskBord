@@ -247,7 +247,7 @@ check(
 )
 check("metoden _export_calendar_ics finns i main.pyw", "def _export_calendar_ics(self)" in main_py)
 check("widgeten har _on_export_calendar_ics", "def _on_export_calendar_ics(self)" in widget_py)
-check("widgeten har _on_open_google_calendar", "def _on_open_google_calendar(self" in widget_py)
+check("widgeten har _on_open_task_in_google_calendar", "def _on_open_task_in_google_calendar(self" in widget_py)
 check("widgeten har _on_export_task_ics", "def _on_export_task_ics(self" in widget_py)
 check(
     "fönstrets högerklicksmeny har kalenderposten",

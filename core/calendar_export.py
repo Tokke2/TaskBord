@@ -196,6 +196,14 @@ def _description(task: Dict[str, Any], inkl_datum: bool = True) -> str:
     return "\n".join(rader).strip()
 
 
+def build_description(task: Dict[str, Any], inkl_datum: bool = True) -> str:
+    """
+    Publik wrapper runt _description (delas med Google Calendar-exporten,
+    så att .ics-filen och Google-händelsen får exakt samma text).
+    """
+    return _description(task, inkl_datum=inkl_datum)
+
+
 # --------------------------------------------------------------------------
 # iCalendar
 # --------------------------------------------------------------------------

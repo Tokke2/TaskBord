@@ -61,6 +61,27 @@ bli händelser och hoppas över (antalet visas i dialogen).
 > Cloud (klient-id/hemlighet) — det här är den nyckelfria vägen, som täcker
 > "exportera vissa uppgifter dit".
 
+## ☁️ Google Calendar (lokal koppling)
+
+Vill du ha uppgifterna i din riktiga kalender? Högerklicka i fönstret eller
+tray-ikonen → **☁️ Google Calendar (koppla konto)…**
+
+Kopplingen sker **helt lokalt**: inloggningen öppnas i din webbläsare och
+svaret kommer tillbaka till en tillfällig server på `127.0.0.1`. Åtkomstbeviset
+sparas bara i din egen mapp (`js/google/token.json`, rättigheter 0600) och
+appen kan bara skapa/ändra händelser — inget annat. Inga konton hos mellanhänder.
+
+Ett engångssteg krävs hos Google (skapa en egen nyckel, ca 5 minuter):
+**[GOOGLE_CALENDAR.md](GOOGLE_CALENDAR.md)** beskriver varje klick.
+
+Sedan:
+* **Högerklicka på en uppgift → ☁️ Skicka till Google Calendar** — uppgiften blir
+  en heldagshändelse på sitt förfallodatum (prioritet blir färg).
+* **☁️ Skicka alla uppgifter med datum** i dialogen — allt på en gång.
+* Dubbletter är omöjliga: samma uppgift **uppdaterar** sin händelse.
+* Vill du hellre ha en fil att importera? **📅 Exportera till kalender (.ics)…**
+  fungerar utan konto (Outlook, Apple Kalender och Google Calendar).
+
 ## 💖 Stöd projektet
 
 TaskBord är gratis och utan reklam. Donationer är helt frivilliga och går till utveckling och underhåll. Appen fungerar exakt lika bra utan donation.
