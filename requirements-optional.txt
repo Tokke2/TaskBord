@@ -1,0 +1,8 @@
+# DesktopTodoPy v8 - requirements-optional.txt
+# =============================================
+# Valfria tillagg. Installeras av FORSTA_START.bat.
+# Manuellt:  pip install -r requirements-optional.txt
+# =============================================
+
+extract-msg>=0.50          # Importera Outlook .msg-mejl som uppgifter (📧-knappen)
+reportlab>=4.0             # PDF-export av checklistan (📄)
