@@ -101,9 +101,9 @@ except ImportError:
 # MODUL-KONSTANTER
 # ===========================================================================
 LOG_PREFIX: Final[str] = "[SETTINGS]"
-SETTINGS_VERSION: Final[int] = 9
+SETTINGS_VERSION: Final[int] = 10
 APP_VERSION_TAG: Final[str] = "6.4.1-v7"
-MIN_SUPPORTED_VERSION: Final[int] = 3  # v3 → v9 migrering
+MIN_SUPPORTED_VERSION: Final[int] = 3  # v3 → v10 migrering
 AUDIT_LOG_MAX_ENTRIES: Final[int] = 500
 DEFAULT_AUTOSTART_METHOD: Final[str] = "registry"  # registry | shortcut | schtask
 SAVE_TIMEOUT_SEC: Final[float] = 3.0
@@ -1204,6 +1204,21 @@ class Settings(QObject):
                     self._log.debug(
                         f"{LOG_PREFIX} Migration: lade till {key}={default!r}"
                     )
+        if old_version < 10:
+            # NY v7-fix90: v9 → v10 — e-postbrygga (Thunderbird-tillägg):
+            # mail_bridge_enabled, mail_bridge_port, mail_bridge_token,
+            # inbox_watch_enabled, inbox_poll_seconds
+            self._log.debug(
+                f"{LOG_PREFIX} v9→v10: lägger till brygg-inställningar "
+                f"(Thunderbird-tillägg + inkorgsmapp)"
+            )
+            defaults = self._default_settings()
+            for key, default in defaults.items():
+                if key not in data:
+                    data[key] = default
+                    self._log.debug(
+                        f"{LOG_PREFIX} Migration: lade till {key}={default!r}"
+                    )
         data["version"] = new_version
         self._log.info(
             f"{LOG_PREFIX} Migration klar: {len(data)} nycklar, version={new_version}"
@@ -1274,6 +1289,13 @@ class Settings(QObject):
             "quick_add_hotkey": "Ctrl+Alt+N",
             # NY v7-fix72: tray-klick lyfter fönstret i X sekunder
             "tray_lift_seconds": 5,
+            # NY v7-fix90: e-postbrygga — Thunderbird-tillägg + inkorgsmapp
+            # Bryggan lyssnar BARA på 127.0.0.1 och kräver token.
+            "mail_bridge_enabled": True,
+            "mail_bridge_port": 8765,
+            "mail_bridge_token": "",       # skapas automatiskt (secrets)
+            "inbox_watch_enabled": True,   # bevaka data/inbox/ automatiskt
+            "inbox_poll_seconds": 3,
             "_meta": {
                 "schema_version": SETTINGS_VERSION,
                 "created_at": datetime.now(timezone.utc).isoformat(),
@@ -1318,6 +1340,12 @@ class Settings(QObject):
             "quick_add_hotkey": lambda v: _coerce_str(v, "Ctrl+Alt+N")[:40],
             # NY v7-fix72 (1-60 sekunder)
             "tray_lift_seconds": lambda v: _coerce_int(v, 5, 1, 60),
+            # NY v7-fix90: e-postbrygga (Thunderbird-tillägget)
+            "mail_bridge_enabled": lambda v: _coerce_bool(v, True),
+            "mail_bridge_port": lambda v: _coerce_int(v, 8765, 1024, 65535),
+            "mail_bridge_token": lambda v: _coerce_str(v, "")[:64],
+            "inbox_watch_enabled": lambda v: _coerce_bool(v, True),
+            "inbox_poll_seconds": lambda v: _coerce_int(v, 3, 1, 60),
             "autostart_method": lambda v: _coerce_str(v, DEFAULT_AUTOSTART_METHOD, VALID_AUTOSTART_METHODS),
             "animations": lambda v: _coerce_bool(v, True),
             "start_minimized_to_tray": lambda v: _coerce_bool(v, False),
@@ -2553,6 +2581,104 @@ class Settings(QObject):
             self._data["reminders_enabled"] = v
         self._dirty = True
         self._log.info(f"{LOG_PREFIX} reminders_enabled: {v}")
+        return True
+
+    # ------------------------------------------------------------------
+    # NY v7-fix90: E-POSTBRYGGA (Thunderbird-tillägg + inkorgsmapp)
+    # ------------------------------------------------------------------
+
+    @_log_call
+    def mail_bridge_enabled(self) -> bool:
+        """Är den lokala HTTP-bryggan på (Thunderbird-tillägget kan koppla)?"""
+        with self._lock:
+            return bool(self._data.get("mail_bridge_enabled", True))
+
+    @_log_setter("mail_bridge_enabled")
+    def set_mail_bridge_enabled(self, enabled: bool) -> bool:
+        """Slå på/av e-postbryggan (localhost-server för tillägget)."""
+        v = _coerce_bool(enabled, True)
+        with self._lock:
+            self._data["mail_bridge_enabled"] = v
+        self._dirty = True
+        self._log.info(f"{LOG_PREFIX} mail_bridge_enabled: {v}")
+        self._save_async_worker(self._data)
+        return True
+
+    @_log_call
+    def mail_bridge_port(self) -> int:
+        """Port för bryggan (default 8765, bara 127.0.0.1)."""
+        with self._lock:
+            return _coerce_int(self._data.get("mail_bridge_port", 8765),
+                               8765, 1024, 65535)
+
+    @_log_setter("mail_bridge_port")
+    def set_mail_bridge_port(self, port: int) -> bool:
+        """Sätt port (1024-65535). Startar om bryggan i main.pyw."""
+        v = _coerce_int(port, 8765, 1024, 65535)
+        with self._lock:
+            self._data["mail_bridge_port"] = v
+        self._dirty = True
+        self._log.info(f"{LOG_PREFIX} mail_bridge_port: {v}")
+        self._save_async_worker(self._data)
+        return True
+
+    @_log_call
+    def mail_bridge_token(self) -> str:
+        """
+        Token (hemlig nyckel) för tillägget.
+
+        Tom sträng = inte skapad ännu → core.mail_bridge skapar en
+        slumpad nyckel vid start och sparar den i data/mail_bridge/token.txt.
+        """
+        with self._lock:
+            return str(self._data.get("mail_bridge_token", "") or "")[:64]
+
+    @_log_setter("mail_bridge_token")
+    def set_mail_bridge_token(self, token: str) -> bool:
+        """Spara token (kortare än 8 tecken ignoreras av mail_bridge)."""
+        v = _coerce_str(token, "")[:64]
+        with self._lock:
+            self._data["mail_bridge_token"] = v
+        self._dirty = True
+        self._log.info(
+            f"{LOG_PREFIX} mail_bridge_token uppdaterad ({len(v)} tecken)"
+        )
+        self._save_async_worker(self._data)
+        return True
+
+    @_log_call
+    def inbox_watch_enabled(self) -> bool:
+        """Bevakas data/inbox/ automatiskt (släpp .eml/.msg/.json där)?"""
+        with self._lock:
+            return bool(self._data.get("inbox_watch_enabled", True))
+
+    @_log_setter("inbox_watch_enabled")
+    def set_inbox_watch_enabled(self, enabled: bool) -> bool:
+        """Slå på/av automatisk import från inkorgsmappen."""
+        v = _coerce_bool(enabled, True)
+        with self._lock:
+            self._data["inbox_watch_enabled"] = v
+        self._dirty = True
+        self._log.info(f"{LOG_PREFIX} inbox_watch_enabled: {v}")
+        self._save_async_worker(self._data)
+        return True
+
+    @_log_call
+    def inbox_poll_seconds(self) -> int:
+        """Hur ofta inkorgsmappen genomsöks (1-60 sekunder)."""
+        with self._lock:
+            return _coerce_int(self._data.get("inbox_poll_seconds", 3),
+                               3, 1, 60)
+
+    @_log_setter("inbox_poll_seconds")
+    def set_inbox_poll_seconds(self, seconds: int) -> bool:
+        """Sätt genomsökningsintervall för inkorgsmappen."""
+        v = _coerce_int(seconds, 3, 1, 60)
+        with self._lock:
+            self._data["inbox_poll_seconds"] = v
+        self._dirty = True
+        self._log.info(f"{LOG_PREFIX} inbox_poll_seconds: {v}")
+        self._save_async_worker(self._data)
         return True
 
     @_log_call

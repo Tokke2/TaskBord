@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <title>TaskBord</title>
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      margin: 0;
+      width: 340px;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      font-size: 13px;
+      background: #0f172a;
+      color: #e2e8f0;
+    }
+    header {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 12px;
+      background: linear-gradient(135deg, #818cf8, #6366f1);
+      color: #0b1220; font-weight: 700; font-size: 14px;
+    }
+    header .spacer { flex: 1; }
+    .iconbtn {
+      background: rgba(11, 18, 32, .18); border: 0; color: #0b1220;
+      border-radius: 6px; cursor: pointer; padding: 3px 7px; font-size: 13px;
+    }
+    section { padding: 10px 12px; border-bottom: 1px solid #1e293b; }
+    .mail-subject { font-weight: 600; margin-bottom: 2px; }
+    .mail-from { color: #94a3b8; font-size: 12px; }
+    label { display: block; color: #94a3b8; font-size: 11px;
+            text-transform: uppercase; letter-spacing: .04em; margin: 8px 0 3px; }
+    input[type=text], select, textarea {
+      width: 100%; box-sizing: border-box; background: #1e293b;
+      border: 1px solid #334155; color: #e2e8f0; border-radius: 7px;
+      padding: 6px 8px; font-family: inherit; font-size: 13px;
+    }
+    textarea { resize: vertical; min-height: 54px; }
+    .row { display: flex; gap: 8px; }
+    .row > div { flex: 1; }
+    button.primary {
+      width: 100%; margin-top: 10px; padding: 9px 10px; border: 0;
+      border-radius: 9px; background: #22c55e; color: #05230f;
+      font-weight: 700; font-size: 13px; cursor: pointer;
+    }
+    button.primary.secondary { background: #818cf8; color: #0b1220; }
+    button.primary:disabled { opacity: .5; cursor: default; }
+    #status { margin-top: 9px; font-size: 12px; line-height: 1.45;
+              white-space: pre-wrap; }
+    .ok { color: #4ade80; } .err { color: #f87171; } .warn { color: #fbbf24; }
+    .muted { color: #94a3b8; font-size: 12px; }
+    #queue { margin-top: 6px; font-size: 12px; color: #fbbf24; }
+    #servicebar { display: flex; align-items: center; gap: 6px;
+                  font-size: 11px; color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <header>
+    <span>📋 TaskBord</span>
+    <span class="spacer"></span>
+    <button class="iconbtn" id="openOptions" title="Inställningar">⚙️</button>
+  </header>
+
+  <section id="mailSection">
+    <div id="mailInfo" class="muted">Söker efter visat mail…</div>
+
+    <label for="priority">Prioritet</label>
+    <select id="priority">
+      <option value="">Auto (gissas från mailet)</option>
+      <option value="high">🔴 Hög</option>
+      <option value="medium">🟡 Medel</option>
+      <option value="low">🟢 Låg</option>
+    </select>
+
+    <div class="row">
+      <div>
+        <label for="due">Förfaller</label>
+        <input type="text" id="due" placeholder="imorgon / 2026-10-20">
+      </div>
+      <div>
+        <label for="tags">Taggar</label>
+        <input type="text" id="tags" placeholder="jobb, kund">
+      </div>
+    </div>
+
+    <button class="primary" id="sendMail" disabled>📋 Skicka mailet som uppgift</button>
+  </section>
+
+  <section>
+    <div class="muted">…eller skapa en uppgift direkt:</div>
+    <label for="quickTitle">Uppgift</label>
+    <input type="text" id="quickTitle" placeholder="Ring Anna klockan 14">
+    <label for="quickNote">Anteckning (valfritt)</label>
+    <textarea id="quickNote" placeholder="Detaljer…"></textarea>
+    <button class="primary secondary" id="sendQuick">➕ Skapa uppgift</button>
+  </section>
+
+  <section style="border-bottom:0">
+    <div id="servicebar"><span id="dot">⚪</span><span id="serviceText">Kontrollerar TaskBord…</span></div>
+    <div id="queue"></div>
+    <div id="status"></div>
+  </section>
+
+  <script src="popup.js"></script>
+</body>
+</html>

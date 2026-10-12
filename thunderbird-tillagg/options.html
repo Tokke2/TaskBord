@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <title>TaskBord — inställningar</title>
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      font-family: "Segoe UI", system-ui, sans-serif; font-size: 13px;
+      background: #0f172a; color: #e2e8f0; margin: 0; padding: 18px 20px;
+    }
+    h1 { font-size: 17px; margin: 0 0 4px; }
+    p.lead { color: #94a3b8; margin: 0 0 16px; line-height: 1.5; }
+    fieldset { border: 1px solid #334155; border-radius: 10px;
+               padding: 12px 14px; margin: 0 0 14px; }
+    legend { color: #818cf8; font-weight: 600; padding: 0 6px; }
+    label { display: block; margin: 8px 0 3px; color: #cbd5e1; }
+    input[type=text], textarea {
+      width: 100%; box-sizing: border-box; background: #1e293b;
+      border: 1px solid #334155; color: #e2e8f0; border-radius: 7px;
+      padding: 7px 9px; font-family: inherit; font-size: 13px;
+    }
+    textarea { min-height: 92px; font-family: Consolas, monospace;
+               font-size: 12px; }
+    .check { display: flex; align-items: center; gap: 8px; margin: 7px 0; }
+    .check input { width: auto; }
+    button {
+      padding: 8px 13px; border: 0; border-radius: 8px; cursor: pointer;
+      font-weight: 600; font-size: 13px; background: #818cf8; color: #0b1220;
+    }
+    button.ghost { background: #1e293b; color: #cbd5e1;
+                   border: 1px solid #334155; }
+    button.primary { background: #22c55e; color: #05230f; }
+    .buttons { display: flex; gap: 9px; margin-top: 6px; flex-wrap: wrap; }
+    #status { margin-top: 10px; white-space: pre-wrap; line-height: 1.5;
+              font-size: 12.5px; }
+    .ok { color: #4ade80; } .err { color: #f87171; } .warn { color: #fbbf24; }
+    code { background: #1e293b; padding: 1px 5px; border-radius: 5px; }
+    .hint { color: #94a3b8; font-size: 12px; line-height: 1.55; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <h1>📋 TaskBord — inställningar</h1>
+  <p class="lead">
+    Tillägget skickar mail till TaskBords lokala e-postbrygga
+    (<code>http://127.0.0.1:8765</code>). Uppgiften sparas i appens
+    JSON-fil (<code>data/active.json</code>) och finns kvar efter omstart.
+  </p>
+
+  <fieldset>
+    <legend>1. Klistra in inställningar från TaskBord</legend>
+    <label for="paste">Klistra in JSON (rekommenderat)</label>
+    <textarea id="paste" placeholder='{"url":"http://127.0.0.1:8765","token":"..."}'></textarea>
+    <div class="buttons">
+      <button id="applyPaste">📥 Läs in och spara</button>
+      <button id="pasteUrlOnly" class="ghost">Endast adress</button>
+    </div>
+    <div class="hint">
+      I TaskBord: högerklicka tray-ikonen → <b>📧 E-post &amp; Thunderbird</b> →
+      <b>Kopiera inställningar för Thunderbird</b>. Då ligger JSON på urklipp —
+      klistra in här och tryck <b>Läs in och spara</b>.
+      Alternativt: filen <code>data/mail_bridge/tillagg_installningar.json</code>.
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>2. Anslutning</legend>
+    <label for="url">Adress till TaskBord</label>
+    <input type="text" id="url" placeholder="http://127.0.0.1:8765">
+    <label for="token">Token (hemlig nyckel)</label>
+    <input type="text" id="token" placeholder="32 tecken — från TaskBord">
+    <div class="check">
+      <input type="checkbox" id="useRaw">
+      <label for="useRaw" style="margin:0">
+        Skicka originalmailet (.eml) — original sparas i appen (bäst)
+      </label>
+    </div>
+    <div class="check">
+      <input type="checkbox" id="includeBody">
+      <label for="includeBody" style="margin:0">
+        Ta med brödtexten som anteckning på uppgiften
+      </label>
+    </div>
+    <div class="check">
+      <input type="checkbox" id="includeTags">
+      <label for="includeTags" style="margin:0">
+        Thunderbird-taggar blir taggar i TaskBord
+      </label>
+    </div>
+    <div class="check">
+      <input type="checkbox" id="notify">
+      <label for="notify" style="margin:0">Visa notis när uppgiften skapats</label>
+    </div>
+    <div class="buttons">
+      <button id="test" class="ghost">🔌 Testa anslutning</button>
+      <button id="save" class="primary">💾 Spara</button>
+    </div>
+    <div id="status"></div>
+  </fieldset>
+
+  <fieldset>
+    <legend>3. Så använder du tillägget</legend>
+    <div class="hint">
+      • <b>Högerklicka på ett mail</b> i listan → <i>📋 Skicka till TaskBord</i><br>
+      • <b>Verktygsfältsknappen</b> (huvudfönstret) eller
+        <b>meddelandeknappen</b> (öppet mail) → popup med prioritet,
+        förfallodatum och taggar<br>
+      • TaskBord måste köra (tray-ikonen). Kör appen inte, läggs mailet i en
+        kö och skickas automatiskt när appen startar.
+    </div>
+  </fieldset>
+
+  <script src="options.js"></script>
+</body>
+</html>

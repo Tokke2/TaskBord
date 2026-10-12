@@ -2116,7 +2116,9 @@ if _QT_AVAILABLE:
             self.email_import_btn.setObjectName("emailImportBtn")
             self.email_import_btn.setFixedSize(28, 28)
             self.email_import_btn.setToolTip(
-                "Importera e-post (.eml eller .msg) som uppgift\n"
+                "Importera e-post (.eml eller .msg) som uppgift —\n"
+                "eller använd Thunderbird-tillägget / mappen data/inbox/\n"
+                "(tray-menyn → 📧 E-post & Thunderbird)\n"
                 "Outlook: spara mailet som .msg eller dra till skrivbordet\n"
                 "Thunderbird: spara mailet som .eml"
             )
