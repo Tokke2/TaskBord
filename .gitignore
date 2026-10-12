@@ -9,3 +9,7 @@ token*.json
 credentials.json
 client_secret*.json
 /js/google/
+
+# Loggar och körningsdata (skapas lokalt, ska inte i git)
+*.log
+/ui/debug/data/
