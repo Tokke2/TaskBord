@@ -91,6 +91,20 @@ EVENT_SOURCE_VALUE: str = "taskbord"
 # Google-färger per prioritet (11 = Tomat/röd, 5 = Banan/gul, 10 = Basilika/grön)
 COLOR_BY_PRIORITY: Dict[str, str] = {"high": "11", "medium": "5", "low": "10"}
 
+# Klara uppgifter: Google Calendar saknar "överstruken" för heldagshändelser,
+# så en klar uppgift markeras med grå färg (Grafit = 8) och en av stilarna:
+#   "grey"   → ✅ framför titeln + grå färg  (standard)
+#   "strike" → överstruken titel (Unicode) + ✅ + grå färg
+#   "off"    → ingen särskild markering (bara beskrivningen säger "Klar")
+DONE_STYLES: Tuple[str, ...] = ("grey", "strike", "off")
+DEFAULT_DONE_STYLE: str = "grey"
+DONE_COLOR_ID: str = "8"
+DONE_PREFIX: str = "✅ "
+_COMBINING_STROKE: str = "\u0336"
+
+HISTORY_FILENAME: str = "history.json"
+HISTORY_MAX_ENTRIES: int = 500
+
 # Retry (exponentiell backoff med jitter — som i gamla Script/API.py)
 RETRY_ATTEMPTS: int = 3
 RETRY_BASE_DELAY: float = 0.8
@@ -105,6 +119,7 @@ GOOGLE_CONSOLE_LIBRARY_URL: str = (
 )
 GOOGLE_CALENDAR_URL: str = "https://calendar.google.com/"
 GOOGLE_CLOUD_PROJECT_URL: str = "https://console.cloud.google.com/projectcreate"
+GOOGLE_CONSOLE_CONSENT_URL: str = "https://console.cloud.google.com/apis/credentials/consent"
 
 MAX_CALENDAR_ID_LEN: int = 200
 MAX_EVENTS_PREVIEW: int = 25
@@ -211,6 +226,11 @@ def token_path(data_dir: Any) -> Path:
 def account_path(data_dir: Any) -> Path:
     """Kontoinfo (e-post, tidszon) — sparas vid lyckad inloggning."""
     return google_dir(data_dir) / ACCOUNT_FILENAME
+
+
+def history_path(data_dir: Any) -> Path:
+    """Sändningshistorik (vad som skickats, när och med vilket resultat)."""
+    return google_dir(data_dir) / HISTORY_FILENAME
 
 
 def event_map_path(data_dir: Any) -> Path:
@@ -338,6 +358,162 @@ def _read_json(path: Path) -> Optional[Dict[str, Any]]:
     except Exception as e:
         logger.warning(f"{LOG_PREFIX} kunde inte läsa {path.name}: {type(e).__name__}")
         return None
+
+
+# --------------------------------------------------------------------------
+# Kontroll av credentials.json + guidad första koppling
+# --------------------------------------------------------------------------
+_REQUIRED_CLIENT_KEYS: Tuple[str, ...] = ("client_id", "client_secret", "auth_uri", "token_uri")
+
+
+def validate_credentials_file(path: Any) -> Dict[str, Any]:
+    """
+    Kontrollera en nedladdad OAuth-klientfil INNAN inloggningen startar.
+
+    Fångar de vanliga misstagen på svenska: fel klienttyp (Webbapp i stället
+    för Datorapp), tjänstekonto-nyckel, trasig JSON, saknade fält. Läser
+    filen men returnerar eller loggar aldrig klienthemligheten.
+
+    Returnerar {"ok", "problems", "warnings", "client_type", "client_id",
+    "project_id", "path"}.
+    """
+    res: Dict[str, Any] = {
+        "ok": False, "problems": [], "warnings": [], "client_type": "",
+        "client_id": "", "project_id": "", "path": str(path or ""),
+    }
+    problems: List[str] = res["problems"]
+    p = Path(str(path)) if path else None
+    if p is None or not p.is_file():
+        problems.append("Filen finns inte.")
+        return res
+    try:
+        if p.stat().st_size == 0:
+            problems.append("Filen är tom — ladda ner den på nytt från Google Cloud.")
+            return res
+        raw = json.loads(p.read_text(encoding="utf-8-sig"))
+    except Exception:
+        problems.append(
+            "Filen är inte giltig JSON. Ladda ner den på nytt från Google Cloud "
+            "(Skapa inloggningsuppgifter → OAuth-klient-ID → Ladda ner JSON)."
+        )
+        return res
+    if not isinstance(raw, dict):
+        problems.append("Filen har fel format (förväntade ett JSON-objekt).")
+        return res
+
+    if raw.get("type") == "service_account":
+        problems.append(
+            "Det här är en nyckel för ett tjänstekonto. TaskBord behöver en "
+            "OAuth-klient av typen “Datorapp” (Desktop app)."
+        )
+        return res
+    if "installed" in raw and isinstance(raw["installed"], dict):
+        res["client_type"] = "installed"
+        cfg = raw["installed"]
+    elif "web" in raw and isinstance(raw["web"], dict):
+        res["client_type"] = "web"
+        cfg = raw["web"]
+        problems.append(
+            "Klienttypen är “Webbapplikation”. Skapa en ny OAuth-klient och "
+            "välj programtypen “Datorapp” (Desktop app) — annars fungerar "
+            "inte den lokala inloggningen."
+        )
+    else:
+        problems.append(
+            "Filen ser inte ut som en OAuth-klientfil (saknar avsnittet "
+            "“installed”). Ladda ner JSON-filen för en “Datorapp”."
+        )
+        return res
+
+    saknas = [k for k in _REQUIRED_CLIENT_KEYS if not str(cfg.get(k) or "").strip()]
+    if saknas:
+        problems.append("Filen saknar fält: " + ", ".join(saknas) + ".")
+    cid = str(cfg.get("client_id") or "")
+    res["client_id"] = cid
+    res["project_id"] = str(cfg.get("project_id") or "")
+    if cid and not cid.endswith(".apps.googleusercontent.com"):
+        res["warnings"].append("Klient-ID:t ser ovanligt ut (slutar inte på .apps.googleusercontent.com).")
+    res["ok"] = not problems
+    return res
+
+
+def install_credentials_file(source: Any, data_dir: Any) -> Dict[str, Any]:
+    """
+    Kopiera en nedladdad klientfil till `<data>/google/credentials.json`
+    (0600) — men bara om den klarar kontrollen. Returnerar kontrollresultatet
+    (+ "installed": True/False).
+    """
+    res = validate_credentials_file(source)
+    res["installed"] = False
+    if not res["ok"]:
+        return res
+    try:
+        text = Path(str(source)).read_text(encoding="utf-8-sig")
+        _atomic_write_text(credentials_path(data_dir), text, mode=0o600)
+        res["installed"] = True
+        logger.info(f"{LOG_PREFIX} credentials.json installerad i {google_dir(data_dir)}")
+    except Exception as e:
+        res["ok"] = False
+        res["problems"].append(f"Kunde inte kopiera filen: {type(e).__name__}")
+    return res
+
+
+def setup_steps(data_dir: Any, extra_dirs: Optional[List[Any]] = None) -> List[Dict[str, Any]]:
+    """
+    Stegen i den guidade första kopplingen (visas som en guide i appen).
+
+    Varje steg: key, title, text, url (valfri), done. `done` är True/False
+    för det appen kan kontrollera själv (paket, filen, inloggning) och None
+    för engångssteg hos Google som bara användaren kan bekräfta.
+    """
+    cred_file = discover_credentials_file(data_dir, extra_dirs=extra_dirs)
+    check = validate_credentials_file(cred_file) if cred_file else None
+    token_file = discover_token_file(data_dir)
+    if cred_file is None:
+        fil_text = (
+            "Lägg den nedladdade JSON-filen här:\n"
+            f"{credentials_path(data_dir)}\n\n"
+            "Eller klicka “Välj fil…” så kopierar appen den åt dig."
+        )
+    elif check and check["ok"]:
+        fil_text = f"✅ Filen hittades och ser rätt ut:\n{cred_file}"
+    else:
+        fil_text = (
+            f"❌ Filen hittades ({cred_file}) men har problem:\n• "
+            + "\n• ".join((check or {}).get("problems") or ["okänt fel"])
+        )
+    return [
+        {"key": "library", "title": "Installera Google-paketen",
+         "text": ("Appen behöver två små paket för att prata med Google.\n"
+                  + ("✅ De är redan installerade." if is_google_library_available()
+                     else f"Kör i en kommandotolk:\n    {install_hint()}\n"
+                          "(eller starta via FORSTA_START.bat).")),
+         "url": "", "done": is_google_library_available()},
+        {"key": "project", "title": "Skapa ett projekt hos Google",
+         "text": "Gratis och tar en minut. Namnet spelar ingen roll, t.ex. “TaskBord”.",
+         "url": GOOGLE_CLOUD_PROJECT_URL, "done": None},
+        {"key": "api", "title": "Aktivera Google Calendar API",
+         "text": "Öppna sidan och klicka på knappen “Aktivera”.",
+         "url": GOOGLE_CONSOLE_LIBRARY_URL, "done": None},
+        {"key": "consent", "title": "Godkännandeskärmen",
+         "text": ("Välj “Extern” → Skapa, fyll i appnamn och din e-post.\n"
+                  "Viktigt: lägg till din egen Gmail-adress under “Testanvändare” — "
+                  "annars får du felet 403 access_denied."),
+         "url": GOOGLE_CONSOLE_CONSENT_URL, "done": None},
+        {"key": "client", "title": "Skapa nyckeln (OAuth-klient)",
+         "text": ("Skapa inloggningsuppgifter → OAuth-klient-ID.\n"
+                  "Programtyp: “Datorapp” (Desktop app) — viktigt!\n"
+                  "Klicka sedan “Ladda ner JSON”."),
+         "url": GOOGLE_CONSOLE_CREDENTIALS_URL, "done": None},
+        {"key": "file", "title": "Lägg filen i TaskBord",
+         "text": fil_text, "url": "",
+         "done": bool(check and check["ok"])},
+        {"key": "login", "title": "Logga in",
+         "text": ("Klicka “Koppla Google-konto” — webbläsaren öppnas, välj ditt konto "
+                  "och tryck Tillåt." if not token_file else
+                  "✅ Kontot är redan kopplat."),
+         "url": "", "done": bool(token_file)},
+    ]
 
 
 # --------------------------------------------------------------------------
@@ -577,6 +753,15 @@ def authenticate_google_calendar(
             technical=f"letade efter credentials i {google_dir(data_dir)}",
         )
 
+    kontroll = validate_credentials_file(cred_file)
+    if not kontroll["ok"]:
+        raise GoogleCalendarError(
+            "credentials.json går inte att använda:\n\n• "
+            + "\n• ".join(kontroll["problems"])
+            + "\n\nGuiden i appen (🧭 Guidad installation) visar hur du skapar rätt fil.",
+            technical=f"credentials-kontroll: {kontroll['problems']}",
+        )
+
     try:
         from google_auth_oauthlib.flow import InstalledAppFlow
     except Exception as e:  # pragma: no cover - fångas av _require_library
@@ -796,10 +981,16 @@ def resolve_task_date(task: Dict[str, Any]) -> Optional[_date]:
         return None
 
 
+def strikethrough(text: str) -> str:
+    """Överstruken text med Unicode-tecknet U+0336 (mellanslag lämnas orörda)."""
+    return "".join(c if c.isspace() else c + _COMBINING_STROKE for c in str(text))
+
+
 def build_event_body(
     task: Dict[str, Any],
     calendar_id: str = DEFAULT_CALENDAR_ID,
     color_by_priority: bool = True,
+    done_style: str = DEFAULT_DONE_STYLE,
 ) -> Dict[str, Any]:
     """
     Bygg Google-händelsen för en uppgift (heldagshändelse på förfallodatumet).
@@ -843,6 +1034,14 @@ def build_event_body(
     body["transparency"] = "transparent"
     if task.get("done"):
         body["status"] = "confirmed"
+        stil = done_style if done_style in DONE_STYLES else DEFAULT_DONE_STYLE
+        if stil != "off":
+            # Klar = grå (Grafit) och markerad i titeln. Slår prioritetsfärgen.
+            body["colorId"] = DONE_COLOR_ID
+            if stil == "strike":
+                body["summary"] = DONE_PREFIX + strikethrough(titel)
+            else:
+                body["summary"] = DONE_PREFIX + titel
 
     return body
 
@@ -1159,6 +1358,140 @@ def load_event_map(data_dir: Any) -> EventMap:
 
 
 # --------------------------------------------------------------------------
+# Sändningshistorik
+# --------------------------------------------------------------------------
+class SendHistory:
+    """
+    Lokal logg över vad som skickats till kalendern (`google/history.json`).
+
+    Varje post: ts, task_id, title, due, action, ok, message, event_id,
+    html_link, calendar_id. Äldsta posterna rensas när listan passerar
+    HISTORY_MAX_ENTRIES. Innehåller inga hemligheter.
+    """
+
+    def __init__(self, path: Any, max_entries: int = HISTORY_MAX_ENTRIES) -> None:
+        self.path = Path(str(path))
+        self.max_entries = max(10, int(max_entries))
+        self._lock = threading.RLock()
+        self._items: List[Dict[str, Any]] = []
+        self.load()
+
+    def load(self) -> int:
+        with self._lock:
+            raw = _read_json(self.path) if _is_file_nonempty(self.path) else None
+            poster = (raw or {}).get("entries")
+            self._items = [e for e in poster if isinstance(e, dict)] \
+                if isinstance(poster, list) else []
+            return len(self._items)
+
+    def save(self) -> bool:
+        with self._lock:
+            try:
+                _atomic_write_json(
+                    self.path,
+                    {"_meta": {"saved_at": _now_iso(), "count": len(self._items)},
+                     "entries": list(self._items)},
+                    mode=0o600,
+                )
+                return True
+            except Exception as e:
+                logger.warning(f"{LOG_PREFIX} kunde inte spara historiken: {e}")
+                return False
+
+    def add(self, entry: Dict[str, Any]) -> None:
+        with self._lock:
+            post = dict(entry)
+            post.setdefault("ts", _now_iso())
+            self._items.append(post)
+            if len(self._items) > self.max_entries:
+                self._items = self._items[-self.max_entries:]
+            self.save()
+
+    def all(self) -> List[Dict[str, Any]]:
+        """Alla poster, nyaste först."""
+        with self._lock:
+            return list(reversed(self._items))
+
+    def for_task(self, task_id: str) -> List[Dict[str, Any]]:
+        """Posterna för en uppgift, nyaste först."""
+        tid = str(task_id)
+        return [e for e in self.all() if str(e.get("task_id")) == tid]
+
+    def clear(self) -> int:
+        with self._lock:
+            n = len(self._items)
+            self._items = []
+            self.save()
+            return n
+
+
+def load_history(data_dir: Any) -> SendHistory:
+    """Hämta historiken för den här data-mappen."""
+    return SendHistory(history_path(data_dir))
+
+
+def calendar_open_url(entry: Dict[str, Any]) -> str:
+    """
+    Adress som öppnar händelsen i Google Calendar.
+
+    Använder Googles egen länk (`htmlLink`) när den finns; annars dagsvyn för
+    förfallodatumet (så knappen alltid tar användaren till rätt dag).
+    """
+    link = str((entry or {}).get("html_link") or "").strip()
+    if link.startswith("https://"):
+        return link
+    due = str((entry or {}).get("due") or "").strip()
+    try:
+        d = _date.fromisoformat(due[:10])
+        return f"https://calendar.google.com/calendar/r/day/{d.year}/{d.month}/{d.day}"
+    except Exception:
+        return GOOGLE_CALENDAR_URL
+
+
+def history_time_text(entry: Dict[str, Any]) -> str:
+    """Tidpunkten i lokal tid, t.ex. 2026-10-12 14:03 (tom sträng om okänd)."""
+    try:
+        t = _datetime.fromisoformat(str((entry or {}).get("ts") or ""))
+        if t.tzinfo is None:
+            t = t.replace(tzinfo=_timezone.utc)
+        return t.astimezone().strftime("%Y-%m-%d %H:%M")
+    except Exception:
+        return ""
+
+
+def find_downloaded_credentials(dirs: Optional[List[Any]] = None) -> Optional[Path]:
+    """
+    Leta efter en nyligen nedladdad klientfil (client_secret*.json) i
+    Hämtade filer och returnera den senaste som klarar kontrollen.
+    """
+    mappar = [Path(str(d)) for d in (dirs or [Path.home() / "Downloads",
+                                            Path.home() / "Hämtade filer"])]
+    kandidater: List[Path] = []
+    for m in mappar:
+        try:
+            if m.is_dir():
+                kandidater.extend(m.glob("client_secret*.json"))
+        except Exception:
+            continue
+    kandidater.sort(key=lambda p: p.stat().st_mtime if p.exists() else 0, reverse=True)
+    for k in kandidater:
+        if validate_credentials_file(k)["ok"]:
+            return k
+    return None
+
+
+def history_result_text(entry: Dict[str, Any]) -> str:
+    """Kort svensk text för resultatkolumnen i historiken."""
+    action = str((entry or {}).get("action") or "")
+    if entry.get("ok"):
+        return {"skapad": "✅ Skapad", "uppdaterad": "🔄 Uppdaterad"}.get(action, f"✅ {action}")
+    msg = str(entry.get("message") or "").splitlines()[0] if entry.get("message") else ""
+    if action == "hoppad":
+        return f"• Hoppades över — {msg}" if msg else "• Hoppades över"
+    return f"✗ Misslyckades — {msg}" if msg else "✗ Misslyckades"
+
+
+# --------------------------------------------------------------------------
 # Skicka uppgifter till kalendern
 # --------------------------------------------------------------------------
 def push_task(
@@ -1167,6 +1500,53 @@ def push_task(
     task: Dict[str, Any],
     event_map: Optional[EventMap] = None,
     color_by_priority: bool = True,
+    done_style: str = DEFAULT_DONE_STYLE,
+    history: Optional[SendHistory] = None,
+) -> Dict[str, Any]:
+    """
+    Skicka EN uppgift till Google Calendar och för in resultatet i historiken
+    (om `history` ges). Se `_push_task_impl` för själva logiken.
+    """
+    r = _push_task_impl(service, calendar_id, task, event_map,
+                        color_by_priority, done_style)
+    _record_history(history, calendar_id, task, r)
+    return r
+
+
+def _record_history(
+    history: Optional[SendHistory],
+    calendar_id: str,
+    task: Dict[str, Any],
+    r: Dict[str, Any],
+) -> None:
+    """Skriv en post i historiken (får aldrig fälla sändningen)."""
+    if history is None:
+        return
+    try:
+        d = resolve_task_date(task)
+        history.add({
+            "task_id": str(task.get("id") or ""),
+            "title": str(task.get("title") or "").strip(),
+            "due": d.isoformat() if d else "",
+            "done": bool(task.get("done")),
+            "action": r.get("action", ""),
+            "ok": bool(r.get("ok")),
+            "message": r.get("message", ""),
+            "event_id": r.get("event_id", ""),
+            "html_link": r.get("html_link", ""),
+            "calendar_id": calendar_id,
+        })
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"{LOG_PREFIX} kunde inte skriva historik: {type(e).__name__}")
+
+
+def _push_task_impl(
+    service: Any,
+    calendar_id: str,
+    task: Dict[str, Any],
+    event_map: Optional[EventMap] = None,
+    color_by_priority: bool = True,
+    done_style: str = DEFAULT_DONE_STYLE,
 ) -> Dict[str, Any]:
     """
     Skicka EN uppgift till Google Calendar.
@@ -1180,6 +1560,7 @@ def push_task(
     task_id = str(task.get("id") or "").strip()
     resultat: Dict[str, Any] = {
         "ok": False, "action": "ingen", "event_id": "", "title": titel, "message": "",
+        "html_link": "",
     }
 
     if resolve_task_date(task) is None:
@@ -1188,7 +1569,8 @@ def push_task(
         return resultat
 
     try:
-        body = build_event_body(task, calendar_id, color_by_priority=color_by_priority)
+        body = build_event_body(task, calendar_id, color_by_priority=color_by_priority,
+                                done_style=done_style)
     except GoogleCalendarError as e:
         resultat["action"] = "hoppad"
         resultat["message"] = e.user_message
@@ -1206,12 +1588,17 @@ def push_task(
 
     if event_id:
         try:
-            svar = patch_event(service, calendar_id, event_id, body)
+            # null i PATCH tar bort fältet: en uppgift som inte längre är klar
+            # får tillbaka sin vanliga färg i stället för att fastna på grått.
+            patch_body = dict(body)
+            patch_body.setdefault("colorId", None)
+            svar = patch_event(service, calendar_id, event_id, patch_body)
             if event_map:
                 event_map.set(task_id, svar.get("id") or event_id)
             resultat.update({
                 "ok": True, "action": "uppdaterad",
                 "event_id": svar.get("id") or event_id,
+                "html_link": svar.get("htmlLink", ""),
                 "message": "Händelsen fanns redan och uppdaterades.",
             })
             return resultat
@@ -1240,6 +1627,7 @@ def push_task(
                 event_map.set(task_id, svar.get("id") or "")
             resultat.update({
                 "ok": True, "action": "skapad", "event_id": svar.get("id") or "",
+                "html_link": svar.get("htmlLink", ""),
                 "message": "Händelsen hade tagits bort i Google — skapade den på nytt.",
             })
             return resultat
@@ -1254,6 +1642,7 @@ def push_task(
         event_map.set(task_id, svar.get("id") or "")
     resultat.update({
         "ok": True, "action": "skapad", "event_id": svar.get("id") or "",
+        "html_link": svar.get("htmlLink", ""),
         "message": "Ny händelse skapad i kalendern.",
     })
     return resultat
@@ -1265,6 +1654,8 @@ def push_tasks(
     tasks: List[Dict[str, Any]],
     event_map: Optional[EventMap] = None,
     color_by_priority: bool = True,
+    done_style: str = DEFAULT_DONE_STYLE,
+    history: Optional[SendHistory] = None,
 ) -> Dict[str, Any]:
     """
     Skicka flera uppgifter. Returnerar sammanställning + resultat per uppgift.
@@ -1278,13 +1669,15 @@ def push_tasks(
         if not isinstance(task, dict):
             continue
         try:
-            r = push_task(service, calendar_id, task, event_map, color_by_priority)
+            r = push_task(service, calendar_id, task, event_map,
+                          color_by_priority, done_style, history)
         except Exception as e:  # noqa: BLE001 - en uppgift får inte fälla resten
             r = {
-                "ok": False, "action": "fel", "event_id": "",
+                "ok": False, "action": "fel", "event_id": "", "html_link": "",
                 "title": str(task.get("title") or ""),
                 "message": to_user_error(e).user_message,
             }
+            _record_history(history, calendar_id, task, r)
         resultat.append(r)
         if not r["ok"]:
             if r["action"] == "hoppad":
@@ -1334,6 +1727,7 @@ def describe_tasks_for_picker(
             "due": d.isoformat() if d else "",
             "priority": str(t.get("priority") or "none").lower(),
             "sent": bool(event_map and tid and event_map.get(tid)),
+            "done": bool(t.get("done")),
             "sendable": d is not None,
             "reason": "" if d is not None else "saknar förfallodatum",
             "task": t,

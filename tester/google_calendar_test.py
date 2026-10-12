@@ -523,6 +523,136 @@ with tempfile.TemporaryDirectory() as tmpdir:
     check("inget valt → inget skickas",
           gc.select_tasks_by_ids(uppgifter, []) == [])
 
+    # --- 10c. Klara uppgifter blir grå/överstrukna händelser ---------------
+    print("\n10c. Klar uppgift → grå händelse")
+    klar = {**UPPGIFT, "done": True, "priority": "high"}
+    b_grey = gc.build_event_body(klar)
+    check("klar → grå färg (Grafit) slår prioritetsfärgen", b_grey.get("colorId") == "8")
+    check("klar → bock framför titeln", b_grey["summary"] == "✅ " + UPPGIFT["title"])
+    check("klar → fortfarande transparent", b_grey.get("transparency") == "transparent")
+    b_strike = gc.build_event_body(klar, done_style="strike")
+    check("strike → överstruken titel", "\u0336" in b_strike["summary"]
+          and b_strike["summary"].replace("\u0336", "") == "✅ " + UPPGIFT["title"])
+    check("strike → mellanslag lämnas orörda", " \u0336" not in b_strike["summary"])
+    b_off = gc.build_event_body(klar, done_style="off")
+    check("off → titel och prioritetsfärg som vanligt",
+          b_off["summary"] == UPPGIFT["title"] and b_off.get("colorId") == "11")
+    check("okänd stil faller tillbaka på standard",
+          gc.build_event_body(klar, done_style="strunt")["colorId"] == "8")
+    check("aktiv uppgift påverkas inte", gc.build_event_body(UPPGIFT)["summary"] == UPPGIFT["title"])
+    svc_k = FakeService()
+    em_k = gc.EventMap(D / "google" / "m_klar.json")
+    gc.push_task(svc_k, "primary", UPPGIFT, em_k)
+    gc.push_task(svc_k, "primary", klar, em_k)
+    ev = svc_k.events_db[em_k.get("k3f9a2x1")]
+    check("klar uppgift uppdaterar samma händelse", sum(1 for c in svc_k.calls if c[0] == "insert") == 1)
+    check("händelsen blev grå och fick bock", ev.get("colorId") == "8" and ev["summary"].startswith("✅ "))
+    gc.push_task(svc_k, "primary", {**UPPGIFT, "priority": "none"}, em_k)
+    ev = svc_k.events_db[em_k.get("k3f9a2x1")]
+    check("ångrad klar-markering återställer titeln", ev["summary"] == UPPGIFT["title"])
+    check("…och tar bort den grå färgen (null i PATCH)", ev.get("colorId") is None)
+
+    # --- 10d. Sändningshistorik ---------------------------------------------
+    print("\n10d. Sändningshistorik")
+    hist = gc.load_history(D)
+    check("historiken börjar tom", hist.all() == [])
+    svc_h = FakeService()
+    em_h = gc.EventMap(D / "google" / "m_hist.json")
+    gc.push_task(svc_h, "primary", UPPGIFT, em_h, history=hist)
+    gc.push_task(svc_h, "primary", UPPGIFT, em_h, history=hist)
+    gc.push_task(svc_h, "primary", {"id": "zz", "title": "Utan datum"}, em_h, history=hist)
+    gc.push_tasks(FakeService(permanent_error=400), "primary",
+                  [{"id": "e1", "title": "Fel", "due_date": "2026-10-20"}], em_h, history=hist)
+    alla_h = gc.load_history(D).all()
+    check("alla försök loggas (även hoppade och misslyckade)", len(alla_h) == 4, str(len(alla_h)))
+    check("nyaste först", alla_h[0]["task_id"] == "e1")
+    check("skapad + uppdaterad syns för uppgiften",
+          [e["action"] for e in gc.load_history(D).for_task("k3f9a2x1")] == ["uppdaterad", "skapad"])
+    check("historiken sparas på disk (överlever omstart)", gc.history_path(D).is_file())
+    check("posten har titel, förfallodatum, kalender och tid",
+          all(alla_h[-1].get(k) for k in ("title", "due", "calendar_id", "ts")))
+    check("länk till händelsen sparas", alla_h[-1]["html_link"].startswith("https://calendar.google.com/"))
+    check("öppna-länken är Googles egen när den finns",
+          gc.calendar_open_url(alla_h[-1]) == alla_h[-1]["html_link"])
+    check("saknas länk → dagsvyn för förfallodatumet",
+          gc.calendar_open_url({"due": "2026-10-13"}) == "https://calendar.google.com/calendar/r/day/2026/10/13")
+    check("saknas allt → Google Calendar", gc.calendar_open_url({}) == gc.GOOGLE_CALENDAR_URL)
+    check("resultattext för skapad", gc.history_result_text(alla_h[-1]) == "✅ Skapad")
+    check("resultattext för hoppad", "Hoppades över" in gc.history_result_text(alla_h[1]))
+    check("resultattext för fel", gc.history_result_text(alla_h[0]).startswith("✗"))
+    check("tidstext går att läsa", len(gc.history_time_text(alla_h[0])) == 16)
+    check("historiken innehåller inga hemligheter",
+          "FAKE" not in gc.history_path(D).read_text(encoding="utf-8"))
+    liten = gc.SendHistory(D / "google" / "h_liten.json", max_entries=10)
+    for i in range(15):
+        liten.add({"task_id": str(i), "title": f"t{i}", "ok": True, "action": "skapad"})
+    check("äldsta posterna rensas vid maxgränsen",
+          len(liten.all()) == 10 and liten.all()[0]["task_id"] == "14")
+    check("rensa tömmer historiken", gc.load_history(D).clear() == 4 and gc.load_history(D).all() == [])
+
+    # --- 10e. Guidad installation + kontroll av credentials.json ------------
+    print("\n10e. Guidad första koppling (kontroll av credentials.json)")
+    V = Path(tmpdir) / "guide"
+    V.mkdir()
+    check("saknad fil avvisas", not gc.validate_credentials_file(V / "finns_inte.json")["ok"])
+    tom = V / "tom.json"; tom.write_text("", encoding="utf-8")
+    check("tom fil avvisas", "tom" in " ".join(gc.validate_credentials_file(tom)["problems"]))
+    trasig = V / "trasig.json"; trasig.write_text("{inte json", encoding="utf-8")
+    check("trasig JSON avvisas", "JSON" in " ".join(gc.validate_credentials_file(trasig)["problems"]))
+    web = V / "web.json"
+    web.write_text(json.dumps({"web": {"client_id": "x.apps.googleusercontent.com",
+                                       "client_secret": "S", "auth_uri": "a", "token_uri": "t"}}),
+                   encoding="utf-8")
+    kw = gc.validate_credentials_file(web)
+    check("Webbapp-klient avvisas med tydlig text",
+          not kw["ok"] and kw["client_type"] == "web" and "Datorapp" in " ".join(kw["problems"]))
+    sa = V / "sa.json"; sa.write_text(json.dumps({"type": "service_account"}), encoding="utf-8")
+    check("tjänstekonto-nyckel avvisas", "tjänstekonto" in " ".join(gc.validate_credentials_file(sa)["problems"]))
+    ofull = V / "ofull.json"
+    ofull.write_text(json.dumps({"installed": {"client_id": "x.apps.googleusercontent.com"}}), encoding="utf-8")
+    check("saknade fält pekas ut",
+          "client_secret" in " ".join(gc.validate_credentials_file(ofull)["problems"]))
+    ok_fil = skriv_credentials_file(V / "ok_data")
+    kok = gc.validate_credentials_file(ok_fil)
+    check("giltig Datorapp-fil godkänns", kok["ok"] and kok["client_type"] == "installed", str(kok))
+    check("klienthemligheten returneras aldrig av kontrollen", "FAKE_CLIENT_SECRET" not in json.dumps(kok))
+    # inloggningen stoppas innan webbläsaren om filen är trasig
+    (V / "google").mkdir(exist_ok=True)
+    (V / "google" / "credentials.json").write_text(web.read_text(encoding="utf-8"), encoding="utf-8")
+    try:
+        with mock.patch("google_auth_oauthlib.flow.InstalledAppFlow.run_local_server") as rls:
+            gc.authenticate_google_calendar(V, open_browser=False)
+        check("fel klienttyp stoppar inloggningen", False)
+    except gc.GoogleCalendarError as e:
+        check("fel klienttyp stoppar inloggningen före webbläsaren",
+              "Datorapp" in e.user_message and not rls.called)
+        check("felet hänvisar till guiden i appen", "Guidad installation" in e.user_message)
+    # guiden
+    st_v = gc.setup_steps(V)
+    check("guiden har 7 steg i rätt ordning",
+          [s_["key"] for s_ in st_v] == ["library", "project", "api", "consent", "client", "file", "login"])
+    check("filsteget är rött för trasig fil", st_v[5]["done"] is False and "Datorapp" in st_v[5]["text"])
+    check("engångssteg hos Google har done=None (användaren bekräftar)",
+          all(st_v[i]["done"] is None for i in (1, 2, 3, 4)))
+    check("stegen med länkar pekar på Google Cloud",
+          all(st_v[i]["url"].startswith("https://console.cloud.google.com/") for i in (1, 2, 3, 4)))
+    check("inloggningssteget är inte klart utan token", st_v[6]["done"] is False)
+    # installera från en nedladdad fil
+    nerladdad = V / "client_secret_123.apps.googleusercontent.com.json"
+    nerladdad.write_text(ok_fil.read_text(encoding="utf-8"), encoding="utf-8")
+    bad = gc.install_credentials_file(web, V / "ny_data")
+    check("trasig fil kopieras inte", not bad["installed"] and not gc.credentials_path(V / "ny_data").exists())
+    good = gc.install_credentials_file(nerladdad, V / "ny_data")
+    check("giltig fil kopieras till rätt plats", good["installed"] and gc.credentials_path(V / "ny_data").is_file())
+    if sys.platform != "win32":
+        check("kopian får rättigheter 0600",
+              (gc.credentials_path(V / "ny_data").stat().st_mode & 0o777) == 0o600)
+    check("filsteget blir grönt efter installation",
+          gc.setup_steps(V / "ny_data")[5]["done"] is True)
+    check("hittar nedladdad fil i Hämtade filer",
+          gc.find_downloaded_credentials([V]) == nerladdad)
+    check("hittar inget i tom mapp", gc.find_downloaded_credentials([V / "ny_data"]) is None)
+
     # --- 11. Retry vid tillfälliga fel ------------------------------------
     print("\n11. Retry (exponentiell backoff med jitter)")
     svc_flaky = FakeService(fail_first=2)
@@ -639,6 +769,10 @@ check("tray-menyn har Google Calendar-posten", "Google Calendar" in main_py)
 check("widgeten har Google Calendar-dialogen", "open_google_calendar_dialog" in widget_py)
 check("uppgiftsmenyn kan skicka en uppgift", "push_task" in (widget_py + dlg_py))
 check("dialogen finns", bool(dlg_py))
+check("dialogen har guide och historik", "GoogleSetupWizard" in dlg_py and "HistoryDialog" in dlg_py)
+check("dialogen kontrollerar credentials.json före inloggning", "validate_credentials_file" in dlg_py)
+check("uppgiftsmenyn har kalenderhistorik", "_on_show_task_calendar_history" in widget_py)
+check("inställningarna har google_calendar_done_style", "google_calendar_done_style" in settings_py)
 check("dialogen har uppgiftsväljare", "TaskPickerDialog" in dlg_py and "valda_ids" in dlg_py)
 check("\"skicka alla\" skickar inte längre utan val", "select_tasks_by_ids" in dlg_py)
 check("dialogen kör nätverket i en tråd (UI får inte frysa)",
@@ -716,6 +850,10 @@ for _fil, _namn in [
     ("ui/google_calendar_dialog.py", "push_task_with_dialog"),
     ("ui/google_calendar_dialog.py", "run_google_job"),
     ("ui/google_calendar_dialog.py", "TaskPickerDialog"),
+    ("ui/google_calendar_dialog.py", "GoogleSetupWizard"),
+    ("ui/google_calendar_dialog.py", "HistoryDialog"),
+    ("ui/google_calendar_dialog.py", "open_history_dialog"),
+    ("ui/widget.py", "_on_show_task_calendar_history"),
 ]:
     _n = _antal_definitioner(_fil, _namn)
     check(f"{_namn} definieras exakt en gång i {_fil}", _n == 1, f"hittade {_n}")

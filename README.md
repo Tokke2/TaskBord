@@ -79,6 +79,11 @@ Sedan:
   en heldagshändelse på sitt förfallodatum (prioritet blir färg).
 * **☁️ Välj uppgifter att skicka…** i dialogen — du kryssar själv i vilka som ska med (inget skickas utan ditt val).
 * Dubbletter är omöjliga: samma uppgift **uppdaterar** sin händelse.
+* **🧭 Guidad installation** i dialogen leder dig genom engångsstegen hos Google och
+  kontrollerar `credentials.json` innan inloggningen.
+* **🕘 Historik** visar vad som skickats, när och med vilket resultat — med knapp
+  för att öppna händelsen i Google Calendar.
+* **Klara uppgifter** blir grå (✅ framför titeln, eller överstruken) i kalendern.
 * Vill du hellre ha en fil att importera? **📅 Exportera till kalender (.ics)…**
   fungerar utan konto (Outlook, Apple Kalender och Google Calendar).
 

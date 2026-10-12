@@ -1317,6 +1317,8 @@ class Settings(QObject):
             "google_calendar_enabled": False,
             "google_calendar_id": "primary",
             "google_calendar_color_by_priority": True,
+            # Klara uppgifter i kalendern: "grey" | "strike" | "off"
+            "google_calendar_done_style": "grey",
             "_meta": {
                 "schema_version": SETTINGS_VERSION,
                 "created_at": datetime.now(timezone.utc).isoformat(),
@@ -1371,6 +1373,9 @@ class Settings(QObject):
             "google_calendar_enabled": lambda v: _coerce_bool(v, False),
             "google_calendar_id": lambda v: _coerce_str(v, "primary")[:200],
             "google_calendar_color_by_priority": lambda v: _coerce_bool(v, True),
+            "google_calendar_done_style": lambda v: _coerce_str(
+                v, "grey", ("grey", "strike", "off")
+            ),
             "autostart_method": lambda v: _coerce_str(v, DEFAULT_AUTOSTART_METHOD, VALID_AUTOSTART_METHODS),
             "animations": lambda v: _coerce_bool(v, True),
             "start_minimized_to_tray": lambda v: _coerce_bool(v, False),
@@ -2766,6 +2771,26 @@ class Settings(QObject):
             self._data["google_calendar_color_by_priority"] = v
         self._dirty = True
         self._log.info(f"{LOG_PREFIX} google_calendar_color_by_priority: {v}")
+        self._save_async_worker(self._data)
+        return True
+
+    @_log_call
+    def google_calendar_done_style(self) -> str:
+        """Hur klara uppgifter syns i kalendern: grey | strike | off."""
+        with self._lock:
+            return _coerce_str(
+                self._data.get("google_calendar_done_style", "grey"),
+                "grey", ("grey", "strike", "off"),
+            )
+
+    @_log_setter("google_calendar_done_style")
+    def set_google_calendar_done_style(self, style: str) -> bool:
+        """Välj hur klara uppgifter markeras i Google Calendar."""
+        v = _coerce_str(style, "grey", ("grey", "strike", "off"))
+        with self._lock:
+            self._data["google_calendar_done_style"] = v
+        self._dirty = True
+        self._log.info(f"{LOG_PREFIX} google_calendar_done_style: {v}")
         self._save_async_worker(self._data)
         return True
 

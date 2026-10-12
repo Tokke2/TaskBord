@@ -44,6 +44,12 @@ felsökning.
 
 ## 2. Engångssteg hos Google (5 minuter)
 
+> 🧭 **Hellre en guide i appen?** Öppna ☁️ Google Calendar → **🧭 Guidad
+> installation**. Den öppnar rätt sida hos Google för varje steg, kontrollerar
+> att `credentials.json` är rätt typ (Datorapp) *innan* du loggar in, och kan
+> leta upp och kopiera den nedladdade filen åt dig. Första gången du öppnar
+> dialogen utan `credentials.json` startar guiden automatiskt.
+
 Det här görs en gång. Google kräver att *du* skaffar en egen nyckel till ditt
 eget konto — det är därför ingen kan "låna" någon annans.
 
@@ -110,6 +116,17 @@ Detaljer:
   om du skulle ha installerat om appen (märket finns kvar i händelsen).
 * **Klara uppgifter** markeras med genomskinlig tid, så de inte bokar upp
   kalendern som "upptagen".
+* **Klara uppgifter** blir grå i kalendern med en ✅ framför titeln (Google
+  Calendar kan inte stryka över en heldagshändelse). I dialogen kan du i stället
+  välja *överstruken titel + grå* eller ingen markering. En uppgift som blivit
+  klar (och flyttats till arkivet) syns i väljaren om den skickats förut —
+  skicka den igen så uppdateras händelsen. Ångrar du klar-markeringen får
+  händelsen tillbaka sin vanliga färg och titel.
+* **Historik:** **🕘 Historik** i dialogen visar allt som skickats — tid,
+  uppgift, resultat (skapad / uppdaterad / hoppad / misslyckad) och kalender.
+  Markera en rad och klicka **🔗 Öppna i Google Calendar** (eller dubbelklicka).
+  Högerklick på en uppgift → **🕘 Kalenderhistorik för uppgiften** visar bara den
+  uppgiftens rader. Filen `js/google/history.json` sparar de 500 senaste.
 * **Kalenderval:** klicka **🔄 Hämta lista** och välj vilken kalender
   (t.ex. en delad "Arbete"-kalender) händelserna ska hamna i. Valet sparas.
 
@@ -126,6 +143,7 @@ Allt hamnar i appens datamapp (`js\` i en vanlig installation — samma mapp som
 | `js/google/token.json` | Åtkomstbeviset som skapas vid inloggning (0600) | **Ja — som ett lösenord** |
 | `js/google/account.json` | E-post + tidszon (för statusraden) | Nej |
 | `js/google/event_map.json` | Uppgift-id → händelse-id (dubblettskyddet) | Nej |
+| `js/google/history.json` | Sändningshistoriken (tid, uppgift, resultat, länk) | Nej |
 
 `token.json`, `credentials.json` och `client_secret*.json` ligger i
 `.gitignore` — de kan inte råka följa med i en commit.
@@ -137,6 +155,7 @@ Allt hamnar i appens datamapp (`js\` i en vanlig installation — samma mapp som
 | Problem | Lösning |
 |---|---|
 | *"Google-paketen är inte installerade"* | Kör `pip install google-api-python-client google-auth-oauthlib` — eller starta appen med `FORSTA_START.bat` som installerar dem automatiskt. |
+| *"credentials.json går inte att använda"* | Oftast fel klienttyp (Webbapplikation i stället för **Datorapp**). Skapa en ny OAuth-klient av rätt typ — guiden i appen pekar ut exakt vad som är fel. |
 | *"credentials.json saknas"* | Steg 2 ovan. Klicka **📂 Öppna mappen** i appen och lägg filen där. |
 | **403 – access_denied** vid inloggning | Lägg till din adress under **Testanvändare** i Godkännandeskärmen (steg 3). |
 | **403 – API har inte aktiverats** | Aktivera Google Calendar API i projektet (steg 2). |

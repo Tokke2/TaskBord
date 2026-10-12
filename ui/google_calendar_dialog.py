@@ -27,11 +27,12 @@ logger = logging.getLogger("TaskBord")
 LOG_PREFIX = "[GCAL-UI]"
 
 try:
-    from PySide6.QtCore import Qt, QThread, QUrl, Signal
+    from PySide6.QtCore import QTimer, Qt, QThread, QUrl, Signal
     from PySide6.QtGui import QDesktopServices
     from PySide6.QtWidgets import (
         QCheckBox, QComboBox, QDialog, QHBoxLayout, QLabel, QLineEdit,
-        QListWidget, QListWidgetItem, QMessageBox, QPlainTextEdit, QProgressBar, QPushButton, QVBoxLayout, QWidget,
+        QListWidget, QListWidgetItem, QMessageBox, QPlainTextEdit,
+        QFileDialog, QHeaderView, QTableWidget, QTableWidgetItem, QAbstractItemView, QProgressBar, QPushButton, QVBoxLayout, QWidget,
     )
     _QT_AVAILABLE: bool = True
 except ImportError:  # pragma: no cover - Qt saknas (t.ex. i tester)
@@ -108,6 +109,35 @@ def _fargkodning(settings: Any = None) -> bool:
         except Exception:
             pass
     return True
+
+
+def _done_style(settings: Any = None) -> str:
+    """Hur klara uppgifter ska se ut i kalendern (grey | strike | off)."""
+    if settings is not None:
+        try:
+            f = getattr(settings, "google_calendar_done_style", None)
+            if callable(f):
+                v = str(f())
+                if v in gcal.DONE_STYLES:
+                    return v
+        except Exception:
+            pass
+    return gcal.DEFAULT_DONE_STYLE
+
+
+def _open_url(url: str) -> bool:
+    """Öppna en adress i webbläsaren (Qt först, annars webbbrowser)."""
+    if _QT_AVAILABLE:
+        try:
+            if QDesktopServices.openUrl(QUrl(url)):
+                return True
+        except Exception:
+            pass
+    try:
+        import webbrowser
+        return bool(webbrowser.open(url))
+    except Exception:
+        return False
 
 
 def _spara_ansluten(settings: Any, data_dir: Any, ansluten: bool) -> None:
@@ -354,6 +384,8 @@ if _QT_AVAILABLE:
             for r in rader:
                 text = f"{ikon.get(r['priority'], '⚪')} {r['title']}"
                 text += f"   — {r['due']}" if r["due"] else f"   — ({r['reason']})"
+                if r.get("done"):
+                    text += "   ✔ klar — händelsen markeras som klar"
                 if r["sent"]:
                     text += "   ☁️ redan skickad"
                 it = QListWidgetItem(text)
@@ -423,6 +455,260 @@ if _QT_AVAILABLE:
             n = len(self.valda_ids())
             self.antal.setText(f"{n} valda")
             self.btn_skicka.setEnabled(n > 0)
+
+    class GoogleSetupWizard(QDialog):
+        """
+        Guidad första koppling: steg för steg från noll till inloggad.
+
+        Appen kontrollerar själv det den kan (paket, credentials.json,
+        inloggning). Engångsstegen hos Google kan bara du bekräfta.
+        Nästa-knappen på filsteget är låst tills credentials.json klarar
+        kontrollen — så inloggningen aldrig startar med en trasig fil.
+        """
+
+        def __init__(self, data_dir: Any, parent: Optional[QWidget] = None,
+                     start_key: Optional[str] = None) -> None:
+            super().__init__(parent)
+            self.data_dir = Path(str(data_dir))
+            self.vill_koppla = False
+            self._manual: Dict[str, bool] = {}
+            self._steg = gcal.setup_steps(self.data_dir)
+            self.setWindowTitle("🧭 Guidad installation — Google Calendar")
+            self.setModal(True)
+            self.setMinimumSize(540, 420)
+
+            rot = QVBoxLayout(self)
+            rot.setContentsMargins(18, 16, 18, 14)
+            rot.setSpacing(10)
+            self.oversikt = QLabel("", self)
+            self.oversikt.setStyleSheet("font-size: 15px;")
+            rot.addWidget(self.oversikt)
+            self.rubrik = QLabel("", self)
+            self.rubrik.setStyleSheet("font-size: 17px; font-weight: 800;")
+            rot.addWidget(self.rubrik)
+            self.text = QLabel("", self)
+            self.text.setWordWrap(True)
+            self.text.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            self.text.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+            rot.addWidget(self.text, 1)
+
+            self.rad_atgarder = QHBoxLayout()
+            self.rad_atgarder.setSpacing(8)
+            rot.addLayout(self.rad_atgarder)
+            self.chk_klart = QCheckBox("Jag har gjort det här steget", self)
+            self.chk_klart.toggled.connect(self._on_manuell)
+            rot.addWidget(self.chk_klart)
+
+            nav = QHBoxLayout()
+            self.btn_bak = QPushButton("◀ Tillbaka", self)
+            self.btn_bak.clicked.connect(lambda: self._gar(-1))
+            nav.addWidget(self.btn_bak)
+            nav.addStretch(1)
+            self.btn_fram = QPushButton("Nästa ▶", self)
+            self.btn_fram.setDefault(True)
+            self.btn_fram.clicked.connect(lambda: self._gar(1))
+            nav.addWidget(self.btn_fram)
+            stang = QPushButton("Stäng", self)
+            stang.clicked.connect(self.reject)
+            nav.addWidget(stang)
+            rot.addLayout(nav)
+
+            self.index = 0
+            if start_key:
+                self.index = next((i for i, s_ in enumerate(self._steg)
+                                   if s_["key"] == start_key), 0)
+            else:  # börja vid första steget appen vet är ogjort
+                self.index = next((i for i, s_ in enumerate(self._steg)
+                                   if s_["done"] is False), 0)
+            self._visa()
+
+        def _on_manuell(self, val: bool) -> None:
+            self._manual[self._steg[self.index]["key"]] = bool(val)
+            self._visa(rebuild=False)
+
+        def _gar(self, d: int) -> None:
+            self.index = max(0, min(len(self._steg) - 1, self.index + d))
+            self._visa()
+
+        def _klart(self, steg: Dict[str, Any]) -> bool:
+            if steg["done"] is None:
+                return bool(self._manual.get(steg["key"]))
+            return bool(steg["done"])
+
+        def _knapp(self, text: str, fn: Callable[[], None]) -> None:
+            b = QPushButton(text, self)
+            b.clicked.connect(fn)
+            self.rad_atgarder.addWidget(b)
+
+        def _visa(self, rebuild: bool = True) -> None:
+            if rebuild:
+                self._steg = gcal.setup_steps(self.data_dir)
+            st = self._steg[self.index]
+            n = len(self._steg)
+            symboler = []
+            for i, s_ in enumerate(self._steg):
+                if i == self.index:
+                    symboler.append("➡️")
+                else:
+                    symboler.append("✅" if self._klart(s_) else "⬜")
+            self.oversikt.setText(" ".join(symboler))
+            self.rubrik.setText(f"Steg {self.index + 1} av {n} — {st['title']}")
+            self.text.setText(st["text"])
+
+            while self.rad_atgarder.count():
+                it = self.rad_atgarder.takeAt(0)
+                w = it.widget()
+                if w is not None:
+                    w.deleteLater()
+            if st.get("url"):
+                url = st["url"]
+                self._knapp("🌐 Öppna sidan hos Google", lambda u=url: _open_url(u))
+            if st["key"] == "file":
+                self._knapp("📂 Öppna mappen", self._oppna_mapp)
+                self._knapp("📥 Välj fil…", self._valj_fil)
+                self._knapp("🔍 Leta i Hämtade filer", self._leta)
+                self._knapp("🔄 Kontrollera igen", lambda: self._visa())
+            if st["key"] == "login":
+                self._knapp("🔑 Koppla Google-konto…", self._koppla)
+            self.rad_atgarder.addStretch(1)
+
+            self.chk_klart.blockSignals(True)
+            self.chk_klart.setVisible(st["done"] is None)
+            self.chk_klart.setChecked(bool(self._manual.get(st["key"])))
+            self.chk_klart.blockSignals(False)
+
+            self.btn_bak.setEnabled(self.index > 0)
+            sista = self.index == n - 1
+            self.btn_fram.setVisible(not sista)
+            # Låst tills filen klarar kontrollen
+            self.btn_fram.setEnabled(not (st["key"] == "file" and st["done"] is False))
+
+        def _oppna_mapp(self) -> None:
+            try:
+                gcal.google_dir(self.data_dir).mkdir(parents=True, exist_ok=True)
+                QDesktopServices.openUrl(QUrl.fromLocalFile(str(gcal.google_dir(self.data_dir))))
+            except Exception as e:
+                logger.warning(f"{LOG_PREFIX} kunde inte öppna mappen: {e}")
+
+        def _installera(self, fil: Any) -> None:
+            res = gcal.install_credentials_file(fil, self.data_dir)
+            if res.get("installed"):
+                _visa_info(self, "✅ Filen är kopierad",
+                           "credentials.json ser rätt ut och ligger nu på rätt plats.")
+            else:
+                _visa_fel(self, "Filen kan inte användas:\n\n• "
+                          + "\n• ".join(res.get("problems") or ["okänt fel"]))
+            self._visa()
+
+        def _valj_fil(self) -> None:
+            start = str(Path.home() / "Downloads")
+            fil, _ = QFileDialog.getOpenFileName(
+                self, "Välj nedladdad JSON-fil från Google", start,
+                "JSON-filer (*.json);;Alla filer (*.*)")
+            if fil:
+                self._installera(fil)
+
+        def _leta(self) -> None:
+            hittad = gcal.find_downloaded_credentials()
+            if hittad is None:
+                _visa_info(self, "Hittade ingen fil",
+                           "Ingen giltig client_secret*.json låg i Hämtade filer.\n"
+                           "Använd “Välj fil…” om du sparade den någon annanstans.")
+                return
+            self._installera(hittad)
+
+        def _koppla(self) -> None:
+            self.vill_koppla = True
+            self.accept()
+
+    class HistoryDialog(QDialog):
+        """Vad som skickats till kalendern: när, vilken uppgift och resultat."""
+
+        def __init__(self, data_dir: Any, parent: Optional[QWidget] = None,
+                     task_id: Optional[str] = None, task_title: str = "") -> None:
+            super().__init__(parent)
+            self.data_dir = Path(str(data_dir))
+            self.task_id = task_id
+            self.setWindowTitle("🕘 Sändningshistorik" + (f" — {task_title}" if task_title else ""))
+            self.setModal(True)
+            self.setMinimumSize(640, 380)
+            rot = QVBoxLayout(self)
+            rot.setContentsMargins(16, 14, 16, 12)
+            rot.setSpacing(8)
+
+            self.tabell = QTableWidget(0, 4, self)
+            self.tabell.setHorizontalHeaderLabels(["Tid", "Uppgift", "Resultat", "Kalender"])
+            self.tabell.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+            self.tabell.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+            self.tabell.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+            self.tabell.verticalHeader().setVisible(False)
+            hdr = self.tabell.horizontalHeader()
+            hdr.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+            hdr.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+            self.tabell.itemSelectionChanged.connect(self._uppdatera_knappar)
+            self.tabell.cellDoubleClicked.connect(lambda _r, _c: self._oppna())
+            rot.addWidget(self.tabell, 1)
+
+            self.tom = QLabel("", self)
+            rot.addWidget(self.tom)
+
+            rad = QHBoxLayout()
+            self.btn_oppna = QPushButton("🔗 Öppna i Google Calendar", self)
+            self.btn_oppna.clicked.connect(self._oppna)
+            rad.addWidget(self.btn_oppna)
+            self.btn_rensa = QPushButton("🗑 Rensa historiken", self)
+            self.btn_rensa.setVisible(task_id is None)
+            self.btn_rensa.clicked.connect(self._rensa)
+            rad.addWidget(self.btn_rensa)
+            rad.addStretch(1)
+            stang = QPushButton("Stäng", self)
+            stang.clicked.connect(self.accept)
+            rad.addWidget(stang)
+            rot.addLayout(rad)
+            self._fyll()
+
+        def _fyll(self) -> None:
+            hist = gcal.load_history(self.data_dir)
+            poster = hist.for_task(self.task_id) if self.task_id else hist.all()
+            self._poster = poster
+            self.tabell.setRowCount(len(poster))
+            for r, e in enumerate(poster):
+                rader = [gcal.history_time_text(e), str(e.get("title") or ""),
+                         gcal.history_result_text(e), str(e.get("calendar_id") or "")]
+                for c, txt in enumerate(rader):
+                    it = QTableWidgetItem(txt)
+                    it.setToolTip(str(e.get("message") or ""))
+                    self.tabell.setItem(r, c, it)
+            self.tom.setText("" if poster else "Ingenting har skickats till kalendern ännu.")
+            self._uppdatera_knappar()
+
+        def _vald(self) -> Optional[Dict[str, Any]]:
+            rader = self.tabell.selectionModel().selectedRows()
+            if not rader:
+                return None
+            i = rader[0].row()
+            return self._poster[i] if 0 <= i < len(self._poster) else None
+
+        def _uppdatera_knappar(self) -> None:
+            e = self._vald()
+            self.btn_oppna.setEnabled(bool(e and e.get("ok")))
+            self.btn_rensa.setEnabled(bool(self._poster))
+
+        def _oppna(self) -> None:
+            e = self._vald()
+            if e and e.get("ok"):
+                _open_url(gcal.calendar_open_url(e))
+
+        def _rensa(self) -> None:
+            svar = QMessageBox.question(
+                self, "Rensa historiken",
+                "Vill du rensa historiken? Händelserna i Google Calendar "
+                "påverkas inte.",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No)
+            if svar == QMessageBox.StandardButton.Yes:
+                gcal.load_history(self.data_dir).clear()
+                self._fyll()
 
     class GoogleCalendarDialog(QDialog):
         """Koppla Google Calendar till TaskBord — lokalt, utan mellanhänder."""
@@ -525,6 +811,23 @@ if _QT_AVAILABLE:
             self.chef_farg.toggled.connect(self._on_farg_andrad)
             rot.addWidget(self.chef_farg)
 
+            rad_klar = QHBoxLayout()
+            rad_klar.addWidget(QLabel("Klara uppgifter i kalendern:", self))
+            self.combo_klar = QComboBox(self)
+            self.combo_klar.addItem("✅ Grå + bock framför titeln", "grey")
+            self.combo_klar.addItem("Överstruken titel + grå", "strike")
+            self.combo_klar.addItem("Ingen särskild markering", "off")
+            self.combo_klar.setToolTip(
+                "Google Calendar kan inte stryka över en heldagshändelse, så en\n"
+                "klar uppgift markeras med grå färg och bock (eller överstruken text).\n"
+                "Skicka uppgiften igen för att uppdatera händelsen."
+            )
+            idx_klar = self.combo_klar.findData(_done_style(settings))
+            self.combo_klar.setCurrentIndex(max(0, idx_klar))
+            self.combo_klar.activated.connect(lambda _i: self._on_klar_andrad())
+            rad_klar.addWidget(self.combo_klar, 1)
+            rot.addLayout(rad_klar)
+
             # --- skicka uppgifter ----------------------------------------
             rad3 = QHBoxLayout()
             rad3.setSpacing(8)
@@ -554,6 +857,16 @@ if _QT_AVAILABLE:
             self.btn_mapp.clicked.connect(self._on_oppna_mapp)
             rad4.addWidget(self.btn_mapp)
 
+            self.btn_wizard = QPushButton("🧭 Guidad installation", self)
+            self.btn_wizard.setToolTip("Steg för steg från noll till inloggad")
+            self.btn_wizard.clicked.connect(lambda: self._oppna_wizard())
+            rad4.addWidget(self.btn_wizard)
+
+            self.btn_historik = QPushButton("🕘 Historik", self)
+            self.btn_historik.setToolTip("Vad som skickats till kalendern, när och med vilket resultat")
+            self.btn_historik.clicked.connect(self._on_historik)
+            rad4.addWidget(self.btn_historik)
+
             self.btn_guide = QPushButton("📄 Öppna guiden", self)
             self.btn_guide.setToolTip("GOOGLE_CALENDAR.md — steg för steg")
             self.btn_guide.clicked.connect(self._on_oppna_guide)
@@ -566,6 +879,36 @@ if _QT_AVAILABLE:
             rot.addLayout(rad4)
 
             self._refresh_status()
+
+            # Första gången (ingen credentials.json): starta guiden automatiskt
+            try:
+                st0 = gcal.get_status(self.data_dir)
+                if st0["state"] in (gcal.ConnectionStatus.NOT_CONFIGURED,):
+                    QTimer.singleShot(0, lambda: self._oppna_wizard())
+            except Exception:
+                pass
+
+        # ------------------------------------------------------------------
+        # Guide och historik
+        # ------------------------------------------------------------------
+        def _oppna_wizard(self, start_key: Optional[str] = None) -> None:
+            """Öppna den guidade installationen; kopplar direkt om användaren vill."""
+            w = GoogleSetupWizard(self.data_dir, self, start_key=start_key)
+            w.exec()
+            self._refresh_status()
+            if w.vill_koppla:
+                self._on_koppla()
+
+        def _on_historik(self) -> None:
+            HistoryDialog(self.data_dir, self).exec()
+
+        def _on_klar_andrad(self) -> None:
+            try:
+                if self.settings is not None:
+                    self.settings.set_google_calendar_done_style(
+                        str(self.combo_klar.currentData()))
+            except Exception as e:
+                logger.warning(f"{LOG_PREFIX} kunde inte spara klar-stil: {e}")
 
         # ------------------------------------------------------------------
         # Status och logg
@@ -670,6 +1013,18 @@ if _QT_AVAILABLE:
         def _on_koppla(self) -> None:
             """Starta OAuth-inloggningen (i bakgrunden)."""
             data = self.data_dir
+
+            # Kontrollera credentials.json INNAN webbläsaren öppnas
+            cred = gcal.discover_credentials_file(data)
+            kontroll = gcal.validate_credentials_file(cred) if cred else None
+            if not kontroll or not kontroll["ok"]:
+                _visa_info(
+                    self, "🧭 credentials.json behöver åtgärdas",
+                    ("Filen saknas." if not kontroll else
+                     "Filen går inte att använda:\n\n• " + "\n• ".join(kontroll["problems"]))
+                    + "\n\nGuiden öppnas så att du kan åtgärda det.")
+                self._oppna_wizard("file")
+                return
 
             def jobb(logga):
                 logga("Öppnar webbläsaren för inloggning hos Google…")
@@ -809,8 +1164,8 @@ if _QT_AVAILABLE:
 
         def _on_skicka_alla(self) -> None:
             """Låt användaren välja uppgifter och skicka bara dem."""
-            alla = _aktiva_uppgifter(self.store)
             data = self.data_dir
+            alla = _uppgifter_for_valjaren(self.store, gcal.load_event_map(data))
             if not alla:
                 _visa_info(self, "Inga uppgifter", "Det finns inga aktiva uppgifter.")
                 return
@@ -823,6 +1178,7 @@ if _QT_AVAILABLE:
             cid = str(self.combo_kalender.currentData() or "").strip() \
                 or _kalender_id(self.settings, data)
             farg = self.chef_farg.isChecked()
+            klar_stil = str(self.combo_klar.currentData() or gcal.DEFAULT_DONE_STYLE)
             if not uppgifter:
                 return
 
@@ -831,7 +1187,8 @@ if _QT_AVAILABLE:
                 service = gcal.build_calendar_service(data)
                 em = gcal.load_event_map(data)
                 res = gcal.push_tasks(service, cid, uppgifter, em,
-                                      color_by_priority=farg)
+                                      color_by_priority=farg, done_style=klar_stil,
+                                      history=gcal.load_history(data))
                 for r in res["results"][:40]:
                     markering = "✓" if r["ok"] else ("•" if r["action"] == "hoppad" else "✗")
                     logga(f"  {markering} {r['title'][:50]} — {r['action']}"
@@ -917,6 +1274,28 @@ def _aktiva_uppgifter(store: Any) -> List[Dict[str, Any]]:
     return []
 
 
+def _uppgifter_for_valjaren(store: Any, event_map: Any = None) -> List[Dict[str, Any]]:
+    """
+    Aktiva uppgifter + arkiverade (klara) uppgifter som redan skickats.
+
+    De senare behövs för att en uppgift som blivit klar — och därför
+    flyttats till arkivet — ska kunna uppdatera sin händelse till "klar".
+    """
+    uppgifter = _aktiva_uppgifter(store)
+    try:
+        arkiv = getattr(store, "archive_tasks", None)
+        if callable(arkiv) and event_map is not None:
+            har = {str(t.get("id")) for t in uppgifter}
+            for t in arkiv():
+                tid = str(t.get("id") or "")
+                if (isinstance(t, dict) and tid and tid not in har
+                        and event_map.get(tid) and str(t.get("title", "")).strip()):
+                    uppgifter.append(t)
+    except Exception as e:
+        logger.warning(f"{LOG_PREFIX} kunde inte läsa arkivet: {e}")
+    return uppgifter
+
+
 # --------------------------------------------------------------------------
 # Ingångar (anropas från widgeten och tray-menyn)
 # --------------------------------------------------------------------------
@@ -988,26 +1367,62 @@ def push_task_with_dialog(
 
     cid = _kalender_id(settings, data)
     farg = _fargkodning(settings)
+    klar_stil = _done_style(settings)
     titel = str(task.get("title", ""))[:70]
 
     def jobb(logga):
         logga(f"Skickar “{titel}” till “{cid}”…")
         service = gcal.build_calendar_service(data)
         em = gcal.load_event_map(data)
-        r = gcal.push_task(service, cid, task, em, color_by_priority=farg)
+        r = gcal.push_task(service, cid, task, em, color_by_priority=farg,
+                           done_style=klar_stil, history=gcal.load_history(data))
         logga(f"{r['action']}: {r['message']}")
         return r
 
     def klart(r: Dict[str, Any]) -> None:
         if r.get("ok"):
-            _visa_info(
-                parent,
-                "☁️ Skickat till Google Calendar",
-                f"“{titel}” — {r.get('message', 'klart')}\n\n"
-                "Öppna kalendern för att se händelsen.",
-            )
+            try:
+                box = QMessageBox(parent)
+                box.setIcon(QMessageBox.Icon.Information)
+                box.setWindowTitle("☁️ Skickat till Google Calendar")
+                box.setText(f"“{titel}” — {r.get('message', 'klart')}")
+                knapp = box.addButton("🔗 Öppna i Google Calendar",
+                                      QMessageBox.ButtonRole.ActionRole)
+                box.addButton("OK", QMessageBox.ButtonRole.AcceptRole)
+                box.exec()
+                if box.clickedButton() is knapp:
+                    dag = gcal.resolve_task_date(task)
+                    _open_url(gcal.calendar_open_url({
+                        "html_link": r.get("html_link", ""),
+                        "due": dag.isoformat() if dag else "",
+                    }))
+            except Exception as e:
+                logger.warning(f"{LOG_PREFIX} resultatruta misslyckades: {e}")
         else:
             _visa_info(parent, "☁️ Kunde inte skicka", str(r.get("message") or "Okänt fel"))
 
     run_google_job(parent, "Skickar till Google Calendar", jobb, on_done=klart)
     return True
+
+
+def open_history_dialog(
+    parent: Optional[QWidget] = None,
+    task: Optional[Dict[str, Any]] = None,
+    store: Any = None,
+    settings: Any = None,
+    data_dir: Any = None,
+) -> bool:
+    """
+    Visa sändningshistoriken (för en uppgift om `task` ges, annars alla).
+    """
+    if not _QT_AVAILABLE:  # pragma: no cover
+        return False
+    try:
+        data = _resolve_data_dir(store, settings, data_dir)
+        tid = str((task or {}).get("id") or "") or None
+        HistoryDialog(data, parent, task_id=tid,
+                      task_title=str((task or {}).get("title") or "")[:50]).exec()
+        return True
+    except Exception as e:  # pragma: no cover
+        logger.error(f"{LOG_PREFIX} historikdialogen misslyckades: {e}", exc_info=True)
+        return False

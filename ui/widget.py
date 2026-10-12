@@ -2484,6 +2484,14 @@ if _QT_AVAILABLE:
                 act.triggered.connect(
                     lambda _c, _t=dict(task): self._on_push_task_to_google(_t)
                 )
+                act = menu.addAction("🕘 Kalenderhistorik för uppgiften")
+                act.setToolTip(
+                    "Visar när uppgiften skickats till Google Calendar och\n"
+                    "med vilket resultat — med knapp för att öppna händelsen"
+                )
+                act.triggered.connect(
+                    lambda _c, _t=dict(task): self._on_show_task_calendar_history(_t)
+                )
                 menu.addSeparator()
 
                 # --- ⏰ Senarelägg ------------------------------------
@@ -5554,6 +5562,23 @@ if _QT_AVAILABLE:
             except Exception as e:
                 logger.warning(
                     f"{LOG_PREFIX} _on_push_task_to_google misslyckades: "
+                    f"{_describe_widget_error(e)}"
+                )
+
+        def _on_show_task_calendar_history(self, task: Dict[str, Any]) -> None:
+            """NY v8: sändningshistoriken för EN uppgift (Google Calendar)."""
+            try:
+                get_throttle().notify_activity()
+                from ui.google_calendar_dialog import open_history_dialog
+                open_history_dialog(
+                    self,
+                    task=dict(task or {}),
+                    store=getattr(self, "store", None),
+                    settings=getattr(self, "settings", None),
+                )
+            except Exception as e:
+                logger.warning(
+                    f"{LOG_PREFIX} _on_show_task_calendar_history misslyckades: "
                     f"{_describe_widget_error(e)}"
                 )
 
