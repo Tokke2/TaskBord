@@ -1311,6 +1311,46 @@ def push_tasks(
     return sammanstallning
 
 
+def describe_tasks_for_picker(
+    tasks: List[Dict[str, Any]],
+    event_map: Optional[EventMap] = None,
+) -> List[Dict[str, Any]]:
+    """
+    Underlag till uppgiftsväljaren: användaren väljer själv vad som skickas.
+
+    Varje rad får: id, title, due (ISO eller ""), priority, sent (redan
+    skickad tidigare), sendable (har datum) och reason (varför den inte
+    går att välja). Ordningen från `tasks` behålls.
+    """
+    rader: List[Dict[str, Any]] = []
+    for t in tasks or []:
+        if not isinstance(t, dict) or not str(t.get("title") or "").strip():
+            continue
+        d = resolve_task_date(t)
+        tid = str(t.get("id") or "").strip()
+        rader.append({
+            "id": tid,
+            "title": str(t.get("title")).strip(),
+            "due": d.isoformat() if d else "",
+            "priority": str(t.get("priority") or "none").lower(),
+            "sent": bool(event_map and tid and event_map.get(tid)),
+            "sendable": d is not None,
+            "reason": "" if d is not None else "saknar förfallodatum",
+            "task": t,
+        })
+    return rader
+
+
+def select_tasks_by_ids(
+    tasks: List[Dict[str, Any]],
+    chosen_ids: List[str],
+) -> List[Dict[str, Any]]:
+    """Bara de uppgifter användaren valt (ordningen från `tasks` behålls)."""
+    valda = {str(i) for i in (chosen_ids or [])}
+    return [t for t in tasks or []
+            if isinstance(t, dict) and str(t.get("id") or "") in valda]
+
+
 def summarize(resultat: Dict[str, Any]) -> str:
     """Kort svensk sammanfattning av en sändning (för dialogrutan)."""
     if not isinstance(resultat, dict):

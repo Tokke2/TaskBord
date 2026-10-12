@@ -30,8 +30,8 @@ try:
     from PySide6.QtCore import Qt, QThread, QUrl, Signal
     from PySide6.QtGui import QDesktopServices
     from PySide6.QtWidgets import (
-        QCheckBox, QComboBox, QDialog, QHBoxLayout, QLabel, QMessageBox,
-        QPlainTextEdit, QProgressBar, QPushButton, QVBoxLayout, QWidget,
+        QCheckBox, QComboBox, QDialog, QHBoxLayout, QLabel, QLineEdit,
+        QListWidget, QListWidgetItem, QMessageBox, QPlainTextEdit, QProgressBar, QPushButton, QVBoxLayout, QWidget,
     )
     _QT_AVAILABLE: bool = True
 except ImportError:  # pragma: no cover - Qt saknas (t.ex. i tester)
@@ -321,6 +321,109 @@ def _visa_info(parent: Optional[QWidget], titel: str, text: str) -> None:
 # --------------------------------------------------------------------------
 if _QT_AVAILABLE:
 
+    class TaskPickerDialog(QDialog):
+        """
+        Användaren väljer själv vilka uppgifter som skickas till kalendern.
+
+        Inget är förkryssat från start. Uppgifter utan förfallodatum visas
+        men går inte att välja; redan skickade märks med ☁️ (de uppdateras
+        i stället för att dubbleras).
+        """
+
+        def __init__(self, rader: List[Dict[str, Any]], parent: Optional[QWidget] = None):
+            super().__init__(parent)
+            self.setWindowTitle("Välj uppgifter att skicka")
+            self.setModal(True)
+            self.setMinimumSize(520, 440)
+            self._rader = rader
+
+            rot = QVBoxLayout(self)
+            rot.setContentsMargins(16, 14, 16, 12)
+            rot.setSpacing(8)
+            rot.addWidget(QLabel(
+                "Kryssa i de uppgifter som ska skickas till din kalender. "
+                "Inget skickas som du inte valt.", self))
+
+            self.filter = QLineEdit(self)
+            self.filter.setPlaceholderText("🔍 Filtrera på titel…")
+            self.filter.textChanged.connect(self._filtrera)
+            rot.addWidget(self.filter)
+
+            self.lista = QListWidget(self)
+            ikon = {"high": "🔴", "medium": "🟡", "low": "🟢"}
+            for r in rader:
+                text = f"{ikon.get(r['priority'], '⚪')} {r['title']}"
+                text += f"   — {r['due']}" if r["due"] else f"   — ({r['reason']})"
+                if r["sent"]:
+                    text += "   ☁️ redan skickad"
+                it = QListWidgetItem(text)
+                it.setData(Qt.ItemDataRole.UserRole, r["id"])
+                if r["sendable"]:
+                    it.setFlags(it.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                    it.setCheckState(Qt.CheckState.Unchecked)
+                else:
+                    it.setFlags(it.flags() & ~Qt.ItemFlag.ItemIsEnabled
+                                & ~Qt.ItemFlag.ItemIsUserCheckable)
+                self.lista.addItem(it)
+            self.lista.itemChanged.connect(lambda _i: self._uppdatera_antal())
+            rot.addWidget(self.lista, 1)
+
+            rad = QHBoxLayout()
+            for namn, fn in (("Markera alla synliga", lambda: self._satt(True, False)),
+                             ("Bara osända", lambda: self._satt(True, True)),
+                             ("Avmarkera alla", lambda: self._satt(False, False))):
+                b = QPushButton(namn, self)
+                b.clicked.connect(fn)
+                rad.addWidget(b)
+            rad.addStretch(1)
+            rot.addLayout(rad)
+
+            nederst = QHBoxLayout()
+            self.antal = QLabel("", self)
+            nederst.addWidget(self.antal, 1)
+            avbryt = QPushButton("Avbryt", self)
+            avbryt.clicked.connect(self.reject)
+            nederst.addWidget(avbryt)
+            self.btn_skicka = QPushButton("☁️ Skicka valda", self)
+            self.btn_skicka.setDefault(True)
+            self.btn_skicka.clicked.connect(self.accept)
+            nederst.addWidget(self.btn_skicka)
+            rot.addLayout(nederst)
+            self._uppdatera_antal()
+
+        def _filtrera(self, text: str) -> None:
+            q = text.strip().lower()
+            for i in range(self.lista.count()):
+                it = self.lista.item(i)
+                it.setHidden(bool(q) and q not in it.text().lower())
+
+        def _satt(self, markerad: bool, bara_osanda: bool) -> None:
+            sent = {r["id"]: r["sent"] for r in self._rader}
+            self.lista.blockSignals(True)
+            for i in range(self.lista.count()):
+                it = self.lista.item(i)
+                if it.isHidden() or not (it.flags() & Qt.ItemFlag.ItemIsUserCheckable):
+                    continue
+                if bara_osanda and sent.get(it.data(Qt.ItemDataRole.UserRole)):
+                    continue
+                it.setCheckState(Qt.CheckState.Checked if markerad
+                                 else Qt.CheckState.Unchecked)
+            self.lista.blockSignals(False)
+            self._uppdatera_antal()
+
+        def valda_ids(self) -> List[str]:
+            ut: List[str] = []
+            for i in range(self.lista.count()):
+                it = self.lista.item(i)
+                if it.checkState() == Qt.CheckState.Checked:
+                    ut.append(str(it.data(Qt.ItemDataRole.UserRole)))
+            return ut
+
+        def _uppdatera_antal(self) -> None:
+            n = len(self.valda_ids())
+            self.antal.setText(f"{n} valda")
+            self.btn_skicka.setEnabled(n > 0)
+
     class GoogleCalendarDialog(QDialog):
         """Koppla Google Calendar till TaskBord — lokalt, utan mellanhänder."""
 
@@ -425,9 +528,9 @@ if _QT_AVAILABLE:
             # --- skicka uppgifter ----------------------------------------
             rad3 = QHBoxLayout()
             rad3.setSpacing(8)
-            self.btn_skicka_alla = QPushButton("☁️ Skicka alla uppgifter med datum", self)
+            self.btn_skicka_alla = QPushButton("☁️ Välj uppgifter att skicka…", self)
             self.btn_skicka_alla.setToolTip(
-                "Skickar alla aktiva uppgifter som har ett förfallodatum.\n"
+                "Du väljer själv vilka uppgifter som skickas.\n"
                 "Uppgifter som redan finns uppdateras i stället för att dubbleras."
             )
             self.btn_skicka_alla.clicked.connect(self._on_skicka_alla)
@@ -705,19 +808,26 @@ if _QT_AVAILABLE:
                 logger.warning(f"{LOG_PREFIX} kunde inte spara färgval: {e}")
 
         def _on_skicka_alla(self) -> None:
-            """Skicka alla aktiva uppgifter som har ett förfallodatum."""
-            uppgifter = _aktiva_uppgifter(self.store)
+            """Låt användaren välja uppgifter och skicka bara dem."""
+            alla = _aktiva_uppgifter(self.store)
             data = self.data_dir
+            if not alla:
+                _visa_info(self, "Inga uppgifter", "Det finns inga aktiva uppgifter.")
+                return
+            rader = gcal.describe_tasks_for_picker(alla, gcal.load_event_map(data))
+            val = TaskPickerDialog(rader, self)
+            if val.exec() != QDialog.DialogCode.Accepted:
+                return
+            uppgifter = gcal.select_tasks_by_ids(alla, val.valda_ids())
             # Det som står i rutan gäller (även om användaren inte tryckt Hämta lista)
             cid = str(self.combo_kalender.currentData() or "").strip() \
                 or _kalender_id(self.settings, data)
             farg = self.chef_farg.isChecked()
             if not uppgifter:
-                _visa_info(self, "Inga uppgifter", "Det finns inga aktiva uppgifter.")
                 return
 
             def jobb(logga):
-                logga(f"Skickar upp till {len(uppgifter)} uppgifter till “{cid}”…")
+                logga(f"Skickar {len(uppgifter)} valda uppgifter till {len(uppgifter)} uppgifter till “{cid}”…")
                 service = gcal.build_calendar_service(data)
                 em = gcal.load_event_map(data)
                 res = gcal.push_tasks(service, cid, uppgifter, em,
@@ -756,7 +866,7 @@ if _QT_AVAILABLE:
                 self,
                 "Skickar till Google Calendar",
                 jobb,
-                beskrivning=f"{len(uppgifter)} aktiva uppgifter skickas till “{cid}”.",
+                beskrivning=f"{len(uppgifter)} valda uppgifter skickas till “{cid}”.",
                 on_done=klart,
             )
 

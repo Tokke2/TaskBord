@@ -77,7 +77,7 @@ Ett engångssteg krävs hos Google (skapa en egen nyckel, ca 5 minuter):
 Sedan:
 * **Högerklicka på en uppgift → ☁️ Skicka till Google Calendar** — uppgiften blir
   en heldagshändelse på sitt förfallodatum (prioritet blir färg).
-* **☁️ Skicka alla uppgifter med datum** i dialogen — allt på en gång.
+* **☁️ Välj uppgifter att skicka…** i dialogen — du kryssar själv i vilka som ska med (inget skickas utan ditt val).
 * Dubbletter är omöjliga: samma uppgift **uppdaterar** sin händelse.
 * Vill du hellre ha en fil att importera? **📅 Exportera till kalender (.ics)…**
   fungerar utan konto (Outlook, Apple Kalender och Google Calendar).

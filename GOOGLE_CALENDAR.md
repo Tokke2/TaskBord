@@ -95,7 +95,7 @@ Klart. Nu kan du skicka uppgifter.
 | Så gör du | Vad som händer |
 |---|---|
 | **Högerklicka på en uppgift → ☁️ Skicka till Google Calendar** | Uppgiften blir en heldagshändelse på sitt förfallodatum |
-| **☁️ Skicka alla uppgifter med datum** (i dialogen) | Alla aktiva uppgifter med förfallodatum skickas på en gång |
+| **☁️ Välj uppgifter att skicka…** (i dialogen) | Du kryssar i vilka uppgifter som ska skickas — inget skickas utan ditt val |
 | **📅 Lägg till i Google Calendar** (i uppgiftsmenyn) | Öppnar Google Calendar med händelsen förifylld — utan konto |
 | **📅 Exportera till kalender (.ics)…** | Kalenderfil för Outlook/Apple Kalender/Google |
 

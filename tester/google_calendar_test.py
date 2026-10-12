@@ -503,6 +503,26 @@ with tempfile.TemporaryDirectory() as tmpdir:
     check("en trasig uppgift stoppar inte de andra",
           res["results"][0]["ok"] and res["results"][1]["ok"])
 
+    # --- 10b. Användaren väljer själv vad som skickas ---------------------
+    print("\n10b. Uppgiftsväljaren (användaren väljer)")
+    em_v = gc.EventMap(D / "google" / "m_val.json")
+    em_v.set("a", "ev_gammal")
+    rader_v = gc.describe_tasks_for_picker(uppgifter, em_v)
+    check("tomma titlar syns inte i väljaren", [r["id"] for r in rader_v] == ["a", "b", "c"],
+          str([r["id"] for r in rader_v]))
+    check("uppgift utan datum kan inte väljas",
+          [r["sendable"] for r in rader_v] == [True, True, False])
+    check("förklaring när datum saknas", "förfallodatum" in rader_v[2]["reason"])
+    check("redan skickad uppgift märks", rader_v[0]["sent"] and not rader_v[1]["sent"])
+    valda_v = gc.select_tasks_by_ids(uppgifter, ["b"])
+    svc_v = FakeService()
+    res_v = gc.push_tasks(svc_v, "primary", valda_v, em_v)
+    check("bara den valda uppgiften väljs ut", [t["id"] for t in valda_v] == ["b"])
+    check("bara den valda skickas till Google",
+          sum(1 for c in svc_v.calls if c[0] == "insert") == 1 and res_v["skapade"] == 1)
+    check("inget valt → inget skickas",
+          gc.select_tasks_by_ids(uppgifter, []) == [])
+
     # --- 11. Retry vid tillfälliga fel ------------------------------------
     print("\n11. Retry (exponentiell backoff med jitter)")
     svc_flaky = FakeService(fail_first=2)
@@ -619,6 +639,8 @@ check("tray-menyn har Google Calendar-posten", "Google Calendar" in main_py)
 check("widgeten har Google Calendar-dialogen", "open_google_calendar_dialog" in widget_py)
 check("uppgiftsmenyn kan skicka en uppgift", "push_task" in (widget_py + dlg_py))
 check("dialogen finns", bool(dlg_py))
+check("dialogen har uppgiftsväljare", "TaskPickerDialog" in dlg_py and "valda_ids" in dlg_py)
+check("\"skicka alla\" skickar inte längre utan val", "select_tasks_by_ids" in dlg_py)
 check("dialogen kör nätverket i en tråd (UI får inte frysa)",
       "QThread" in dlg_py or "Thread" in dlg_py)
 check("inställningarna har google_calendar_id", "google_calendar_id" in settings_py)
@@ -693,6 +715,7 @@ for _fil, _namn in [
     ("ui/google_calendar_dialog.py", "open_google_calendar_dialog"),
     ("ui/google_calendar_dialog.py", "push_task_with_dialog"),
     ("ui/google_calendar_dialog.py", "run_google_job"),
+    ("ui/google_calendar_dialog.py", "TaskPickerDialog"),
 ]:
     _n = _antal_definitioner(_fil, _namn)
     check(f"{_namn} definieras exakt en gång i {_fil}", _n == 1, f"hittade {_n}")
