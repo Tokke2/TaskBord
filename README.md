@@ -78,8 +78,11 @@ då händelser i en kalenderfil. Importera den i Google Calendar via
 också i Outlook och Apple Kalender. Uppgifter utan förfallodatum **och** utan
 startdatum kan inte bli händelser och hoppas över (antalet visas i dialogen).
 
-**Startdatum:** högerklicka på en uppgift → **▶ Startdatum** (snabbval eller eget
-datum). Det är valfritt:
+**Startdatum:** helt valfritt, och du kan ange det direkt när du skriver uppgiften —
+t.ex. *"Byt vindruta start nästa vecka"* (läggs in idag, men hamnar i kalendern nästa vecka).
+Det går att skriva `start nästa vecka` (= måndag), `start måndag`, `start 19/10`,
+`start 2026-10-19`, `start om 5 dagar` eller `från imorgon`. Efteråt: högerklicka på en
+uppgift → **▶ Startdatum → 📆 Välj i kalender…** (eller snabbval). Så blir det i kalendern:
 * bara förfallodatum → heldagshändelse den dagen (som förut)
 * bara startdatum → heldagshändelse på startdagen — förfallodatum behövs alltså inte
 * båda → en flerdagarshändelse från start till och med förfallodatum

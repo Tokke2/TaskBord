@@ -33,6 +33,22 @@ def check(name: str, cond: bool) -> None:
         print(f"  FAIL: {name}")
 
 
+def _load_nl_parser():
+    """Hämtar parse_natural_input ur ui/widget.py utan att importera Qt (libGL saknas i CI)."""
+    import ast
+    from typing import Any, Dict
+    src = (ROOT / "ui" / "widget.py").read_text(encoding="utf-8")
+    keep = []
+    for node in ast.parse(src).body:
+        if (isinstance(node, ast.FunctionDef) and node.name in ("_resolve_day_expr", "parse_natural_input")) or (
+            isinstance(node, ast.Assign) and any(getattr(t, "id", "") == "_START_DAY_EXPR" for t in node.targets)
+        ):
+            keep.append(node)
+    ns: dict = {"Any": Any, "Dict": Dict}
+    exec(compile(ast.Module(body=keep, type_ignores=[]), "widget_nl", "exec"), ns)
+    return ns["parse_natural_input"]
+
+
 def main() -> int:
     d = date.fromisoformat
     only_due = {"id": "a", "title": "Bara slut", "due_date": "2026-10-16"}
@@ -117,6 +133,31 @@ def main() -> int:
         n = nya[0]
         gap = (date.fromisoformat(n["due_date"]) - date.fromisoformat(n["start_date"])).days if n.get("start_date") else None
         check("ny uppgift behåller avståndet start→slut", gap == 2)
+
+    # --- startdatum i vanlig text ("byt vindruta start nästa vecka") ------------------
+    nl = _load_nl_parser()
+    idag = date.today()
+    nasta_man = idag + timedelta(days=7 - idag.weekday())
+    r = nl("Byt vindruta start nästa vecka")
+    check("start nästa vecka → måndag nästa vecka", r["start_date"] == nasta_man.isoformat())
+    check("titeln blir ren", r["title"] == "Byt vindruta")
+    check("inget förfallodatum sätts av start", r["due_date"] is None)
+    r = nl("Byt vindruta start 2026-10-19")
+    check("start ISO-datum", r["start_date"] == "2026-10-19" and r["title"] == "Byt vindruta" and r["due_date"] is None)
+    r = nl("Boka tid start om 3 dagar #bil !hög")
+    check("start om 3 dagar + tagg + prio", r["start_date"] == (idag + timedelta(days=3)).isoformat()
+          and r["tags"] == ["bil"] and r["priority"] == "high" and r["title"] == "Boka tid")
+    r = nl("Rapport från imorgon imorgon")
+    check("start och förfallodatum kan kombineras", r["start_date"] == (idag + timedelta(days=1)).isoformat()
+          and r["due_date"] == (idag + timedelta(days=1)).isoformat())
+    r = nl("Köp mjölk imorgon")
+    check("utan 'start' blir det förfallodatum som förut", r["start_date"] is None and r["due_date"] == (idag + timedelta(days=1)).isoformat())
+    r = nl("Mail från Anna om budget")
+    check("'från Anna' är inget datum", r["start_date"] is None and r["title"] == "Mail från Anna om budget")
+    r = nl("Starta bilen")
+    check("'Starta bilen' är bara text", r["start_date"] is None and r["title"] == "Starta bilen")
+    r = nl("Fika start fredag")
+    check("start veckodag", r["start_date"] is not None and date.fromisoformat(r["start_date"]).weekday() == 4)
 
     print(f"\nstart_date_test: {_ok} lyckades, {_fail} misslyckades")
     return 1 if _fail else 0

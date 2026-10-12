@@ -335,6 +335,65 @@ def _due_label_short(due_date: Any) -> str:
     return d.strftime("%d/%m")
 
 
+_START_DAY_EXPR = (
+    r"\d{4}-\d{2}-\d{2}|\d{1,2}/\d{1,2}(?:-\d{2,4})?|i\s+övermorgon|övermorgon|imorgon|idag"
+    r"|nästa\s+vecka|om\s+\d{1,3}\s+(?:dagar|dag|veckor|vecka)"
+    r"|måndag|tisdag|onsdag|torsdag|fredag|lördag|söndag"
+)
+
+
+def _resolve_day_expr(expr: str, today: Any) -> Any:
+    """
+    NY v8: tolka ett datumuttryck till ett datum (eller None).
+
+    ÅÅÅÅ-MM-DD · d/m · d/m-ÅÅ · idag · imorgon · övermorgon · nästa vecka (= måndag
+    nästa vecka) · om N dagar/veckor · veckodag (närmaste förekomsten, idag räknas).
+    """
+    import re
+    from datetime import date as _d, timedelta as _td
+
+    e = re.sub(r"\s+", " ", str(expr or "").strip().lower())
+    m = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", e)
+    if m:
+        try:
+            return _d(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        except ValueError:
+            return None
+    m = re.fullmatch(r"(\d{1,2})/(\d{1,2})(?:-(\d{2,4}))?", e)
+    if m:
+        yr = today.year
+        if m.group(3):
+            y = int(m.group(3))
+            yr = y + 2000 if y < 100 else y
+        try:
+            cand = _d(yr, int(m.group(2)), int(m.group(1)))
+        except ValueError:
+            return None
+        if cand < today and not m.group(3):
+            try:
+                cand = _d(yr + 1, int(m.group(2)), int(m.group(1)))
+            except ValueError:
+                return None
+        return cand
+    if e in ("idag",):
+        return today
+    if e == "imorgon":
+        return today + _td(days=1)
+    if e in ("övermorgon", "i övermorgon"):
+        return today + _td(days=2)
+    if e == "nästa vecka":
+        return today + _td(days=7 - today.weekday())
+    m = re.fullmatch(r"om (\d{1,3}) (dagar|dag|veckor|vecka)", e)
+    if m:
+        n = int(m.group(1)) * (7 if m.group(2).startswith("v") else 1)
+        return today + _td(days=n)
+    wd = {"måndag": 0, "tisdag": 1, "onsdag": 2, "torsdag": 3,
+          "fredag": 4, "lördag": 5, "söndag": 6}.get(e)
+    if wd is not None:
+        return today + _td(days=(wd - today.weekday()) % 7)
+    return None
+
+
 def parse_natural_input(text: str) -> Dict[str, Any]:
     """
     NY v7-fix65: tolka naturligt språk i uppgifts-input.
@@ -350,13 +409,16 @@ def parse_natural_input(text: str) -> Dict[str, Any]:
       Tid:    15:00 | 15.30 | kl 15 | kl. 15.30
       Prio:   !hög !h !high → hög | !medel !m → medel | !låg !l !low → låg
       Tagg:   #hem #jobb (flera möjliga)
+      Start:  "start nästa vecka" | "start måndag" | "start 19/10" | "från 2026-10-19" |
+              "start om 5 dagar" → valfritt STARTDATUM (för kalendern), t.ex.
+              "byt vindruta start nästa vecka"
     """
     import re
     from datetime import date as _d, timedelta as _td
 
     out: Dict[str, Any] = {
         "title": text.strip(), "due_date": None,
-        "priority": None, "tags": [],
+        "priority": None, "tags": [], "start_date": None,
     }
     s = out["title"]
 
@@ -395,8 +457,19 @@ def parse_natural_input(text: str) -> Dict[str, Any]:
         s = s.replace(tm.group(0), " ", 1)
         s = re.sub(r"\bkl\.?\s*$", "", s, flags=re.I)
 
-    # --- Datum ---
+    # --- Startdatum: "start <datum>" / "från <datum>" (valfritt) ---
     today = _d.today()
+    _sm = re.search(
+        rf"\b(?:start(?:ar|datum)?|från)\s*:?\s+({_START_DAY_EXPR})(?!\w)",
+        s, re.IGNORECASE,
+    )
+    if _sm:
+        _sd = _resolve_day_expr(_sm.group(1), today)
+        if _sd is not None:
+            out["start_date"] = _sd.isoformat()
+            s = s.replace(_sm.group(0), " ", 1)
+
+    # --- Datum ---
     due_day: Any = None
     # ISO: ÅÅÅÅ-MM-DD
     dm = re.search(r"\b(\d{4})-(\d{2})-(\d{2})\b", s)
@@ -2115,7 +2188,9 @@ if _QT_AVAILABLE:
             )
             self.input_field.setToolTip(
                 "Skriv en uppgift och tryck Enter.\n"
-                "← / → byter prioritet fore save (rod → gul → gron → gra)."
+                "← / → byter prioritet fore save (rod → gul → gron → gra).\n"
+                "Valfritt startdatum (för kalendern): skriv t.ex.\n"
+                "  byt vindruta start nästa vecka   ·   start måndag   ·   start 19/10"
             )
             self.input_field.returnPressed.connect(self._on_input_submit)
             # Fas 2: Piltangenter ←/→ i input-fältet byter pending prioritet
@@ -2558,6 +2633,11 @@ if _QT_AVAILABLE:
                     "Valfritt. Med både start- och förfallodatum blir uppgiften en\n"
                     "flerdagarshändelse i kalendern (start → förfallodatum)."
                 )
+                act = start_menu.addAction("📆 Välj i kalender…")
+                act.triggered.connect(
+                    lambda _c: self._prompt_and_set_start(tid)
+                )
+                start_menu.addSeparator()
                 for label, iso in self._due_choices():
                     act = start_menu.addAction(label)
                     act.triggered.connect(
@@ -2565,10 +2645,6 @@ if _QT_AVAILABLE:
                             "set_start_date", tid, i, _what="startdatum"
                         )
                     )
-                act = start_menu.addAction("✍️ Skriv datum (ÅÅÅÅ-MM-DD)…")
-                act.triggered.connect(
-                    lambda _c: self._prompt_and_set_start(tid)
-                )
                 if task.get("start_date"):
                     act = start_menu.addAction("✖ Ta bort startdatum")
                     act.triggered.connect(
@@ -2661,29 +2737,61 @@ if _QT_AVAILABLE:
             except Exception as e:
                 logger.warning(f"{LOG_PREFIX} _prompt_and_set_due: {e}")
 
+        def _pick_date(self, title: str, initial_iso: str = "") -> Optional[str]:
+            """NY v8: kalender-väljare (veckonummer, måndag först). Returnerar ISO-datum eller None."""
+            from PySide6.QtCore import QDate
+            from PySide6.QtWidgets import (
+                QCalendarWidget, QDialog, QHBoxLayout as _QH, QPushButton as _QB,
+                QVBoxLayout as _QV, QLabel as _QL,
+            )
+            dlg = QDialog(self)
+            dlg.setWindowTitle(title)
+            lay = _QV(dlg)
+            lay.addWidget(_QL("Välj dag i kalendern (dubbelklicka eller tryck Välj):", dlg))
+            cal = QCalendarWidget(dlg)
+            cal.setGridVisible(True)
+            cal.setFirstDayOfWeek(Qt.DayOfWeek.Monday)
+            cal.setVerticalHeaderFormat(QCalendarWidget.VerticalHeaderFormat.ISOWeekNumbers)
+            qd = QDate.fromString(initial_iso[:10], "yyyy-MM-dd") if initial_iso else QDate()
+            cal.setSelectedDate(qd if qd.isValid() else QDate.currentDate())
+            lay.addWidget(cal)
+            quick = _QH()
+            today = QDate.currentDate()
+            for label, d in (
+                ("Idag", today),
+                ("Imorgon", today.addDays(1)),
+                ("Nästa måndag", today.addDays(8 - today.dayOfWeek())),
+            ):
+                b = _QB(label, dlg)
+                b.clicked.connect(lambda _c=False, _d=d: cal.setSelectedDate(_d))
+                quick.addWidget(b)
+            quick.addStretch(1)
+            lay.addLayout(quick)
+            btns = _QH()
+            btns.addStretch(1)
+            cancel = _QB("Avbryt", dlg)
+            cancel.clicked.connect(dlg.reject)
+            ok = _QB("Välj", dlg)
+            ok.setDefault(True)
+            ok.clicked.connect(dlg.accept)
+            btns.addWidget(cancel)
+            btns.addWidget(ok)
+            lay.addLayout(btns)
+            cal.activated.connect(lambda _d: dlg.accept())
+            if dlg.exec() != QDialog.DialogCode.Accepted:
+                return None
+            return cal.selectedDate().toString("yyyy-MM-dd")
+
         def _prompt_and_set_start(self, task_id: str) -> None:
-            """NY v8: skriv in startdatum manuellt (för kalendern)."""
+            """NY v8: välj startdatum i en kalender (valfritt, för kalendern)."""
             try:
-                from PySide6.QtWidgets import QInputDialog, QMessageBox
+                from PySide6.QtWidgets import QMessageBox
                 current = ""
                 with suppress(Exception):
                     t = self.store.find_task(task_id) or {}
                     current = str(t.get("start_date") or "")[:10]
-                text, ok = QInputDialog.getText(
-                    self,
-                    "▶ Startdatum",
-                    "Startdatum (ÅÅÅÅ-MM-DD):",
-                    text=current or datetime.now().date().isoformat(),
-                )
-                if not ok or not text.strip():
-                    return
-                try:
-                    iso = datetime.fromisoformat(text.strip()).date().isoformat()
-                except ValueError:
-                    _show_widget_error(
-                        "Ogiltigt datum",
-                        f"{text.strip()!r} förstods inte — använd ÅÅÅÅ-MM-DD.",
-                    )
+                iso = self._pick_date("▶ Startdatum", current)
+                if not iso:
                     return
                 self._store_call("set_start_date", task_id, iso, _what="startdatum")
                 with suppress(Exception):
@@ -3050,16 +3158,19 @@ if _QT_AVAILABLE:
                 _prio = _nl.get("priority") or current
                 _due = _nl.get("due_date")
                 _tags = _nl.get("tags") or []
-                if (_due or _tags or _nl.get("priority")
+                _start = _nl.get("start_date")
+                if (_due or _tags or _start or _nl.get("priority")
                         or _title != text):
                     logger.info(
                         f"{LOG_PREFIX} NL-input tolkad: titel='{_title[:30]}' "
-                        f"due={_due} prio={_prio} tags={_tags}"
+                        f"due={_due} start={_start} prio={_prio} tags={_tags}"
                     )
                 tid = self.store.add_task(
                     _title, priority=_prio,
                     due_date=_due, tags=_tags,
                 )
+                if tid and _start and hasattr(self.store, "set_start_date"):
+                    self.store.set_start_date(tid, _start)  # NY v8: valfritt startdatum
                 if tid:
                     self.input_field.clear()
                     # Återställ pending priority till "none"
