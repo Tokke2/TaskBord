@@ -960,15 +960,8 @@ def _now_iso() -> str:
     return _datetime.now(_timezone.utc).isoformat()
 
 
-def resolve_task_date(task: Dict[str, Any]) -> Optional[_date]:
-    """Datumet en uppgift ska hamna på (delas med .ics-exporten)."""
-    try:
-        from core.calendar_export import parse_due_date
-        return parse_due_date(task.get("due_date"))
-    except Exception:
-        pass
-    # Reserv: enkel ISO-tolkning om calendar_export inte kan importeras
-    s = str((task or {}).get("due_date") or "").strip()
+def _parse_iso_date(value: Any) -> Optional[_date]:
+    s = str(value or "").strip()
     if not s:
         return None
     try:
@@ -979,6 +972,32 @@ def resolve_task_date(task: Dict[str, Any]) -> Optional[_date]:
         return _date.fromisoformat(s[:10])
     except Exception:
         return None
+
+
+def resolve_task_dates(task: Dict[str, Any]) -> Optional[Tuple[_date, _date]]:
+    """
+    (första dagen, sista dagen) en uppgift upptar i kalendern, båda inkluderade.
+
+    Start + förfallodatum = flera dagar; bara ett av dem = en dag. Delas med
+    .ics-exporten (core.calendar_export.event_dates).
+    """
+    try:
+        from core.calendar_export import event_dates
+        return event_dates(task)
+    except Exception:
+        pass
+    # Reserv: samma regler om calendar_export inte kan importeras
+    due = _parse_iso_date((task or {}).get("due_date"))
+    start = _parse_iso_date((task or {}).get("start_date"))
+    if due is not None:
+        return (start, due) if start is not None and start <= due else (due, due)
+    return (start, start) if start is not None else None
+
+
+def resolve_task_date(task: Dict[str, Any]) -> Optional[_date]:
+    """Dagen en uppgift börjar i kalendern (startdatum, annars förfallodatum)."""
+    dagar = resolve_task_dates(task)
+    return dagar[0] if dagar else None
 
 
 def strikethrough(text: str) -> str:
@@ -993,24 +1012,26 @@ def build_event_body(
     done_style: str = DEFAULT_DONE_STYLE,
 ) -> Dict[str, Any]:
     """
-    Bygg Google-händelsen för en uppgift (heldagshändelse på förfallodatumet).
+    Bygg Google-händelsen för en uppgift (heldagshändelse; från startdatum till
+    förfallodatum om båda finns, annars en dag).
 
     Händelsen märks med uppgiftens id i `extendedProperties`, så att vi
     alltid kan hitta tillbaka till den — även om mappningen på disk
     skulle försvinna.
     """
     titel = str(task.get("title") or "").strip()
-    d = resolve_task_date(task)
-    if not titel or d is None:
+    dagar = resolve_task_dates(task)
+    if not titel or dagar is None:
         raise GoogleCalendarError(
-            "Uppgiften behöver en titel och ett förfallodatum för att bli "
-            "en kalenderhändelse."
+            "Uppgiften behöver en titel och ett förfallodatum eller startdatum "
+            "för att bli en kalenderhändelse."
         )
+    d, sista = dagar
 
     body: Dict[str, Any] = {
         "summary": titel,
         "start": {"date": d.isoformat()},
-        "end": {"date": (d + _timedelta(days=1)).isoformat()},
+        "end": {"date": (sista + _timedelta(days=1)).isoformat()},
         "reminders": {"useDefault": True},
         "extendedProperties": {
             "private": {
@@ -1565,7 +1586,7 @@ def _push_task_impl(
 
     if resolve_task_date(task) is None:
         resultat["action"] = "hoppad"
-        resultat["message"] = "Uppgiften saknar förfallodatum."
+        resultat["message"] = "Uppgiften saknar förfallodatum och startdatum."
         return resultat
 
     try:
@@ -1719,17 +1740,21 @@ def describe_tasks_for_picker(
     for t in tasks or []:
         if not isinstance(t, dict) or not str(t.get("title") or "").strip():
             continue
-        d = resolve_task_date(t)
+        dagar = resolve_task_dates(t)
+        d = dagar[0] if dagar else None
         tid = str(t.get("id") or "").strip()
         rader.append({
             "id": tid,
             "title": str(t.get("title")).strip(),
             "due": d.isoformat() if d else "",
+            # Visningstext: en dag, eller "start → slut" för flerdagarshändelser
+            "span": (d.isoformat() if dagar[0] == dagar[1]
+                     else f"{dagar[0].isoformat()} → {dagar[1].isoformat()}") if dagar else "",
             "priority": str(t.get("priority") or "none").lower(),
             "sent": bool(event_map and tid and event_map.get(tid)),
             "done": bool(t.get("done")),
             "sendable": d is not None,
-            "reason": "" if d is not None else "saknar förfallodatum",
+            "reason": "" if d is not None else "saknar förfallodatum/startdatum",
             "task": t,
         })
     return rader
@@ -1754,7 +1779,7 @@ def summarize(resultat: Dict[str, Any]) -> str:
         f"{resultat.get('uppdaterade', 0)} uppdaterade",
     ]
     if resultat.get("hoppade"):
-        delar.append(f"{resultat['hoppade']} utan förfallodatum")
+        delar.append(f"{resultat['hoppade']} utan förfallodatum/startdatum")
     if resultat.get("misslyckade"):
         delar.append(f"⚠ {resultat['misslyckade']} misslyckades")
     return ", ".join(delar) + "."

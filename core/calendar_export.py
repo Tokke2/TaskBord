@@ -16,7 +16,9 @@ kräver OAuth-uppsättning i Google Cloud).
 
 Varför VEVENT och inte VTODO: Google Calendar importerar VEVENT
 (händelser) men struntar i VTODO (att-göra-poster). Varje uppgift blir
-därför en heldagshändelse på sitt förfallodatum.
+därför en heldagshändelse på sitt förfallodatum — eller, om uppgiften också har
+ett startdatum, en flerdagarshändelse från start till förfallodatum. Har den bara
+ett startdatum blir det en heldagshändelse på startdagen.
 
 Bara stdlib — inga externa beroenden.
 """
@@ -26,7 +28,7 @@ from datetime import date as _date
 from datetime import datetime as _datetime
 from datetime import timedelta as _timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import quote, urlencode
 
 # --------------------------------------------------------------------------
@@ -123,15 +125,41 @@ def parse_due_date(value: Any) -> Optional[_date]:
 
 
 def has_due_date(task: Dict[str, Any]) -> bool:
-    """Sant om uppgiften har ett datum som går att lägga i kalendern."""
+    """Sant om uppgiften har ett FÖRFALLODATUM."""
     return parse_due_date(task.get("due_date")) is not None
 
 
+def event_dates(task: Dict[str, Any]) -> Optional[Tuple[_date, _date]]:
+    """
+    Dagarna uppgiften upptar i kalendern: (första dagen, sista dagen) — båda inkluderade.
+
+    * start + förfallodatum  → från start till förfallodatum (om start ligger EFTER
+                               förfallodatum ignoreras starten, så ingen händelse blir "bakvänd")
+    * bara förfallodatum     → den dagen
+    * bara startdatum        → startdagen
+    * inget av dem           → None (kan inte bli en kalenderhändelse)
+    """
+    due = parse_due_date(task.get("due_date"))
+    start = parse_due_date(task.get("start_date"))
+    if due is not None:
+        if start is not None and start <= due:
+            return start, due
+        return due, due
+    if start is not None:
+        return start, start
+    return None
+
+
+def has_calendar_date(task: Dict[str, Any]) -> bool:
+    """Sant om uppgiften har startdatum ELLER förfallodatum — räcker för kalendern."""
+    return event_dates(task) is not None
+
+
 def tasks_with_due(tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Bara de uppgifter som har ett förfallodatum (ordningen behålls)."""
+    """Uppgifterna som kan bli kalenderhändelser: de med startdatum eller förfallodatum."""
     return [
         t for t in (tasks or [])
-        if isinstance(t, dict) and str(t.get("title", "")).strip() and has_due_date(t)
+        if isinstance(t, dict) and str(t.get("title", "")).strip() and has_calendar_date(t)
     ]
 
 
@@ -212,18 +240,20 @@ def task_to_vevent(
     dtstamp: Optional[_datetime] = None,
 ) -> List[str]:
     """
-    En uppgift → raderna i en VEVENT (heldagshändelse på förfallodatumet).
+    En uppgift → raderna i en VEVENT (heldagshändelse; flera dagar om både start-
+    och förfallodatum finns).
 
-    Returnerar [] om uppgiften saknar titel eller förfallodatum.
+    Returnerar [] om uppgiften saknar titel eller både startdatum och förfallodatum.
     """
     titel = str(task.get("title") or "").strip()
-    d = parse_due_date(task.get("due_date"))
-    if not titel or d is None:
+    dagar = event_dates(task)
+    if not titel or dagar is None:
         return []
+    d, sista = dagar
 
     stamp = dtstamp or _datetime.utcnow()
     task_id = str(task.get("id") or "").strip() or titel
-    slut = d + _timedelta(days=1)  # DTEND är exklusivt i RFC 5545
+    slut = sista + _timedelta(days=1)  # DTEND är exklusivt i RFC 5545
 
     rader: List[str] = [
         "BEGIN:VEVENT",
@@ -324,18 +354,19 @@ def google_calendar_url(task: Dict[str, Any]) -> Optional[str]:
     query-parametrar och ingenting sparas förrän användaren klickar
     *Spara* i Google Calendar.
 
-    Returnerar None om uppgiften saknar titel eller förfallodatum.
+    Returnerar None om uppgiften saknar titel eller både startdatum och förfallodatum.
     """
     titel = str(task.get("title") or "").strip()
-    d = parse_due_date(task.get("due_date"))
-    if not titel or d is None:
+    dagar = event_dates(task)
+    if not titel or dagar is None:
         return None
+    d, sista = dagar
 
     params: Dict[str, str] = {
         "action": "TEMPLATE",
         "text": titel,
         # Heldagshändelse: Google tolkar samma datum/intervall som .ics
-        "dates": f"{_date_stamp(d)}/{_date_stamp(d + _timedelta(days=1))}",
+        "dates": f"{_date_stamp(d)}/{_date_stamp(sista + _timedelta(days=1))}",
     }
     beskrivning = _description(task, inkl_datum=False)
     if beskrivning:

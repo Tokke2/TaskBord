@@ -75,8 +75,15 @@ Flera på en gång? Högerklicka på fönstret eller använd tray-menyn →
 **📅 Exportera till kalender (.ics)…** Alla uppgifter med förfallodatum blir
 då händelser i en kalenderfil. Importera den i Google Calendar via
 *⚙️ Inställningar → Importera och exportera → Importera* — filen fungerar
-också i Outlook och Apple Kalender. Uppgifter utan förfallodatum kan inte
-bli händelser och hoppas över (antalet visas i dialogen).
+också i Outlook och Apple Kalender. Uppgifter utan förfallodatum **och** utan
+startdatum kan inte bli händelser och hoppas över (antalet visas i dialogen).
+
+**Startdatum:** högerklicka på en uppgift → **▶ Startdatum** (snabbval eller eget
+datum). Det är valfritt:
+* bara förfallodatum → heldagshändelse den dagen (som förut)
+* bara startdatum → heldagshändelse på startdagen — förfallodatum behövs alltså inte
+* båda → en flerdagarshändelse från start till och med förfallodatum
+  (ligger starten efter förfallodatum används bara förfallodatum)
 
 > En full tvåvägssynk mot Google Calendar kräver OAuth-uppsättning i Google
 > Cloud (klient-id/hemlighet) — det här är den nyckelfria vägen, som täcker
@@ -97,7 +104,8 @@ Ett engångssteg krävs hos Google (skapa en egen nyckel, ca 5 minuter):
 
 Sedan:
 * **Högerklicka på en uppgift → ☁️ Skicka till Google Calendar** — uppgiften blir
-  en heldagshändelse på sitt förfallodatum (prioritet blir färg).
+  en heldagshändelse på sitt förfallodatum, eller från startdatum till förfallodatum
+  (prioritet blir färg).
 * **☁️ Välj uppgifter att skicka…** i dialogen — du kryssar själv i vilka som ska med (inget skickas utan ditt val).
 * Dubbletter är omöjliga: samma uppgift **uppdaterar** sin händelse.
 * **🧭 Guidad installation** i dialogen leder dig genom engångsstegen hos Google och

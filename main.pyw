@@ -8523,8 +8523,8 @@ class AppController:
                 show_error_dialog(
                     title="Inga datum",
                     user_message=(
-                        "Inga aktiva uppgifter har ett förfallodatum.\n\n"
-                        "Sätt ett förfallodatum på en uppgift så kan den "
+                        "Inga aktiva uppgifter har ett förfallodatum eller startdatum.\n\n"
+                        "Sätt ett datum på en uppgift så kan den "
                         "bli en händelse i kalendern."
                     ),
                     technical="",

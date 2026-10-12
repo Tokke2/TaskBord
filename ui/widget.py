@@ -1818,6 +1818,7 @@ if _QT_AVAILABLE:
                 self._build_search_index()
                 self._apply_theme()
                 self._register_hotkeys()
+                self._initial_render()
             else:
                 # FIX v7-fix26: fas 1 — minimal fönster, fas 2 via showEvent
                 self._phase2_pending = True
@@ -1939,6 +1940,23 @@ if _QT_AVAILABLE:
                 f"({self.width()}x{self.height()}) @ ({self.x()},{self.y()})"
             )
 
+        def _initial_render(self) -> None:
+            """
+            FIX v8 (2026-10-12): visa sparade uppgifter DIREKT när appen öppnas.
+
+            Listan ritades tidigare aldrig om efter att UI:t byggts — uppgifterna
+            syntes först när man skrev en ny (som utlöste en ombyggnad). Nu ritas
+            den en gång direkt, och en gång till när fönstret hunnit visas.
+            """
+            try:
+                self._rebuild_task_list()
+                QTimer.singleShot(400, self._rebuild_task_list)
+            except Exception as e:
+                logger.warning(
+                    f"{LOG_PREFIX} _initial_render misslyckades: "
+                    f"{_describe_widget_error(e)}"
+                )
+
         def _init_ui_phase2(self) -> None:
             """
             FIX v7-fix26 (FAS 2): Bygg HELA UI:et — körs NÄR fönstret syns.
@@ -1953,6 +1971,7 @@ if _QT_AVAILABLE:
                 self._init_ui()
                 self._build_search_index()
                 self._apply_theme()
+                self._initial_render()
                 logger.info(
                     f"{LOG_PREFIX} _init_ui_phase2 KLAR — full UI på plats"
                 )
@@ -2463,7 +2482,8 @@ if _QT_AVAILABLE:
                 act = menu.addAction("📅 Lägg till i Google Calendar")
                 act.setToolTip(
                     "Öppnar Google Calendar med uppgiften förifylld\n"
-                    "(förfallodatumet blir en heldagshändelse)"
+                    "(heldagshändelse — från startdatum till förfallodatum\n"
+                    "om båda finns, annars på det datum som finns)"
                 )
                 act.triggered.connect(
                     lambda _c, _t=dict(task): self._on_open_task_in_google_calendar(_t)
@@ -2529,6 +2549,31 @@ if _QT_AVAILABLE:
                     act.triggered.connect(
                         lambda _c: self._store_call(
                             "set_due_date", tid, None, _what="datum borttaget"
+                        )
+                    )
+
+                # --- ▶ Startdatum (NY v8: för kalenderhändelser) ---------
+                start_menu = menu.addMenu("▶ Startdatum")
+                start_menu.setToolTip(
+                    "Valfritt. Med både start- och förfallodatum blir uppgiften en\n"
+                    "flerdagarshändelse i kalendern (start → förfallodatum)."
+                )
+                for label, iso in self._due_choices():
+                    act = start_menu.addAction(label)
+                    act.triggered.connect(
+                        lambda _c, i=iso: self._store_call(
+                            "set_start_date", tid, i, _what="startdatum"
+                        )
+                    )
+                act = start_menu.addAction("✍️ Skriv datum (ÅÅÅÅ-MM-DD)…")
+                act.triggered.connect(
+                    lambda _c: self._prompt_and_set_start(tid)
+                )
+                if task.get("start_date"):
+                    act = start_menu.addAction("✖ Ta bort startdatum")
+                    act.triggered.connect(
+                        lambda _c: self._store_call(
+                            "set_start_date", tid, None, _what="startdatum borttaget"
                         )
                     )
 
@@ -2615,6 +2660,44 @@ if _QT_AVAILABLE:
                 self._store_call("set_due_date", task_id, iso, _what="datum")
             except Exception as e:
                 logger.warning(f"{LOG_PREFIX} _prompt_and_set_due: {e}")
+
+        def _prompt_and_set_start(self, task_id: str) -> None:
+            """NY v8: skriv in startdatum manuellt (för kalendern)."""
+            try:
+                from PySide6.QtWidgets import QInputDialog, QMessageBox
+                current = ""
+                with suppress(Exception):
+                    t = self.store.find_task(task_id) or {}
+                    current = str(t.get("start_date") or "")[:10]
+                text, ok = QInputDialog.getText(
+                    self,
+                    "▶ Startdatum",
+                    "Startdatum (ÅÅÅÅ-MM-DD):",
+                    text=current or datetime.now().date().isoformat(),
+                )
+                if not ok or not text.strip():
+                    return
+                try:
+                    iso = datetime.fromisoformat(text.strip()).date().isoformat()
+                except ValueError:
+                    _show_widget_error(
+                        "Ogiltigt datum",
+                        f"{text.strip()!r} förstods inte — använd ÅÅÅÅ-MM-DD.",
+                    )
+                    return
+                self._store_call("set_start_date", task_id, iso, _what="startdatum")
+                with suppress(Exception):
+                    t = self.store.find_task(task_id) or {}
+                    due = str(t.get("due_date") or "")[:10]
+                    if due and iso > due:
+                        QMessageBox.information(
+                            self,
+                            "▶ Startdatum",
+                            "Startdatumet ligger efter förfallodatumet.\n"
+                            "I kalendern används då bara förfallodatumet.",
+                        )
+            except Exception as e:
+                logger.warning(f"{LOG_PREFIX} _prompt_and_set_start: {e}")
 
         def _add_subtask_rows(
             self,
@@ -3831,6 +3914,7 @@ if _QT_AVAILABLE:
                     task.get("priority", "none"),
                     bool(task.get("pinned")),
                     str(task.get("due_date") or ""),
+                    str(task.get("start_date") or ""),
                     str(task.get("snoozed_until") or ""),
                     (task.get("recurring") or {}).get("interval", ""),
                     tuple(_flatten_subtasks(task.get("subtasks") or [])),
@@ -3980,7 +4064,7 @@ if _QT_AVAILABLE:
                 menu_btn.setToolTip(
                     "Åtgärder (eller HÖGERKLICKA på uppgiften):\n"
                     "Klar · Prioritet · Fäst · Redigera · Ta bort ·\n"
-                    "Senarelägg · Förfallodatum · Återkommande · Delmoment"
+                    "Senarelägg · Förfallodatum · Startdatum · Återkommande · Delmoment"
                 )
                 menu_btn.clicked.connect(
                     lambda _c, tk=dict(task): self._show_task_menu(tk)
@@ -4014,7 +4098,8 @@ if _QT_AVAILABLE:
                     str(tg) for tg in (task.get("tags") or [])
                     if str(tg).strip()
                 ][:6]
-                if tags or due or _is_snoozed(task):
+                _start = task.get("start_date")
+                if tags or due or _start or _is_snoozed(task):
                     meta = QHBoxLayout()
                     meta.setSpacing(6)
                     meta.addSpacing(34)  # indrag i linje med titeln
@@ -4030,6 +4115,14 @@ if _QT_AVAILABLE:
                         sn_lbl.setObjectName("snoozeBadge")
                         sn_lbl.setToolTip("Senarelagd — kommer tillbaka automatiskt")
                         meta.addWidget(sn_lbl)
+                    if _start:
+                        st_lbl = QLabel(f"▶ start {_due_label_short(_start)}", container)
+                        st_lbl.setObjectName("snoozeBadge")
+                        st_lbl.setToolTip(
+                            f"Startdatum: {str(_start)[:10]}\n"
+                            "Används när uppgiften skickas till kalendern."
+                        )
+                        meta.addWidget(st_lbl)
                     if due:
                         meta.addWidget(DueDateLabel(str(due), container))
                     meta.addStretch(1)
@@ -5723,9 +5816,9 @@ if _QT_AVAILABLE:
                     QMessageBox.information(
                         self,
                         "📅 Exportera till kalender",
-                        "Inga aktiva uppgifter har ett förfallodatum.\n\n"
-                        "Sätt ett förfallodatum på en uppgift (⋯-menyn →\n"
-                        "📅 Förfallodatum) så kan den bli en kalenderhändelse.",
+                        "Inga aktiva uppgifter har ett förfallodatum eller startdatum.\n\n"
+                        "Sätt ett datum på en uppgift (⋯-menyn → 📅 Förfallodatum\n"
+                        "eller ▶ Startdatum) så kan den bli en kalenderhändelse.",
                     )
                     return
 
@@ -5798,8 +5891,8 @@ if _QT_AVAILABLE:
                     QMessageBox.information(
                         self,
                         "📅 Google Calendar",
-                        "Uppgiften behöver ett förfallodatum för att kunna\n"
-                        "bli en händelse i kalendern.",
+                        "Uppgiften behöver ett förfallodatum eller ett startdatum\n"
+                        "för att kunna bli en händelse i kalendern.",
                     )
                     return
                 # stdlib-webb läsare: fungerar oavsett Qt-backend
@@ -5824,15 +5917,15 @@ if _QT_AVAILABLE:
             """NY v8: exportera EN uppgift till en egen .ics-fil."""
             try:
                 get_throttle().notify_activity()
-                from core.calendar_export import has_due_date, write_ics
+                from core.calendar_export import has_calendar_date, write_ics
 
-                if not has_due_date(task):
+                if not has_calendar_date(task):
                     from PySide6.QtWidgets import QMessageBox
                     QMessageBox.information(
                         self,
                         "📅 Exportera uppgift",
-                        "Uppgiften behöver ett förfallodatum för att kunna\n"
-                        "bli en kalenderhändelse.",
+                        "Uppgiften behöver ett förfallodatum eller ett startdatum\n"
+                        "för att kunna bli en kalenderhändelse.",
                     )
                     return
                 from PySide6.QtWidgets import QFileDialog

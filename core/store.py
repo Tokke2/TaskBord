@@ -1051,6 +1051,14 @@ def _reset_subtasks(subs: List[Dict[str, Any]]) -> None:
         _reset_subtasks(s.get("children") or [])
 
 
+# NY v8: extra (valfria) textfält på en uppgift som ska överleva omstart.
+_EXTRA_TASK_KEYS: Final[Tuple[str, ...]] = (
+    "start_date", "note",
+    "email_from", "email_subject", "email_body", "email_path", "email_message_id",
+)
+_EXTRA_TASK_MAX_LEN: Final[int] = 50_000
+
+
 def _coerce_task(raw: Any, idx: int = 0) -> Optional[Dict[str, Any]]:
     """Coerce task (snabb inline-validering, alla fält)."""
     if not isinstance(raw, dict):
@@ -1083,7 +1091,7 @@ def _coerce_task(raw: Any, idx: int = 0) -> Optional[Dict[str, Any]]:
                 "interval": interval,
                 "next_due": _coerce_str_or_none(rec.get("next_due")),
             }
-    return {
+    out: Dict[str, Any] = {
         "id": tid,
         "title": title,
         "done": _coerce_bool(raw.get("done"), False),
@@ -1097,6 +1105,14 @@ def _coerce_task(raw: Any, idx: int = 0) -> Optional[Dict[str, Any]]:
         "created": _coerce_str_or_none(raw.get("created")) or _now_iso(),
         "completed": _coerce_str_or_none(raw.get("completed")),
     }
+    # NY v8: valfritt startdatum (för kalendern) + fält som lagts till via
+    # set_task_metadata. De sparades men DROPPADES vid inläsning, så t.ex.
+    # 📧-ikonen och mailinfon försvann efter omstart.
+    for key in _EXTRA_TASK_KEYS:
+        val = raw.get(key)
+        if isinstance(val, str) and val.strip():
+            out[key] = val[:_EXTRA_TASK_MAX_LEN]
+    return out
 
 
 def _next_recurring_due(
@@ -1923,6 +1939,20 @@ class TaskStore(QObject):
                         next_task["id"] = recurring_task_id
                         next_task["done"] = False
                         next_task["due_date"] = next_due
+                        # NY v8: startdatumet flyttas lika långt som förfallodatumet
+                        if task.get("start_date") and task.get("due_date"):
+                            try:
+                                _shift = (
+                                    datetime.fromisoformat(next_due).date()
+                                    - datetime.fromisoformat(str(task["due_date"])).date()
+                                )
+                                next_task["start_date"] = (
+                                    datetime.fromisoformat(str(task["start_date"])).date() + _shift
+                                ).isoformat()
+                            except (ValueError, TypeError):
+                                next_task.pop("start_date", None)
+                        else:
+                            next_task.pop("start_date", None)
                         next_task["created"] = _now_iso()
                         next_task["completed"] = None
                         next_task["snoozed_until"] = None
@@ -2111,6 +2141,30 @@ class TaskStore(QObject):
         logger.info(f"{LOG_PREFIX} set_due_date: {task_id!r} → {nd}")
         self._emit("task_updated", task_id)
         self._emit("changed")  # v7-fix11 (UI-refresh)
+        return True
+
+    @_log_crud("set_start_date")
+    def set_start_date(self, task_id: str, start_date: Optional[str]) -> bool:
+        """NY v8: sätt startdatum (None för att ta bort). Används av kalenderexporten."""
+        nd = _coerce_str_or_none(start_date)
+        with self._lock:
+            task = self._by_id.get(task_id)
+            if task is None:
+                return False
+            before = _safe_copy(task)
+            if (task.get("start_date") or None) == nd:
+                return False
+            if nd:
+                task["start_date"] = nd
+            else:
+                task.pop("start_date", None)
+            self._dirty = True
+        self._find_cache.clear()
+        self._filter_cache.clear()
+        self._audit_log.add("set_start_date", task_id, before=before, after=_safe_copy(task))
+        logger.info(f"{LOG_PREFIX} set_start_date: {task_id!r} → {nd}")
+        self._emit("task_updated", task_id)
+        self._emit("changed")
         return True
 
     @_log_crud("snooze_task")

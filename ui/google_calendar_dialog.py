@@ -355,7 +355,7 @@ if _QT_AVAILABLE:
         """
         Användaren väljer själv vilka uppgifter som skickas till kalendern.
 
-        Inget är förkryssat från start. Uppgifter utan förfallodatum visas
+        Inget är förkryssat från start. Uppgifter utan förfallodatum/startdatum visas
         men går inte att välja; redan skickade märks med ☁️ (de uppdateras
         i stället för att dubbleras).
         """
@@ -383,7 +383,7 @@ if _QT_AVAILABLE:
             ikon = {"high": "🔴", "medium": "🟡", "low": "🟢"}
             for r in rader:
                 text = f"{ikon.get(r['priority'], '⚪')} {r['title']}"
-                text += f"   — {r['due']}" if r["due"] else f"   — ({r['reason']})"
+                text += f"   — {r.get('span') or r['due']}" if r["due"] else f"   — ({r['reason']})"
                 if r.get("done"):
                     text += "   ✔ klar — händelsen markeras som klar"
                 if r["sent"]:
@@ -1360,8 +1360,8 @@ def push_task_with_dialog(
         _visa_info(
             parent,
             "📅 Datum saknas",
-            "Uppgiften behöver ett förfallodatum för att bli en "
-            "kalenderhändelse.",
+            "Uppgiften behöver ett förfallodatum eller ett startdatum för att "
+            "bli en kalenderhändelse.",
         )
         return False
 
