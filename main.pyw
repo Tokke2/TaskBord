@@ -4154,6 +4154,10 @@ class AppController:
         with suppress(Exception):
             self._init_mail_bridge()
 
+        # 6f. NY v8: regler — körs 1 gång per timme + på varje nytt mail
+        with suppress(Exception):
+            self._init_rules()
+
         # 7. NY v6.4.1 v7: Erbjud installera saknade plugins (icke-blockerande)
         # Körs BARA i NORMAL-läge (inte --safe-mode eller --no-tray)
         # NY v6.4.1 v7-fix: Skippa om --force-show (användaren vill bara se widgets)
@@ -5418,6 +5422,96 @@ class AppController:
                 exc_info=True,
             )
 
+    # ------------------------------------------------------------------
+    # NY v8 (2026-10-12): regler (villkor → prioritet/tagg/datum/nål)
+    # ------------------------------------------------------------------
+    def _rules_data_dir(self) -> Path:
+        """Samma mapp som widgeten/Google-dialogen använder (rules.json ligger där)."""
+        from ui.google_calendar_dialog import _resolve_data_dir
+        return _resolve_data_dir(
+            getattr(self, "store", None), getattr(self, "settings", None), None
+        )
+
+    def _init_rules(self) -> None:
+        """
+        Starta regelmotorn: en timer kollar varje minut om det gått en timme
+        sedan senaste körning. Tidpunkten sparas på disk, så en omstart varken
+        kör för ofta eller hoppar över en timme. Nya mail hanteras separat i
+        _poll_mail_bridge.
+        """
+        try:
+            if self._mode == AppMode.SAFE_MODE:
+                self._log.info(f"{LOG_PREFIX} regler hoppas över (safe-mode)")
+                return
+            from core import rules as _rules
+            self._rules_mod = _rules
+            self._ruleset = _rules.load_rules(self._rules_data_dir())
+            self._rules_timer = self._QTimer(self._app)
+            self._rules_timer.setInterval(60_000)
+            self._rules_timer.timeout.connect(self._rules_hourly_tick)
+            self._rules_timer.start()
+            # Första koll strax efter start (tar igen en missad timme)
+            self._QTimer.singleShot(20_000, self._rules_hourly_tick)
+            self._log.info(
+                f"{LOG_PREFIX} ✓ regler: {len(self._ruleset.enabled())} aktiva, "
+                f"körs 1 gång per timme ({self._ruleset.path})"
+            )
+        except Exception as e:
+            self._log.warning(f"{LOG_PREFIX} _init_rules misslyckades: {e}", exc_info=True)
+
+    def _rules_hourly_tick(self) -> None:
+        """Kör alla regler om det gått en timme sedan senast."""
+        try:
+            rs = getattr(self, "_ruleset", None)
+            mod = getattr(self, "_rules_mod", None)
+            if rs is None or mod is None:
+                return
+            rs.load()  # regler/senaste körning kan ha ändrats i dialogen
+            if not mod.due_for_hourly(rs):
+                return
+            res = mod.run_rules(self.store, rs, trigger="hourly")
+            if res.get("changed") and self._tray is not None:
+                with suppress(Exception):
+                    self._tray.showMessage(
+                        "▶ Regler körda",
+                        mod.summarize(res),
+                        self._QSystemTrayIcon.MessageIcon.Information,
+                        5000,
+                    )
+        except Exception as e:
+            self._log.warning(f"{LOG_PREFIX} timkörning av regler misslyckades: {e}")
+
+    def _apply_rules_to_new_mail(self, task_ids: List[str]) -> None:
+        """Kör reglerna direkt på nyligen importerade mail."""
+        try:
+            rs = getattr(self, "_ruleset", None)
+            mod = getattr(self, "_rules_mod", None)
+            if rs is None or mod is None or not task_ids:
+                return
+            res = mod.run_for_tasks(self.store, rs, task_ids)
+            if res.get("changed"):
+                self._log.info(f"{LOG_PREFIX} regler på nytt mail: {mod.summarize(res)}")
+        except Exception as e:
+            self._log.warning(f"{LOG_PREFIX} regler på nytt mail misslyckades: {e}")
+
+    def _run_all_rules_now(self) -> None:
+        """Tray-menyn: ▶ Kör alla regler nu."""
+        try:
+            from ui.rules_dialog import run_rules_with_message
+            run_rules_with_message(None, store=self.store, settings=self.settings,
+                                   data_dir=self._rules_data_dir())
+        except Exception as e:
+            self._log.warning(f"{LOG_PREFIX} kunde inte köra regler: {e}")
+
+    def _open_rules_dialog(self) -> None:
+        """Tray-menyn: 📏 Hantera regler…"""
+        try:
+            from ui.rules_dialog import open_rules_dialog
+            open_rules_dialog(None, store=self.store, settings=self.settings,
+                              data_dir=self._rules_data_dir())
+        except Exception as e:
+            self._log.warning(f"{LOG_PREFIX} kunde inte öppna regeldialogen: {e}")
+
     def _mail_bridge_notify(self, event: Dict[str, Any]) -> None:
         """
         NY v7-fix90: kallas från brygg-tråden/bevakningstråden vid import.
@@ -5453,8 +5547,11 @@ class AppController:
             else:
                 while events:
                     batch.append(events.popleft())
+            new_mail_ids: List[str] = []
             for evt in batch:
                 for res in evt.get("results", []):
+                    if res.get("ok") and res.get("task_id") and not res.get("duplicate"):
+                        new_mail_ids.append(str(res["task_id"]))
                     if not res.get("ok"):
                         self._log.warning(
                             f"{LOG_PREFIX} mail-import misslyckades: "
@@ -5492,6 +5589,9 @@ class AppController:
                         f"'{title}' ({'dublett' if duplicate else 'ny'}, "
                         f"källa={evt.get('source', '?')})"
                     )
+            # NY v8: regler på nya mail (prioritet/tagg/datum/nål direkt vid ankomst)
+            if new_mail_ids:
+                self._apply_rules_to_new_mail(new_mail_ids)
             with suppress(Exception):
                 self._update_tray_tooltip()
         except Exception as e:
@@ -5578,6 +5678,10 @@ class AppController:
             if timer is not None:
                 with suppress(Exception):
                     timer.stop()
+            rtimer = getattr(self, "_rules_timer", None)
+            if rtimer is not None:
+                with suppress(Exception):
+                    rtimer.stop()
             svc = getattr(self, "_mail_bridge", None)
             if svc is not None:
                 svc.stop()
@@ -6573,6 +6677,22 @@ class AppController:
                 self._open_google_calendar
             )
             self._tray_menu.addAction(self._google_calendar_action)
+
+            # NY v8 (2026-10-12): regler — kör alla nu / hantera
+            self._rules_run_action = self._QAction(
+                "▶  Kör alla regler nu", self._tray_menu
+            )
+            self._rules_run_action.setToolTip(
+                "Kör alla regler på aktiva uppgifter direkt.\n"
+                "De körs även automatiskt 1 gång per timme och på varje nytt mail."
+            )
+            self._rules_run_action.triggered.connect(self._run_all_rules_now)
+            self._tray_menu.addAction(self._rules_run_action)
+            self._rules_manage_action = self._QAction(
+                "📏  Hantera regler…", self._tray_menu
+            )
+            self._rules_manage_action.triggered.connect(self._open_rules_dialog)
+            self._tray_menu.addAction(self._rules_manage_action)
 
             self._tray_menu.addSeparator()
 
