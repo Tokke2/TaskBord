@@ -52,12 +52,13 @@ Högerklicka på fönstret (eller tray-ikonen) → **💾 Backup av uppgifter…
   innan något ersätts sparas en säkerhetskopia av nuläget (`…-fore-aterstallning-….zip`), så
   du kan ångra dig. Dessa rensas aldrig automatiskt.
 
-**Automatisk backup som överlever uppdatering:** uppgifter, arkiv och inställningar
-(fönsterposition och storlek) kopieras vid avslut och var 5:e minut till en mapp *utanför*
-appmappen — `%APPDATA%\TaskBord\backup` på Windows, `~/.local/share/TaskBord/backup` annars
-(kan ändras med miljövariabeln `TASKBORD_BACKUP_DIR`). Bara ändringar sparas, de 20 senaste
-behålls. Saknas eller är `active.json`/`settings.json` skadade vid start — till exempel efter att
-en uppdatering bytt ut appmappen — läses de in från den senaste kopian automatiskt.
+**Automatisk backup:** uppgifter, arkiv och inställningar (fönsterposition och storlek)
+kopieras vid avslut och var 5:e minut till `data/backups/auto/` — allt stannar i appmappen,
+inget skrivs någon annanstans. Bara ändringar sparas, de 20 senaste behålls. Saknas eller är
+`js/active.json` / `js/settings.json` skadade vid start (till exempel om en uppdatering tagit
+`js/`) läses de in från den senaste kopian automatiskt. Mappen kan flyttas med miljövariabeln
+`TASKBORD_BACKUP_DIR`. OBS: byts *hela* appmappen ut följer kopiorna med — spara då en kopia
+med **Spara kopia som…**.
 
 Test: `python tester/tasks_backup_test.py`.
 

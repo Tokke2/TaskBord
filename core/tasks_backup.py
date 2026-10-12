@@ -11,13 +11,12 @@ går att testa utan GUI.
 * restore_backup(store, path)      → tar först en säkerhetskopia av nuläget, återställer sedan
 * list_backups(store)              → backuper i standardmappen, nyast först
 
-Automatisk yttre säkerhetskopia (överlever uppdatering/ominstallation):
+Automatisk säkerhetskopia (data/backups/auto/ i appmappen, skild från js/):
 
 * snapshot_external(data_dir)      → kopierar uppgifter + inställningar (fönsterläge m.m.) till
-                                     en mapp UTANFÖR appmappen (%APPDATA%\\TaskBord\\backup eller
-                                     ~/.local/share/TaskBord/backup)
+                                     data/backups/auto/ (bara om något ändrats)
 * restore_if_missing(data_dir)     → vid start: saknas/är skadade uppgifter eller inställningar
-                                     läses de in igen från senaste yttre backup
+                                     läses de in igen från senaste automatiska backup
 """
 from __future__ import annotations
 
@@ -217,7 +216,7 @@ def list_backups(store: Any) -> List[Dict[str, Any]]:
     """Backuper (egna + automatiska), nyast först: [{path, name, size, mtime, auto}]."""
     out: List[Dict[str, Any]] = []
     for folder, pattern, auto in ((default_dir(store), f"{PREFIX}*.zip", False),
-                                  (external_dir(), f"{AUTO_PREFIX}*.zip", True)):
+                                  (auto_dir(), f"{AUTO_PREFIX}*.zip", True)):
         try:
             for p in folder.glob(pattern):
                 st = p.stat()
@@ -229,23 +228,23 @@ def list_backups(store: Any) -> List[Dict[str, Any]]:
 
 
 # --------------------------------------------------------------------------
-# Automatisk yttre säkerhetskopia (överlever uppdatering av appen)
+# Automatisk säkerhetskopia (skild från js/, så att den klarar att js/ försvinner)
 # --------------------------------------------------------------------------
 AUTO_PREFIX = "taskbord-auto-"
 AUTO_FILES = ("active.json", "archive.json", "settings.json")
 AUTO_KEEP = 20
 
 
-def external_dir() -> Path:
-    """Mapp UTANFÖR appmappen, så att en uppdatering/ominstallation inte tar den."""
+def auto_dir() -> Path:
+    """
+    Mapp för de automatiska kopiorna — INNE i appmappen (`data/backups/auto/`),
+    skild från `js/` där uppgifterna ligger. Kan flyttas med miljövariabeln
+    TASKBORD_BACKUP_DIR.
+    """
     env = os.environ.get("TASKBORD_BACKUP_DIR")
     if env:
         return Path(env)
-    if os.name == "nt":
-        base = os.environ.get("APPDATA") or str(Path.home() / "AppData" / "Roaming")
-        return Path(base) / "TaskBord" / "backup"
-    base = os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
-    return Path(base) / "TaskBord" / "backup"
+    return Path(__file__).resolve().parent.parent / "data" / "backups" / "auto"
 
 
 def _read_valid(path: Path, tasks: bool) -> Optional[bytes]:
@@ -295,17 +294,17 @@ def _auto_manifest(path: Path) -> Dict[str, Any]:
 
 def snapshot_external(data_dir: Any, dest: Any = None, keep: int = AUTO_KEEP) -> Optional[Path]:
     """
-    Kopiera uppgifter + inställningar (fönsterposition/storlek m.m.) till den yttre mappen.
+    Kopiera uppgifter + inställningar (fönsterposition/storlek m.m.) till data/backups/auto/.
 
     Hoppar över om inget ändrats sedan senaste kopian och om uppgiftsfilen är skadad
     (en trasig fil får aldrig ersätta en bra backup). Returnerar ny zip eller None.
     """
     dd = Path(str(data_dir))
-    folder = Path(str(dest)) if dest else external_dir()
+    folder = Path(str(dest)) if dest else auto_dir()
     blobs: Dict[str, bytes] = {}
     active = _read_valid(dd / "active.json", tasks=True)
     if active is None:
-        logger.info(f"{LOG_PREFIX} yttre backup hoppas över: active.json saknas/är skadad")
+        logger.info(f"{LOG_PREFIX} automatisk backup hoppas över: active.json saknas/är skadad")
         return None
     blobs["active.json"] = active
     arch = _read_valid(dd / "archive.json", tasks=True)
@@ -333,10 +332,10 @@ def snapshot_external(data_dir: Any, dest: Any = None, keep: int = AUTO_KEEP) ->
             z.writestr(MANIFEST, json.dumps(manifest, ensure_ascii=False, indent=2))
         os.replace(str(tmp), str(target))
     except OSError as e:
-        logger.warning(f"{LOG_PREFIX} yttre backup misslyckades: {e}")
+        logger.warning(f"{LOG_PREFIX} automatisk backup misslyckades: {e}")
         return None
     _prune_auto(folder, keep)
-    logger.info(f"{LOG_PREFIX} yttre backup: {target} ({manifest['active']} aktiva)")
+    logger.info(f"{LOG_PREFIX} automatisk backup: {target} ({manifest['active']} aktiva)")
     return target
 
 
@@ -360,13 +359,13 @@ def restore_if_missing(data_dir: Any, source: Any = None) -> Dict[str, Any]:
     """
     Körs vid start, FÖRE att inställningar och uppgifter läses in.
 
-    Saknas `active.json` (eller är tom/skadad) läses uppgifterna in från senaste yttre
+    Saknas `active.json` (eller är tom/skadad) läses uppgifterna in från senaste automatiska
     backup; samma sak för `settings.json` (fönsterposition, storlek, val). Befintliga,
     giltiga filer rörs aldrig. En skadad fil sparas undan som `.skadad-<tid>`.
     Returnerar {"active": bool, "settings": bool, "from": str}.
     """
     dd = Path(str(data_dir))
-    folder = Path(str(source)) if source else external_dir()
+    folder = Path(str(source)) if source else auto_dir()
     res: Dict[str, Any] = {"active": False, "settings": False, "from": ""}
     need_active = _read_valid(dd / "active.json", tasks=True) is None
     need_settings = _read_valid(dd / "settings.json", tasks=False) is None
@@ -389,7 +388,7 @@ def restore_if_missing(data_dir: Any, source: Any = None) -> Dict[str, Any]:
                     if isinstance(json.loads(raw.decode("utf-8")), dict):
                         todo["settings.json"] = raw
         except Exception as e:
-            logger.warning(f"{LOG_PREFIX} hoppar över skadad yttre backup {z.name}: {e}")
+            logger.warning(f"{LOG_PREFIX} hoppar över skadad automatisk backup {z.name}: {e}")
             continue
         for name, raw in todo.items():
             dest = dd / name
@@ -412,7 +411,7 @@ def restore_if_missing(data_dir: Any, source: Any = None) -> Dict[str, Any]:
             break
     if res["active"] or res["settings"]:
         logger.warning(
-            f"{LOG_PREFIX} återställde från yttre backup {res['from']}: "
+            f"{LOG_PREFIX} återställde från automatisk backup {res['from']}: "
             f"uppgifter={res['active']}, inställningar={res['settings']}"
         )
     return res

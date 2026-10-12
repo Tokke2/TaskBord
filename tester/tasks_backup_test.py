@@ -117,7 +117,10 @@ def main() -> int:
         q = tb.create_backup(s, dest=tmp / "arkiv.zip")
         check("arkiv ingår", tb.inspect_backup(q)["archive"] >= 1)
 
-    # --- automatisk yttre backup + återställning efter "uppdatering" --------------
+    # --- automatisk backup + återställning efter "uppdatering" --------------
+    import os
+    if not os.environ.get("TASKBORD_BACKUP_DIR"):
+        check("standardmappen ligger inne i appmappen", ROOT in tb.auto_dir().parents)
     app = tmp / "app"          # appmappen (js/ ligger i den)
     ext = tmp / "yttre"        # mappen utanför appen
     js = app / "js"

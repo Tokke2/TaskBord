@@ -100,8 +100,8 @@ if _QT:
                 f"Du har <b>{n}</b> aktiva och <b>{a}</b> arkiverade uppgifter. "
                 f"En backup är en ZIP-fil med allt. Standardmapp:<br><code>{tb.default_dir(self.store)}</code><br>"
                 "<b>Automatisk backup:</b> uppgifter och inställningar (fönsterläge) kopieras även "
-                f"vid avslut och var 5:e minut till <code>{tb.external_dir()}</code> — utanför appmappen. "
-                "Försvinner dina uppgifter vid en uppdatering läses de in därifrån vid nästa start.<br>"
+                f"vid avslut och var 5:e minut till <code>{tb.auto_dir()}</code>. "
+                "Försvinner uppgifterna (<code>js/</code>) vid en uppdatering läses de in därifrån vid nästa start.<br>"
                 "Tips: använd <i>Spara kopia som…</i> för att lägga en kopia på ett USB-minne eller i en molnmapp."
             )
 
