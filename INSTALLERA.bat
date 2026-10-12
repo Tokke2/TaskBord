@@ -14,12 +14,21 @@ if not "%~1"=="" (set TARGET=%~1) else (set TARGET=D:\Program\todo)
 if not exist "%TARGET%" mkdir "%TARGET%"
 if not exist "%TARGET%\core" mkdir "%TARGET%\core"
 if not exist "%TARGET%\ui"   mkdir "%TARGET%\ui"
+REM NY v7-fix90: Thunderbird-tillagget foljer med installationen
+if not exist "%TARGET%\thunderbird-tillagg" mkdir "%TARGET%\thunderbird-tillagg"
 
 echo Kopierar filer ...
 copy /Y "%~dp0main.pyw"         "%TARGET%\"      >nul
 copy /Y "%~dp0core\*.py"        "%TARGET%\core\" >nul
 copy /Y "%~dp0ui\*.py"          "%TARGET%\ui\"   >nul
 if exist "%~dp0requirements.txt" copy /Y "%~dp0requirements.txt" "%TARGET%\" >nul
+
+REM NY v7-fix90: e-postbrygga / Thunderbird-tillagg
+copy /Y "%~dp0SKAPA_XPI.bat"    "%TARGET%\"      >nul
+copy /Y "%~dp0skapa_xpi.py"     "%TARGET%\"      >nul
+copy /Y "%~dp0THUNDERBIRD.md"   "%TARGET%\"      >nul
+xcopy /Y /E /I "%~dp0thunderbird-tillagg" "%TARGET%\thunderbird-tillagg\" >nul
+if exist "%~dp0TaskBord-Thunderbird.xpi" copy /Y "%~dp0TaskBord-Thunderbird.xpi" "%TARGET%\" >nul
 
 echo.
 echo Kontrollerar versioner:
@@ -31,6 +40,9 @@ findstr /C:"_save_geometry_now" "%TARGET%\ui\widget.py" >nul 2>&1
 if %errorlevel%==0 (echo   [OK] widget.py   = senaste ^(las+geometri^)) else (echo   [FEL] widget.py   = GAMMAL!)
 findstr /C:"auto_update_plugins" "%TARGET%\core\settings.py" >nul 2>&1
 if %errorlevel%==0 (echo   [OK] settings.py = senaste ^(auto-tillagg^)) else (echo   [FEL] settings.py = GAMMAL!)
+findstr /C:"MailBridgeService" "%TARGET%\core\mail_bridge.py" >nul 2>&1
+if %errorlevel%==0 (echo   [OK] mail_bridge.py = senaste ^(Thunderbird^)) else (echo   [FEL] mail_bridge.py = SAKNAS!)
+if exist "%TARGET%\TaskBord-Thunderbird.xpi" (echo   [OK] TaskBord-Thunderbird.xpi finns) else (echo   [--] xpi saknas - kor SKAPA_XPI.bat i appmappen)
 
 echo.
 echo Skapar skrivbordsgenvag "TaskBord" med egen ikon ...

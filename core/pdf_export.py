@@ -190,14 +190,24 @@ def render_checklist_html(
                 f"<td class='title'>{title}{tag_str}{date_str}</td>"
                 f"</tr>"
             )
-            for s in subs:
-                # FIX v7-fix81: ☑ när delmomentet är klart
-                sub_box = "☑" if s.get("done") else "☐"
-                rows.append(
-                    "<tr><td></td><td></td>"
-                    f"<td class='sublist'>{sub_box} "
-                    f"{_html_escape(s.get('title', ''))}</td></tr>"
-                )
+            # NY v8: delmoment + underdelmoment (rekursivt, indrag per nivå)
+            def _sub_html(items: Any, depth: int = 1) -> List[str]:
+                out: List[str] = []
+                for s in items or []:
+                    if not isinstance(s, dict):
+                        continue
+                    # FIX v7-fix81: ☑ när delmomentet är klart
+                    sub_box = "☑" if s.get("done") else "☐"
+                    indent = (depth - 1) * 14
+                    out.append(
+                        "<tr><td></td><td></td>"
+                        f"<td class='sublist' style='padding-left:{indent}px'>"
+                        f"{sub_box} {_html_escape(s.get('title', ''))}</td></tr>"
+                    )
+                    out.extend(_sub_html(s.get("children") or [], depth + 1))
+                return out
+
+            rows.extend(_sub_html(subs))
         rows.append("</table>")
 
     # FIX v7-fix81: progress-bar (tabell-baserad, Qt rich text-safe)

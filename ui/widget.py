@@ -192,9 +192,18 @@ TAG_COLORS: Final[Tuple[str, ...]] = (
 # "none" = grå (inaktiv/default), high=röd, medium=gul/amber, low=grön.
 PRIORITY_COLORS: Final[Dict[str, str]] = {
     "none":   "#6b7280",   # Grå (default, inaktiv)
-    "high":   "#ef4444",   # Röd
+    "high":   "#dc2626",   # NY v8: starkare röd (bättre kontrast mot vit symbol)
     "medium": "#f59e0b",   # Amber/gul
     "low":    "#10b981",   # Grön
+}
+# NY: Symbol inuti prioritetsprickens (färgblinda/svartvita skärmar ser nivån).
+#   high = "!" (vit på röd), medium = "–" (vit på amber),
+#   low = "↓" (vit på grön), none = ihålig grå ring (ingen symbol).
+PRIORITY_SYMBOLS: Final[Dict[str, str]] = {
+    "none":   "",
+    "high":   "!",
+    "medium": "–",
+    "low":    "↓",
 }
 # Sorteringsordning: high först, sedan medium, low, none sist.
 PRIORITY_ORDER: Final[Tuple[str, ...]] = ("high", "medium", "low", "none")
@@ -203,14 +212,14 @@ PRIORITY_CYCLE: Final[Tuple[str, ...]] = ("none", "high", "medium", "low")
 # Svag bakgrundstoning (rgba) för hela task-raden beroende på prioritet.
 PRIORITY_ROW_TINT: Final[Dict[str, str]] = {
     "none":   "rgba(107, 114, 128, 0.06)",  # Mycket svag grå
-    "high":   "rgba(239, 68, 68, 0.14)",    # Tydlig röd
+    "high":   "rgba(220, 38, 38, 0.24)",    # NY v8: starkare röd toning
     "medium": "rgba(245, 158, 11, 0.12)",   # Amber
     "low":    "rgba(16, 185, 129, 0.10)",   # Grön
 }
 # Hover-varianter (starkare toning när musen är över kortet).
 PRIO_HOVER_TINT: Final[Dict[str, str]] = {
     "none":   "rgba(107, 114, 128, 0.12)",
-    "high":   "rgba(239, 68, 68, 0.20)",
+    "high":   "rgba(220, 38, 38, 0.32)",
     "medium": "rgba(245, 158, 11, 0.18)",
     "low":    "rgba(16, 185, 129, 0.16)",
 }
@@ -868,6 +877,33 @@ def _safe_run_async(
     return result_box[0]
 
 
+def _flatten_subtasks(subs: Any, depth: int = 1) -> List[tuple]:
+    """NY v8: platta ut delmoment-trädet (djup, done, titel) för cache-nyckel."""
+    out: List[tuple] = []
+    for s in subs or []:
+        if not isinstance(s, dict):
+            continue
+        out.append((depth, bool(s.get("done")), str(s.get("title", ""))))
+        out.extend(_flatten_subtasks(s.get("children") or [], depth + 1))
+    return out
+
+
+def _subtask_stats(subs: Any) -> Tuple[int, int]:
+    """NY v8: (totalt, klara) över hela delmoment-trädet."""
+    total = 0
+    done = 0
+    for s in subs or []:
+        if not isinstance(s, dict):
+            continue
+        total += 1
+        if s.get("done"):
+            done += 1
+        t, d = _subtask_stats(s.get("children") or [])
+        total += t
+        done += d
+    return total, done
+
+
 def format_task_summary_swedish(task: Dict[str, Any], max_title_len: int = 40) -> str:
     """
     NY v6.4.1 v7: Svensk en-rads-sammanfattning av en task (widget-specifik).
@@ -1460,17 +1496,36 @@ if _QT_AVAILABLE:
                 return
             p.setRenderHint(QPainter.RenderHint.Antialiasing)
             color_hex = PRIORITY_COLORS.get(self._priority, "#6b7280")
+            cx, cy, r = 10, 10, 6
+            if self._priority == "none":
+                # NY: ihålig ring för "ingen prioritet" (skiljer sig i form, inte bara färg)
+                ring_pen = QPen(QColor(color_hex))
+                ring_pen.setWidthF(1.6)
+                p.setPen(ring_pen)
+                p.setBrush(Qt.BrushStyle.NoBrush)
+                p.drawEllipse(QPoint(cx, cy), r, r)
+                return
             # Yttre ring (subtil, alltid synlig — visar att det är interaktivt)
             ring_color = QColor(color_hex)
             ring_color.setAlpha(60)
             p.setPen(Qt.PenStyle.NoPen)
             p.setBrush(QColor(color_hex))
             # Inre pricken (12px diameter, centrerad i 20x20)
-            cx, cy, r = 10, 10, 6
             p.drawEllipse(QPoint(cx, cy), r, r)
             # Yttre ring (16px diameter, svag alpha)
             p.setBrush(ring_color)
             p.drawEllipse(QPoint(cx, cy), r + 2, r + 2)
+            # NY: symbol per prioritet (text i vitt inuti pricken)
+            glyph = PRIORITY_SYMBOLS.get(self._priority, "")
+            if glyph:
+                sym_font = QFont(p.font())
+                sym_font.setBold(True)
+                sym_font.setPixelSize(9)
+                p.setFont(sym_font)
+                p.setPen(QColor("#ffffff"))
+                p.drawText(
+                    QRect(0, 0, 20, 20), Qt.AlignmentFlag.AlignCenter, glyph
+                )
 
         def mousePressEvent(self, event: QMouseEvent) -> None:
             get_throttle().notify_activity()
@@ -2116,7 +2171,9 @@ if _QT_AVAILABLE:
             self.email_import_btn.setObjectName("emailImportBtn")
             self.email_import_btn.setFixedSize(28, 28)
             self.email_import_btn.setToolTip(
-                "Importera e-post (.eml eller .msg) som uppgift\n"
+                "Importera e-post (.eml eller .msg) som uppgift —\n"
+                "eller använd Thunderbird-tillägget / mappen data/inbox/\n"
+                "(tray-menyn → 📧 E-post & Thunderbird)\n"
                 "Outlook: spara mailet som .msg eller dra till skrivbordet\n"
                 "Thunderbird: spara mailet som .eml"
             )
@@ -2401,6 +2458,24 @@ if _QT_AVAILABLE:
                 act.triggered.connect(lambda _c: self._prompt_rename(tid))
                 act = menu.addAction("🗑 Ta bort…")
                 act.triggered.connect(lambda _c: self._prompt_delete(tid))
+                # --- NY v8: kalender (Google Calendar m.fl.) -------------
+                menu.addSeparator()
+                act = menu.addAction("📅 Lägg till i Google Calendar")
+                act.setToolTip(
+                    "Öppnar Google Calendar med uppgiften förifylld\n"
+                    "(förfallodatumet blir en heldagshändelse)"
+                )
+                act.triggered.connect(
+                    lambda _c, _t=dict(task): self._on_open_google_calendar(_t)
+                )
+                act = menu.addAction("📅 Exportera uppgiften (.ics)…")
+                act.setToolTip(
+                    "Sparar uppgiften som kalenderfil — importeras i\n"
+                    "Google Calendar, Outlook och Apple Kalender"
+                )
+                act.triggered.connect(
+                    lambda _c, _t=dict(task): self._on_export_task_ics(_t)
+                )
                 menu.addSeparator()
 
                 # --- ⏰ Senarelägg ------------------------------------
@@ -2525,19 +2600,108 @@ if _QT_AVAILABLE:
             except Exception as e:
                 logger.warning(f"{LOG_PREFIX} _prompt_and_set_due: {e}")
 
-        def _prompt_subtasks(self, task_id: str) -> None:
-            """NY v7-fix41: lägg till delmoment (upprepade tills tomt/avbryt)."""
+        def _add_subtask_rows(
+            self,
+            container: QWidget,
+            parent_layout: QVBoxLayout,
+            tid: str,
+            subs: List[Dict[str, Any]],
+            depth: int = 1,
+        ) -> None:
+            """NY v8: rita delmoment rekursivt med indrag per nivå."""
+            for sub in subs:
+                sub_id = sub.get("id")
+                sub_row = QHBoxLayout()
+                sub_row.setSpacing(6)
+                # Indrag: 16px per nivå (nivå 1 = inget extra indrag)
+                sub_row.setContentsMargins((depth - 1) * 16, 0, 0, 0)
+                sub_cb = QCheckBox(container)
+                sub_cb.setObjectName("subtaskCheck")
+                sub_cb.setChecked(bool(sub.get("done")))
+                sub_cb.setToolTip("Kryssa delmoment")
+                sub_cb.toggled.connect(
+                    lambda c, _t=tid, _s=sub_id: self._on_subtask_toggle(_t, _s)
+                )
+                sub_row.addWidget(sub_cb, 0, Qt.AlignmentFlag.AlignVCenter)
+                sub_lbl = QLabel(str(sub.get("title", "")), container)
+                sub_lbl.setObjectName("subtaskTitle")
+                sub_lbl.setWordWrap(True)
+                # NY v8: högerklick på delmomentet → byt namn / underdelmoment / ta bort
+                sub_lbl.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+                sub_lbl.customContextMenuRequested.connect(
+                    lambda _pos, _t=tid, _s=sub_id, _n=str(sub.get("title", "")):
+                        self._on_subtask_context_menu(_t, _s, _n)
+                )
+                if sub.get("done"):
+                    _sf = sub_lbl.font()
+                    _sf.setStrikeOut(True)
+                    sub_lbl.setFont(_sf)
+                sub_row.addWidget(sub_lbl, 1, Qt.AlignmentFlag.AlignVCenter)
+                parent_layout.addLayout(sub_row)
+                kids = [dict(c) for c in (sub.get("children") or []) if c.get("title")]
+                if kids:
+                    self._add_subtask_rows(
+                        container, parent_layout, tid, kids, depth + 1
+                    )
+
+        def _on_subtask_context_menu(
+            self, task_id: str, sub_id: str, title: str
+        ) -> None:
+            """NY v8: åtgärdsmeny för ett delmoment."""
+            try:
+                menu = QMenu(self)
+                act_rn = menu.addAction("✏ Byt namn…")
+                act_rn.triggered.connect(
+                    lambda _c: self._prompt_rename_subtask(task_id, sub_id, title)
+                )
+                act_sub = menu.addAction("➕ Lägg till underdelmoment…")
+                act_sub.triggered.connect(
+                    lambda _c: self._prompt_subtasks(task_id, parent_sub_id=sub_id)
+                )
+                menu.addSeparator()
+                act_rm = menu.addAction("🗑 Ta bort delmoment")
+                act_rm.triggered.connect(
+                    lambda _c: self._store_call(
+                        "remove_subtask", task_id, sub_id,
+                        _what="delmoment borttaget",
+                    )
+                )
+                menu.exec(QCursor.pos())
+            except Exception as e:
+                logger.warning(f"{LOG_PREFIX} _on_subtask_context_menu: {e}")
+
+        def _prompt_rename_subtask(
+            self, task_id: str, sub_id: str, current: str
+        ) -> None:
+            """NY v8: byt namn på ett delmoment."""
             try:
                 from PySide6.QtWidgets import QInputDialog
+                text, ok = QInputDialog.getText(
+                    self, "✏ Byt namn på delmoment", "Nytt namn:", text=current
+                )
+                if ok and text.strip():
+                    self.store.rename_subtask(task_id, sub_id, text.strip())
+            except Exception as e:
+                logger.warning(f"{LOG_PREFIX} _prompt_rename_subtask: {e}")
+
+        def _prompt_subtasks(
+            self, task_id: str, parent_sub_id: Optional[str] = None
+        ) -> None:
+            """NY v7-fix41 + v8: lägg till delmoment (eller underdelmoment)."""
+            try:
+                from PySide6.QtWidgets import QInputDialog
+                _label = "➕ Underdelmoment" if parent_sub_id else "➕ Delmoment"
                 while True:
                     text, ok = QInputDialog.getText(
-                        self, "➕ Delmoment", "Nytt delmoment (tomt = klar):"
+                        self, _label, "Nytt delmoment (tomt = klar):"
                     )
                     if not ok or not text.strip():
                         return
                     sub = None
                     if hasattr(self.store, "add_subtask"):
-                        sub = self.store.add_subtask(task_id, text.strip())
+                        sub = self.store.add_subtask(
+                            task_id, text.strip(), parent_sub_id=parent_sub_id
+                        )
                     if sub is None:
                         return
             except Exception as e:
@@ -3653,10 +3817,7 @@ if _QT_AVAILABLE:
                     str(task.get("due_date") or ""),
                     str(task.get("snoozed_until") or ""),
                     (task.get("recurring") or {}).get("interval", ""),
-                    tuple(
-                        (s.get("done"), s.get("title"))
-                        for s in (task.get("subtasks") or [])
-                    ),
+                    tuple(_flatten_subtasks(task.get("subtasks") or [])),
                     bool(task.get("email_path")),
                 )
                 if tid in self._task_widgets and not archived:
@@ -3895,46 +4056,22 @@ if _QT_AVAILABLE:
                 date_row.addStretch(1)
                 vbox.addLayout(date_row)
 
-                # --- NY v7-fix41: delmoment (checklista) -------------------
+                # --- NY v7-fix41 + v8: delmoment (checklista, nästlad) ----
                 subs = [
                     dict(s) for s in (task.get("subtasks") or [])
                     if s.get("title")
-                ][:12]
+                ]
                 if subs:
                     sub_vbox = QVBoxLayout()
                     sub_vbox.setContentsMargins(34, 2, 4, 2)
                     sub_vbox.setSpacing(1)
-                    for sub in subs:
-                        sub_row = QHBoxLayout()
-                        sub_row.setSpacing(6)
-                        sub_cb = QCheckBox(container)
-                        sub_cb.setObjectName("subtaskCheck")
-                        sub_cb.setChecked(bool(sub.get("done")))
-                        sub_cb.setToolTip("Kryssa delmoment")
-                        sub_cb.toggled.connect(
-                            lambda c, _t=tid, _s=sub.get("id"):
-                                self._on_subtask_toggle(_t, _s)
-                        )
-                        sub_row.addWidget(
-                            sub_cb, 0, Qt.AlignmentFlag.AlignVCenter
-                        )
-                        sub_lbl = QLabel(str(sub.get("title", "")), container)
-                        sub_lbl.setObjectName("subtaskTitle")
-                        sub_lbl.setWordWrap(True)
-                        if sub.get("done"):
-                            _sf = sub_lbl.font()
-                            _sf.setStrikeOut(True)
-                            sub_lbl.setFont(_sf)
-                        sub_row.addWidget(
-                            sub_lbl, 1, Qt.AlignmentFlag.AlignVCenter
-                        )
-                        sub_vbox.addLayout(sub_row)
-                    _done_n = sum(1 for s in subs if s.get("done"))
-                    if _done_n >= len(subs):
-                        prog = QLabel(f"☑ {_done_n}/{len(subs)} klara", container)
+                    self._add_subtask_rows(container, sub_vbox, tid, subs, depth=1)
+                    _total_n, _done_n = _subtask_stats(subs)
+                    if _done_n >= _total_n:
+                        prog = QLabel(f"☑ {_done_n}/{_total_n} klara", container)
                         prog.setObjectName("subtaskDoneAll")
                     else:
-                        prog = QLabel(f"☐ {_done_n}/{len(subs)} klara", container)
+                        prog = QLabel(f"☐ {_done_n}/{_total_n} klara", container)
                         prog.setObjectName("subtaskProgress")
                     sub_vbox.addWidget(prog)
                     vbox.addLayout(sub_vbox)
@@ -4076,17 +4213,20 @@ if _QT_AVAILABLE:
                 # Prioritets-regler genereras ur PRIORITY_COLORS + tint-dictar
                 # (ett enda ställe att justera kulörerna på).
                 prio_rules = ""
-                for _prio in ("high", "medium", "low"):
+                # NY v8: ALLA rader (även "ingen prio") får färgad vänsterkant.
+                # Hög prioritet får tjockare kant (5px) för tydligare markering.
+                for _prio in ("high", "medium", "low", "none"):
                     _edge = PRIORITY_COLORS[_prio]
+                    _edge_w = 5 if _prio == "high" else 3
                     prio_rules += (
                         f'QFrame[taskCard="true"][taskPriority="{_prio}"] {{ '
                         f"background-color: {PRIORITY_ROW_TINT[_prio]}; "
                         f"border: 1px solid {t['surface_edge']}; "
-                        f"border-left: 3px solid {_edge}; }} "
+                        f"border-left: {_edge_w}px solid {_edge}; }} "
                         f'QFrame[taskCard="true"][taskPriority="{_prio}"]:hover {{ '
                         f"background-color: {PRIO_HOVER_TINT[_prio]}; "
                         f"border: 1px solid {t['edge_hov']}; "
-                        f"border-left: 3px solid {_edge}; }} "
+                        f"border-left: {_edge_w}px solid {_edge}; }} "
                     )
 
                 # NY v7-fix41: deadline-ring (röd=övertruten, orange=idag)
@@ -5367,6 +5507,14 @@ if _QT_AVAILABLE:
                     exc_info=True,
                 )
 
+        def _on_open_donate(self) -> None:
+            """NY v8: visa donationsdialogen (frivilligt, ingen funktion låst)."""
+            try:
+                from ui.donate import open_donate_dialog
+                open_donate_dialog(self)
+            except Exception as e:
+                logger.warning(f"{LOG_PREFIX} _on_open_donate misslyckades: {e}")
+
         def _on_export_pdf(self) -> None:
             """
             NY v7-fix81: exportera aktiva uppgifter som PDF-checklista.
@@ -5457,6 +5605,178 @@ if _QT_AVAILABLE:
                     f"{LOG_PREFIX} _on_export_pdf misslyckades: "
                     f"{_describe_widget_error(e)}",
                     exc_info=True,
+                )
+
+        def _on_export_calendar_ics(self) -> None:
+            """
+            NY v8: exportera aktiva uppgifter med förfallodatum till .ics.
+
+            Rickard 2026-10-12: "kan man koppla ihop den med Google
+            Calendar så man kan exportera vissa uppgifter dit?" — JA:
+            .ics-filen importeras i Google Calendar (Inställningar →
+            Importera och exportera), Outlook och Apple Kalender.
+            Bara uppgifter som HAR ett förfallodatum kan bli händelser —
+            resten hoppas över och antalet redovisas.
+            """
+            try:
+                get_throttle().notify_activity()
+                from core.calendar_export import tasks_with_due, write_ics
+
+                tasks: list = []
+                with suppress(Exception):
+                    if hasattr(self.store, "active_tasks_filtered"):
+                        tasks = self.store.active_tasks_filtered(
+                            sort_by="pinned_first"
+                        )
+                    elif hasattr(self.store, "active_tasks"):
+                        tasks = self.store.active_tasks()
+                valda = tasks_with_due(list(tasks or []))
+                if not valda:
+                    from PySide6.QtWidgets import QMessageBox
+                    QMessageBox.information(
+                        self,
+                        "📅 Exportera till kalender",
+                        "Inga aktiva uppgifter har ett förfallodatum.\n\n"
+                        "Sätt ett förfallodatum på en uppgift (⋯-menyn →\n"
+                        "📅 Förfallodatum) så kan den bli en kalenderhändelse.",
+                    )
+                    return
+
+                from PySide6.QtWidgets import QFileDialog
+                ts = datetime.now().strftime("%Y%m%d_%H%M")
+                default_dir = os.path.expanduser("~")
+                with suppress(Exception):
+                    _sp = getattr(self.store, "file_path", None) or getattr(
+                        self.store, "_file_path", None
+                    )
+                    if _sp:
+                        default_dir = str(Path(str(_sp)).resolve().parent)
+                fname, _ = QFileDialog.getSaveFileName(
+                    self,
+                    "Spara kalenderfil (.ics)",
+                    os.path.join(default_dir, f"TaskBord_kalender_{ts}.ics"),
+                    "Kalenderfil (*.ics)",
+                )
+                if not fname:
+                    return  # avbruten av användaren
+                if not str(fname).lower().endswith(".ics"):
+                    fname = str(fname) + ".ics"
+                antal = write_ics(valda, str(fname), calendar_name="TaskBord")
+                hoppade = len(tasks or []) - antal
+                logger.info(
+                    f"{LOG_PREFIX} Kalenderexport: {antal} händelser → {fname} "
+                    f"({hoppade} utan datum hoppades över)"
+                )
+                from PySide6.QtWidgets import QMessageBox
+                extra = (
+                    f"\n\n{hoppade} uppgifter utan förfallodatum hoppades över."
+                    if hoppade > 0 else ""
+                )
+                QMessageBox.information(
+                    self,
+                    "📅 Kalenderfil sparad",
+                    f"{antal} uppgifter exporterade till:\n{fname}{extra}\n\n"
+                    "Så importerar du i Google Calendar:\n"
+                    "1. Öppna calendar.google.com\n"
+                    "2. ⚙️ Inställningar → Importera och exportera\n"
+                    "3. Välj filen → Importera\n\n"
+                    "(Filen fungerar även i Outlook och Apple Kalender.)",
+                )
+            except Exception as e:
+                logger.error(
+                    f"{LOG_PREFIX} _on_export_calendar_ics misslyckades: "
+                    f"{_describe_widget_error(e)}",
+                    exc_info=True,
+                )
+
+        def _on_open_google_calendar(self, task: Dict[str, Any]) -> None:
+            """
+            NY v8: öppna Google Calendar med EN uppgift förifylld.
+
+            Använder Googles egen "skapa händelse"-länk (action=TEMPLATE)
+            — inget konto, ingen nyckel och ingen synk behövs. Ingenting
+            sparas förrän användaren trycker Spara i Google Calendar.
+            """
+            try:
+                get_throttle().notify_activity()
+                from core.calendar_export import google_calendar_url
+
+                url = google_calendar_url(task)
+                if not url:
+                    from PySide6.QtWidgets import QMessageBox
+                    QMessageBox.information(
+                        self,
+                        "📅 Google Calendar",
+                        "Uppgiften behöver ett förfallodatum för att kunna\n"
+                        "bli en händelse i kalendern.",
+                    )
+                    return
+                # stdlib-webb läsare: fungerar oavsett Qt-backend
+                import webbrowser
+                if webbrowser.open(url):
+                    logger.info(
+                        f"{LOG_PREFIX} Google Calendar-länk öppnad för "
+                        f"uppgift {str(task.get('id', ''))[:8]}"
+                    )
+                else:
+                    logger.warning(
+                        f"{LOG_PREFIX} kunde inte öppna webbläsaren för "
+                        f"Google Calendar-länken"
+                    )
+            except Exception as e:
+                logger.warning(
+                    f"{LOG_PREFIX} _on_open_google_calendar misslyckades: "
+                    f"{_describe_widget_error(e)}"
+                )
+
+        def _on_export_task_ics(self, task: Dict[str, Any]) -> None:
+            """NY v8: exportera EN uppgift till en egen .ics-fil."""
+            try:
+                get_throttle().notify_activity()
+                from core.calendar_export import has_due_date, write_ics
+
+                if not has_due_date(task):
+                    from PySide6.QtWidgets import QMessageBox
+                    QMessageBox.information(
+                        self,
+                        "📅 Exportera uppgift",
+                        "Uppgiften behöver ett förfallodatum för att kunna\n"
+                        "bli en kalenderhändelse.",
+                    )
+                    return
+                from PySide6.QtWidgets import QFileDialog
+                titel = str(task.get("title", "uppgift"))
+                säker = "".join(
+                    c for c in titel[:40] if c.isalnum() or c in " -_"
+                ).strip() or "uppgift"
+                default_dir = os.path.expanduser("~")
+                with suppress(Exception):
+                    _sp = getattr(self.store, "file_path", None) or getattr(
+                        self.store, "_file_path", None
+                    )
+                    if _sp:
+                        default_dir = str(Path(str(_sp)).resolve().parent)
+                fname, _ = QFileDialog.getSaveFileName(
+                    self,
+                    "Spara uppgiften som kalenderfil",
+                    os.path.join(default_dir, f"{säker}.ics"),
+                    "Kalenderfil (*.ics)",
+                )
+                if not fname:
+                    return
+                if not str(fname).lower().endswith(".ics"):
+                    fname = str(fname) + ".ics"
+                write_ics([task], str(fname), calendar_name="TaskBord")
+                from PySide6.QtWidgets import QMessageBox
+                QMessageBox.information(
+                    self,
+                    "📅 Kalenderfil sparad",
+                    f"Uppgiften sparad som:\n{fname}",
+                )
+            except Exception as e:
+                logger.warning(
+                    f"{LOG_PREFIX} _on_export_task_ics misslyckades: "
+                    f"{_describe_widget_error(e)}"
                 )
 
         def _on_email_import(self) -> None:
@@ -5701,6 +6021,11 @@ if _QT_AVAILABLE:
                 )
                 # NY v7-fix81: PDF-export även här (utom 📄-knappen + tray)
                 act_pdf = menu.addAction("📄 Exportera checklista → PDF…")
+                # NY v8: kalenderexport (.ics) → Google Calendar m.fl.
+                act_cal = menu.addAction("📅 Exportera till kalender (.ics)…")
+                # NY v8: frivillig donation (öppnar ui/donate.py-dialogen)
+                menu.addSeparator()
+                act_donate = menu.addAction("💖 Stöd TaskBord…")
                 chosen = menu.exec(event.globalPos())
                 if chosen is act_center:
                     self._center_window(reset_size=False)
@@ -5710,6 +6035,10 @@ if _QT_AVAILABLE:
                     self._toggle_lock()
                 elif chosen is act_pdf:
                     self._on_export_pdf()
+                elif chosen is act_cal:
+                    self._on_export_calendar_ics()
+                elif chosen is act_donate:
+                    self._on_open_donate()
             except Exception as e:
                 logger.warning(
                     f"{LOG_PREFIX} contextMenuEvent misslyckades: "

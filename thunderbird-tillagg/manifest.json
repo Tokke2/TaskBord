@@ -1,0 +1,60 @@
+{
+  "manifest_version": 3,
+  "name": "TaskBord — mail till uppgift",
+  "short_name": "TaskBord",
+  "version": "1.0.0",
+  "description": "Skickar valt mail till TaskBord och skapar en uppgift (sparas i JSON). Fungerar med TaskBords e-postbrygga på localhost.",
+  "author": "Rickard Längkvist",
+  "homepage_url": "https://github.com/Tokke2/TaskBord",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "taskbord-mailbridge@taskbord.app",
+      "strict_min_version": "128.0"
+    }
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "64": "icons/icon-64.png",
+    "128": "icons/icon-128.png"
+  },
+  "permissions": [
+    "storage",
+    "menus",
+    "messagesRead",
+    "alarms",
+    "notifications"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1/*",
+    "http://localhost/*"
+  ],
+  "background": {
+    "scripts": [
+      "background.js"
+    ]
+  },
+  "action": {
+    "default_title": "TaskBord — skicka mail som uppgift",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "64": "icons/icon-64.png"
+    }
+  },
+  "message_display_action": {
+    "default_title": "TaskBord — skapa uppgift av mailet",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "64": "icons/icon-64.png"
+    }
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": false
+  }
+}

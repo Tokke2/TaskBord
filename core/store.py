@@ -159,6 +159,8 @@ ID_ALPHABET: Final[str] = "0123456789abcdefghijklmnopqrstuvwxyz"
 # Gränser (hårdkodade för snabbhet)
 MAX_TASKS: Final[int] = 5000
 MAX_SUBTASKS_PER_TASK: Final[int] = 100
+# NY: max nivåer av delmoment (1 = delmoment, 2 = under-delmoment, 3 = ...)
+MAX_SUBTASK_DEPTH: Final[int] = 3
 MAX_TAGS_PER_TASK: Final[int] = 20
 MAX_TAG_LENGTH: Final[int] = 32
 MAX_TITLE_LENGTH: Final[int] = 500
@@ -991,8 +993,8 @@ def _coerce_tags(raw: Any) -> List[str]:
     return result
 
 
-def _coerce_subtask(raw: Any) -> Optional[Dict[str, Any]]:
-    """Coerce subtask (snabb inline-validering)."""
+def _coerce_subtask(raw: Any, depth: int = 1) -> Optional[Dict[str, Any]]:
+    """Coerce subtask (snabb inline-validering), rekursivt för underdelmoment."""
     if not isinstance(raw, dict):
         return None
     sid = _coerce_str(raw.get("id"), default="", max_len=ID_LENGTH)
@@ -1001,11 +1003,52 @@ def _coerce_subtask(raw: Any) -> Optional[Dict[str, Any]]:
     title = _normalize_title(raw.get("title", ""))
     if not title:
         return None
+    children: List[Dict[str, Any]] = []
+    raw_children = raw.get("children", [])
+    if depth < MAX_SUBTASK_DEPTH and isinstance(raw_children, list):
+        for c in raw_children[:MAX_SUBTASKS_PER_TASK]:
+            cc = _coerce_subtask(c, depth + 1)
+            if cc is not None:
+                children.append(cc)
     return {
         "id": sid,
         "title": title,
         "done": _coerce_bool(raw.get("done"), False),
+        "children": children,
     }
+
+
+def _locate_subtask(
+    subs: List[Dict[str, Any]], sub_id: str, depth: int = 1
+) -> Optional[Tuple[List[Dict[str, Any]], int, int]]:
+    """
+    Hitta delmoment med id rekursivt.
+    Returnerar (lista_som_innehåller_den, index, djup) eller None.
+    """
+    for i, sub in enumerate(subs):
+        if sub.get("id") == sub_id:
+            return subs, i, depth
+        found = _locate_subtask(sub.get("children") or [], sub_id, depth + 1)
+        if found is not None:
+            return found
+    return None
+
+
+def _set_subtree_done(sub: Dict[str, Any], value: bool) -> None:
+    """Sätt done på ett delmoment och alla dess underdelmoment."""
+    sub["done"] = value
+    for child in sub.get("children") or []:
+        _set_subtree_done(child, value)
+
+
+def _reset_subtasks(subs: List[Dict[str, Any]]) -> None:
+    """Nytt id + done=False rekursivt (används vid återkommande uppgifter)."""
+    for s in subs:
+        if not isinstance(s, dict):
+            continue
+        s["id"] = _make_id()
+        s["done"] = False
+        _reset_subtasks(s.get("children") or [])
 
 
 def _coerce_task(raw: Any, idx: int = 0) -> Optional[Dict[str, Any]]:
@@ -1704,7 +1747,7 @@ class TaskStore(QObject):
     def add_task(
         self,
         title: str,
-        priority: str = "medium",
+        priority: str = "none",  # NY v8: nya uppgifter får ingen prio — sätts senare
         due_date: Optional[str] = None,
         tags: Optional[List[str]] = None,
         subtasks: Optional[List[Dict[str, Any]]] = None,
@@ -1883,10 +1926,7 @@ class TaskStore(QObject):
                         next_task["created"] = _now_iso()
                         next_task["completed"] = None
                         next_task["snoozed_until"] = None
-                        for subtask in next_task.get("subtasks", []):
-                            if isinstance(subtask, dict):
-                                subtask["id"] = _make_id()
-                                subtask["done"] = False
+                        _reset_subtasks(next_task.get("subtasks", []))
                         self._active_tasks.append(next_task)
                         self._active_index[recurring_task_id] = len(self._active_tasks) - 1
                         self._index_task(next_task)
@@ -2227,8 +2267,16 @@ class TaskStore(QObject):
     # ========================================================================
 
     @_log_crud("add_subtask")
-    def add_subtask(self, task_id: str, title: str) -> Optional[Dict[str, Any]]:
-        """Lägg till subtask."""
+    def add_subtask(
+        self,
+        task_id: str,
+        title: str,
+        parent_sub_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Lägg till delmoment. Med parent_sub_id läggs det som underdelmoment
+        under det angivna delmomentet (max MAX_SUBTASK_DEPTH nivåer).
+        """
         nt = _normalize_title(title)
         if not nt:
             return None
@@ -2236,7 +2284,21 @@ class TaskStore(QObject):
             task = self._by_id.get(task_id)
             if task is None:
                 return None
-            if len(task.get("subtasks", [])) >= MAX_SUBTASKS_PER_TASK:
+            if parent_sub_id is None:
+                container = task.setdefault("subtasks", [])
+            else:
+                loc = _locate_subtask(task.get("subtasks", []), parent_sub_id)
+                if loc is None:
+                    return None
+                parent_list, parent_idx, parent_depth = loc
+                if parent_depth + 1 > MAX_SUBTASK_DEPTH:
+                    logger.warning(
+                        f"{LOG_PREFIX} add_subtask: max djup ({MAX_SUBTASK_DEPTH}) uppnått"
+                    )
+                    return None
+                parent = parent_list[parent_idx]
+                container = parent.setdefault("children", [])
+            if len(container) >= MAX_SUBTASKS_PER_TASK:
                 logger.warning(
                     f"{LOG_PREFIX} add_subtask: max ({MAX_SUBTASKS_PER_TASK}) uppnått"
                 )
@@ -2245,8 +2307,9 @@ class TaskStore(QObject):
                 "id": _make_id(),
                 "title": nt,
                 "done": False,
+                "children": [],
             }
-            task.setdefault("subtasks", []).append(sub)
+            container.append(sub)
             self._dirty = True
         self._filter_cache.clear()  # FIX v7-fix79b: cache-koherens
         self._find_cache.clear()
@@ -2266,19 +2329,21 @@ class TaskStore(QObject):
             task = self._by_id.get(task_id)
             if task is None:
                 return False
-            for sub in task.get("subtasks", []):
-                if sub.get("id") == sub_id:
-                    sub["done"] = not sub.get("done", False)
-                    self._dirty = True
-                    self._filter_cache.clear()  # FIX v7-fix79b: cache-koherens
-                    self._find_cache.clear()
-                    self._audit_log.add("toggle_subtask", task_id, after=_safe_copy(sub))
-                    logger.info(
-                        f"{LOG_PREFIX} toggle_subtask: {sub_id!r} → done={sub['done']}"
-                    )
-                    self._emit("task_updated", task_id)
-                    self._emit("changed")  # v7-fix11 (UI-refresh)
-                    return True
+            loc = _locate_subtask(task.get("subtasks", []), sub_id)
+            if loc is not None:
+                parent_list, idx, _depth = loc
+                sub = parent_list[idx]
+                _set_subtree_done(sub, not sub.get("done", False))
+                self._dirty = True
+                self._filter_cache.clear()  # FIX v7-fix79b: cache-koherens
+                self._find_cache.clear()
+                self._audit_log.add("toggle_subtask", task_id, after=_safe_copy(sub))
+                logger.info(
+                    f"{LOG_PREFIX} toggle_subtask: {sub_id!r} → done={sub['done']}"
+                )
+                self._emit("task_updated", task_id)
+                self._emit("changed")  # v7-fix11 (UI-refresh)
+                return True
         return False
 
     @_log_crud("remove_subtask")
@@ -2288,19 +2353,45 @@ class TaskStore(QObject):
             task = self._by_id.get(task_id)
             if task is None:
                 return False
-            subs = task.get("subtasks", [])
-            for i, sub in enumerate(subs):
-                if sub.get("id") == sub_id:
-                    removed = subs.pop(i)
-                    self._dirty = True
-                    self._filter_cache.clear()  # FIX v7-fix79b: cache-koherens
-                    self._find_cache.clear()
-                    self._audit_log.add("remove_subtask", task_id, before=removed)
-                    logger.info(f"{LOG_PREFIX} remove_subtask: {sub_id!r}")
-                    self._emit("task_updated", task_id)
-                    self._emit("changed")  # v7-fix11 (UI-refresh)
-                    return True
+            loc = _locate_subtask(task.get("subtasks", []), sub_id)
+            if loc is not None:
+                parent_list, idx, _depth = loc
+                removed = parent_list.pop(idx)
+                self._dirty = True
+                self._filter_cache.clear()  # FIX v7-fix79b: cache-koherens
+                self._find_cache.clear()
+                self._audit_log.add("remove_subtask", task_id, before=removed)
+                logger.info(f"{LOG_PREFIX} remove_subtask: {sub_id!r}")
+                self._emit("task_updated", task_id)
+                self._emit("changed")  # v7-fix11 (UI-refresh)
+                return True
         return False
+
+    @_log_crud("rename_subtask")
+    def rename_subtask(self, task_id: str, sub_id: str, title: str) -> bool:
+        """Byt namn på ett delmoment (eller underdelmoment)."""
+        nt = _normalize_title(title)
+        if not nt:
+            return False
+        with self._lock:
+            task = self._by_id.get(task_id)
+            if task is None:
+                return False
+            loc = _locate_subtask(task.get("subtasks", []), sub_id)
+            if loc is None:
+                return False
+            parent_list, idx, _depth = loc
+            sub = parent_list[idx]
+            before = _safe_copy(sub)
+            sub["title"] = nt
+            self._dirty = True
+            self._filter_cache.clear()
+            self._find_cache.clear()
+            self._audit_log.add("rename_subtask", task_id, before=before, after=_safe_copy(sub))
+            logger.info(f"{LOG_PREFIX} rename_subtask: {sub_id!r} → '{nt[:30]}'")
+            self._emit("task_updated", task_id)
+            self._emit("changed")
+            return True
 
     # ========================================================================
     # CRUD — TAGS

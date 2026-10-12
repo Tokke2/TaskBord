@@ -1,0 +1,4 @@
+# TaskBords lokala data (uppgifter, mail, loggar, backup) — ska inte i git
+/data/
+__pycache__/
+*.pyc

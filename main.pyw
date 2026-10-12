@@ -4132,6 +4132,11 @@ class AppController:
         with suppress(Exception):
             self._init_reminder_service()
 
+        # 6e. NY v7-fix90: e-postbrygga (Thunderbird-tillägg) + inkorgsmapp
+        # (tar emot mail från tillägget och skapar uppgifter som sparas i JSON)
+        with suppress(Exception):
+            self._init_mail_bridge()
+
         # 7. NY v6.4.1 v7: Erbjud installera saknade plugins (icke-blockerande)
         # Körs BARA i NORMAL-läge (inte --safe-mode eller --no-tray)
         # NY v6.4.1 v7-fix: Skippa om --force-show (användaren vill bara se widgets)
@@ -5295,6 +5300,464 @@ class AppController:
         except Exception as e:
             self._log.warning(f"{LOG_PREFIX} _toggle_reminders: {e}")
 
+    # -----------------------------------------------------------------------
+    # NY v7-fix90: E-POSTBRYGGA — Thunderbird-tillägg + inkorgsmapp
+    # -----------------------------------------------------------------------
+    #  Rickard 2026-10-11: "importera uppgifter från mail via thunderbird —
+    #  om man kan göra tillägg till thunderbird som kan importera uppgift
+    #  till appen. Uppgifter ska sparas i json-fil för att finnas kvar
+    #  efter omstart av appen."
+    #
+    #  Lösning (två vägar in, alltid JSON-sparande):
+    #    1. HTTP-brygga på 127.0.0.1 (Thunderbird-tillägget POST:ar mailet)
+    #    2. Inkorgsmappen data/inbox/ (fungerar även om appen var avstängd)
+    #  Se core/mail_bridge.py + katalogen thunderbird-tillagg/.
+    # -----------------------------------------------------------------------
+
+    def _mail_bridge_data_dir(self) -> Path:
+        """data/-katalogen (där active.json och mail_bridge/ ligger)."""
+        try:
+            if hasattr(self.settings, "data_dir"):
+                return Path(str(self.settings.data_dir()))
+        except Exception as e:
+            self._log.debug(f"{LOG_PREFIX} data_dir via settings: {e}")
+        return Path(getattr(self, "_SCRIPT_DIR", SCRIPT_DIR)) / "data"
+
+    def _init_mail_bridge(self) -> None:
+        """
+        NY v7-fix90: starta e-postbryggan (Thunderbird-tillägg) + bevaka
+        inkorgsmappen. Misslyckas tyst — appen får aldrig hindras av detta.
+        """
+        try:
+            if self._mode == AppMode.SAFE_MODE:
+                self._log.info(
+                    f"{LOG_PREFIX} e-postbryggan hoppas över (safe-mode)"
+                )
+                return
+            from core.mail_bridge import MailBridgeService
+
+            data_dir = self._mail_bridge_data_dir()
+
+            def _setting(name: str, default: Any, cast: Any) -> Any:
+                """Läs en settings-nyckel säkert (gammal settings.json → default)."""
+                try:
+                    getter = getattr(self.settings, name, None)
+                    if callable(getter):
+                        return cast(getter())
+                except Exception as e:
+                    self._log.debug(f"{LOG_PREFIX} settings.{name}: {e}")
+                return default
+
+            _http_on = _setting("mail_bridge_enabled", True, bool)
+            _watch_on = _setting("inbox_watch_enabled", True, bool)
+            _port = _setting("mail_bridge_port", 8765, int)
+            _poll = _setting("inbox_poll_seconds", 3, int)
+            _token = _setting("mail_bridge_token", "", str)
+
+            self._mail_bridge_events: deque = deque(maxlen=50)
+            self._mail_bridge_lock = threading.Lock()
+
+            self._mail_bridge = MailBridgeService(
+                self.store,
+                data_dir,
+                port=_port,
+                token=_token,
+                version=APP_VERSION_DISPLAY,
+                http_enabled=_http_on,
+                watch_enabled=_watch_on,
+                poll_seconds=_poll,
+                on_event=self._mail_bridge_notify,
+            )
+            status = self._mail_bridge.start()
+
+            # Spara token i settings första gången (så den syns i JSON)
+            with suppress(Exception):
+                if (not _token) and self._mail_bridge.token and hasattr(
+                    self.settings, "set_mail_bridge_token"
+                ):
+                    self.settings.set_mail_bridge_token(self._mail_bridge.token)
+
+            # Poll-timer på GUI-tråden: visar notiser/flashar uppgifter
+            try:
+                self._mail_bridge_timer = self._QTimer(self._app)
+                self._mail_bridge_timer.setInterval(700)
+                self._mail_bridge_timer.timeout.connect(self._poll_mail_bridge)
+                self._mail_bridge_timer.start()
+            except Exception as e:
+                self._log.debug(
+                    f"{LOG_PREFIX} kunde inte starta brygg-poll-timer: {e}"
+                )
+
+            self._log.info(
+                f"{LOG_PREFIX} ✓ E-postbrygga: http="
+                f"{'PÅ' if status['http_running'] else 'AV'} "
+                f"(port {status['port']}), inkorg="
+                f"{'PÅ' if status['watch_running'] else 'AV'} "
+                f"({status['inbox']}), token={status['token'][:6]}…"
+            )
+        except Exception as e:
+            self._log.warning(
+                f"{LOG_PREFIX} _init_mail_bridge misslyckades: {e}",
+                exc_info=True,
+            )
+
+    def _mail_bridge_notify(self, event: Dict[str, Any]) -> None:
+        """
+        NY v7-fix90: kallas från brygg-tråden/bevakningstråden vid import.
+
+        Lägger händelsen i en trådsäker kö — GUI:t hämtar den i
+        _poll_mail_bridge (Qt-får aldrig röras från andra trådar).
+        """
+        try:
+            lock = getattr(self, "_mail_bridge_lock", None)
+            events = getattr(self, "_mail_bridge_events", None)
+            if events is None:
+                return
+            if lock is not None:
+                with lock:
+                    events.append(event)
+            else:
+                events.append(event)
+        except Exception as e:
+            self._log.debug(f"{LOG_PREFIX} mail-notis kunde ej köas: {e}")
+
+    def _poll_mail_bridge(self) -> None:
+        """NY v7-fix90: töm notiskön och visa resultatet i tray/widget."""
+        try:
+            events = getattr(self, "_mail_bridge_events", None)
+            if not events:
+                return
+            lock = getattr(self, "_mail_bridge_lock", None)
+            batch: List[Dict[str, Any]] = []
+            if lock is not None:
+                with lock:
+                    while events:
+                        batch.append(events.popleft())
+            else:
+                while events:
+                    batch.append(events.popleft())
+            for evt in batch:
+                for res in evt.get("results", []):
+                    if not res.get("ok"):
+                        self._log.warning(
+                            f"{LOG_PREFIX} mail-import misslyckades: "
+                            f"{res.get('error')}"
+                        )
+                        continue
+                    task_id = res.get("task_id")
+                    title = str(res.get("title", ""))[:60]
+                    duplicate = bool(res.get("duplicate"))
+                    # 1. Flasha uppgiften i Aktiva (widgeten)
+                    if task_id:
+                        self._flash_task_in_widgets(task_id)
+                    # 2. Tray-notis
+                    if self._tray is not None:
+                        try:
+                            self._tray.showMessage(
+                                (
+                                    "📋 Redan importerad"
+                                    if duplicate else "📧 Mail → uppgift"
+                                ),
+                                (
+                                    f"'{title}' finns redan i listan."
+                                    if duplicate else
+                                    f"'{title}' skapades och sparades."
+                                ),
+                                self._QSystemTrayIcon.MessageIcon.Information,
+                                6000,
+                            )
+                        except Exception as e:
+                            self._log.debug(
+                                f"{LOG_PREFIX} tray-notis misslyckades: {e}"
+                            )
+                    self._log.info(
+                        f"{LOG_PREFIX} mail → uppgift: {task_id!r} "
+                        f"'{title}' ({'dublett' if duplicate else 'ny'}, "
+                        f"källa={evt.get('source', '?')})"
+                    )
+            with suppress(Exception):
+                self._update_tray_tooltip()
+        except Exception as e:
+            self._log.debug(f"{LOG_PREFIX} _poll_mail_bridge: {e}")
+
+    def _flash_task_in_widgets(self, task_id: str) -> None:
+        """NY v7-fix90: visa uppgiften synligt i alla widgets (like fix77)."""
+        try:
+            with self._widget_lock:
+                widgets = list(self._widgets.values())
+            for w in widgets:
+                fn = getattr(w, "_show_task_in_active", None)
+                if callable(fn):
+                    with suppress(Exception):
+                        fn(task_id)
+        except Exception as e:
+            self._log.debug(f"{LOG_PREFIX} _flash_task_in_widgets: {e}")
+
+    def _mail_bridge_status_text(self) -> str:
+        """Kort statustext för tray-menyn."""
+        svc = getattr(self, "_mail_bridge", None)
+        if svc is None:
+            return "avstängd"
+        try:
+            return svc.status_text()
+        except Exception:
+            return "okänd status"
+
+    def _toggle_mail_bridge(self, checked: bool) -> None:
+        """NY v7-fix90: slå bryggan (localhost-servern) på/av."""
+        try:
+            if hasattr(self.settings, "set_mail_bridge_enabled"):
+                self.settings.set_mail_bridge_enabled(bool(checked))
+            svc = getattr(self, "_mail_bridge", None)
+            if svc is None:
+                self._init_mail_bridge()
+            else:
+                svc.http_enabled = bool(checked)
+                if checked:
+                    ok = svc.server.start()
+                    if ok:
+                        svc.port = svc.server.port
+                        with suppress(Exception):
+                            if hasattr(self.settings, "set_mail_bridge_port"):
+                                self.settings.set_mail_bridge_port(svc.port)
+                        svc.config_payload()
+                    self._log.info(
+                        f"{LOG_PREFIX} bryggan {'startad' if ok else 'kunde ej starta'}"
+                    )
+                else:
+                    svc.server.stop()
+                    self._log.info(f"{LOG_PREFIX} bryggan stoppad (tray-toggle)")
+            with suppress(Exception):
+                self._populate_tray_menu()
+        except Exception as e:
+            self._log.warning(f"{LOG_PREFIX} _toggle_mail_bridge: {e}")
+
+    def _toggle_inbox_watch(self, checked: bool) -> None:
+        """NY v7-fix90: slå automatisk import från data/inbox/ på/av."""
+        try:
+            if hasattr(self.settings, "set_inbox_watch_enabled"):
+                self.settings.set_inbox_watch_enabled(bool(checked))
+            svc = getattr(self, "_mail_bridge", None)
+            if svc is None:
+                self._init_mail_bridge()
+            else:
+                svc.watch_enabled = bool(checked)
+                if checked:
+                    svc.start_watcher()
+                else:
+                    svc.stop_watcher()
+            self._log.info(
+                f"{LOG_PREFIX} inkorgsbevakning: {'PÅ' if checked else 'AV'}"
+            )
+            with suppress(Exception):
+                self._populate_tray_menu()
+        except Exception as e:
+            self._log.warning(f"{LOG_PREFIX} _toggle_inbox_watch: {e}")
+
+    def _stop_mail_bridge(self) -> None:
+        """NY v7-fix90: stoppa brygga + bevakning (vid avslut)."""
+        try:
+            timer = getattr(self, "_mail_bridge_timer", None)
+            if timer is not None:
+                with suppress(Exception):
+                    timer.stop()
+            svc = getattr(self, "_mail_bridge", None)
+            if svc is not None:
+                svc.stop()
+                self._log.info(f"{LOG_PREFIX} e-postbryggan stoppad")
+        except Exception as e:
+            self._log.debug(f"{LOG_PREFIX} _stop_mail_bridge: {e}")
+
+    def _mail_bridge_config_json(self) -> str:
+        """Inställningarna som JSON-sträng (för urklipp/tillägget)."""
+        svc = getattr(self, "_mail_bridge", None)
+        if svc is None:
+            return "{}"
+        try:
+            cfg = svc.config_payload()
+            return _stdlib_json.dumps(cfg, ensure_ascii=False, indent=2)
+        except Exception as e:
+            self._log.warning(f"{LOG_PREFIX} kunde ej bygga config: {e}")
+            return "{}"
+
+    def _copy_mail_bridge_settings(self) -> None:
+        """
+        NY v7-fix90: kopiera inställningarna (url + token) till urklipp och
+        visa dem — användaren klistrar in dem i Thunderbird-tillägget.
+        """
+        try:
+            svc = getattr(self, "_mail_bridge", None)
+            if svc is None:
+                self._init_mail_bridge()
+                svc = getattr(self, "_mail_bridge", None)
+            if svc is None:
+                if self._QMessageBox is not None:
+                    self._QMessageBox.warning(
+                        None, "TaskBord", "E-postbryggan kunde inte startas."
+                    )
+                return
+            text = self._mail_bridge_config_json()
+            copied = False
+            try:
+                from PySide6.QtWidgets import QApplication
+                app = QApplication.instance() or self._app
+                if app is not None:
+                    app.clipboard().setText(text)
+                    copied = True
+            except Exception as e:
+                self._log.debug(f"{LOG_PREFIX} urklipp misslyckades: {e}")
+            status = svc.status()
+            info = (
+                f"Adress:  {status['url']}\n"
+                f"Token:   {status['token'][:10]}…"
+                f"({len(status['token'])} tecken)\n"
+                f"Brygga:  {'🟢 körs' if status['http_running'] else '🔴 stoppad'}\n"
+                f"Inkorg:  {'🟢 bevakas' if status['watch_running'] else '⚪ av'}"
+                f" — {status['inbox']}\n\n"
+                f"{'✅ Inställningarna ligger på urklipp.' if copied else '⚠️ Kunde inte kopiera — markera texten manuellt.'}\n\n"
+                f"Klistra in i Thunderbird:\n"
+                f"  Tilläggen → TaskBord → Inställningar →\n"
+                f"  fältet 'Klistra in JSON' → Läs in och spara."
+            )
+            self._log.info(
+                f"{LOG_PREFIX} brygg-inställningar kopierade till urklipp "
+                f"(port {status['port']})"
+            )
+            if self._QMessageBox is not None:
+                box = self._QMessageBox()
+                box.setWindowTitle("📧 TaskBord — inställningar för Thunderbird")
+                box.setIcon(self._QMessageBox.Icon.Information)
+                box.setText(info)
+                box.setDetailedText(text)
+                box.exec()
+        except Exception as e:
+            self._log.warning(
+                f"{LOG_PREFIX} _copy_mail_bridge_settings: {e}", exc_info=True
+            )
+
+    def _open_inbox_folder(self) -> None:
+        """NY v7-fix90: öppna data/inbox/ i Utforskaren."""
+        try:
+            svc = getattr(self, "_mail_bridge", None)
+            if svc is not None:
+                folder = Path(svc.paths["inbox"])
+            else:
+                folder = self._mail_bridge_data_dir() / "inbox"
+            folder.mkdir(parents=True, exist_ok=True)
+            if sys.platform == "win32":
+                os.startfile(str(folder))  # type: ignore[attr-defined]
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", str(folder)])
+            else:
+                subprocess.Popen(["xdg-open", str(folder)])
+            self._log.info(f"{LOG_PREFIX} inkorgsmappen öppnad: {folder}")
+        except Exception as e:
+            self._log.warning(f"{LOG_PREFIX} _open_inbox_folder: {e}")
+
+    def _open_thunderbird_addon_folder(self) -> None:
+        """NY v7-fix90: öppna thunderbird-tillagg/ (för installation i TB)."""
+        try:
+            folder = Path(
+                getattr(self, "_SCRIPT_DIR", SCRIPT_DIR)
+            ) / "thunderbird-tillagg"
+            if not folder.is_dir():
+                folder = Path(getattr(self, "_SCRIPT_DIR", SCRIPT_DIR))
+            if sys.platform == "win32":
+                os.startfile(str(folder))  # type: ignore[attr-defined]
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", str(folder)])
+            else:
+                subprocess.Popen(["xdg-open", str(folder)])
+        except Exception as e:
+            self._log.warning(f"{LOG_PREFIX} kunde ej öppna tilläggsmappen: {e}")
+
+    def _show_thunderbird_guide(self) -> None:
+        """NY v7-fix90: steg-för-steg: installera Thunderbird-tillägget."""
+        folder = Path(
+            getattr(self, "_SCRIPT_DIR", SCRIPT_DIR)
+        ) / "thunderbird-tillagg"
+        text = (
+            "Så kopplar du Thunderbird mot TaskBord:\n\n"
+            "1. Öppna TaskBord-menyn (tray-ikonen) → 📧 E-post & Thunderbird\n"
+            "   → '📋 Kopiera inställningar' (adress + token ligger nu på urklipp)\n\n"
+            "2. I Thunderbird: Verktyg → Tillägg och teman\n"
+            "   • Klicka kugghjulet ⚙️ → 'Installera tillägg från fil…'\n"
+            f"   • Välj filen TaskBord-Thunderbird.xpi (finns i\n"
+            f"     {folder})\n"
+            "     – saknas .xpi: kör SKAPA_XPI.bat i appmappen en gång\n\n"
+            "3. Öppna tilläggets inställningar (Tillägg och teman →\n"
+            "   TaskBord → Inställningar), klistra in JSON och spara.\n\n"
+            "4. Använd: högerklicka på ett mail →\n"
+            "   '📋 Skicka till TaskBord (ny uppgift)'\n\n"
+            "Uppgiften dyker upp i widgeten och sparas i data/active.json\n"
+            "(finns kvar efter omstart)."
+        )
+        try:
+            if self._QMessageBox is None:
+                self._log.info(f"{LOG_PREFIX} {text}")
+                return
+            box = self._QMessageBox()
+            box.setWindowTitle("🧩 Thunderbird-tillägg")
+            box.setIcon(self._QMessageBox.Icon.Information)
+            box.setText(text)
+            open_btn = box.addButton(
+                "📂 Öppna tilläggsmappen", self._QMessageBox.ButtonRole.ActionRole
+            )
+            box.addButton("Stäng", self._QMessageBox.ButtonRole.AcceptRole)
+            box.exec()
+            if box.clickedButton() is open_btn:
+                self._open_thunderbird_addon_folder()
+        except Exception as e:
+            self._log.warning(f"{LOG_PREFIX} _show_thunderbird_guide: {e}")
+
+    def _import_email_files_dialog(self) -> None:
+        """
+        NY v7-fix90: importera .eml/.msg via fil-dialog (samma kärna som
+        📧-knappen i widgeten) — för hela appen, från tray-menyn.
+        """
+        try:
+            from PySide6.QtWidgets import QFileDialog
+            files, _ = QFileDialog.getOpenFileNames(
+                None,
+                "Importera e-post som uppgift",
+                "",
+                "E-postfiler (*.eml *.msg);;Alla filer (*.*)",
+            )
+            if not files:
+                return
+            from core.email_import import import_email
+            data_dir = self._mail_bridge_data_dir()
+            imported = duplicates = failed = 0
+            for fp in files:
+                info: Dict[str, Any] = {}
+                task_id = import_email(Path(fp), self.store, data_dir, info=info)
+                if not task_id:
+                    failed += 1
+                    continue
+                if info.get("duplicate"):
+                    duplicates += 1
+                else:
+                    imported += 1
+                self._flash_task_in_widgets(task_id)
+            with suppress(Exception):
+                self.store.save()
+            self._log.info(
+                f"{LOG_PREFIX} manuell e-postimport: {imported} nya, "
+                f"{duplicates} dubletter, {failed} fel"
+            )
+            if self._QMessageBox is not None:
+                self._QMessageBox.information(
+                    None,
+                    "📧 E-postimport",
+                    f"{imported} importerade, {duplicates} redan importerade, "
+                    f"{failed} misslyckades.\n\nUppgifterna sparas i "
+                    f"data/active.json (kvar efter omstart).",
+                )
+        except Exception as e:
+            self._log.warning(
+                f"{LOG_PREFIX} _import_email_files_dialog: {e}", exc_info=True
+            )
+
     def _set_theme_value(self, value: str) -> None:
         """
         NY v7-fix82: sätt tema från tray-menyn (light/dark/auto/system).
@@ -6066,6 +6529,19 @@ class AppController:
             self._export_pdf_action.triggered.connect(self._export_checklist_pdf)
             self._tray_menu.addAction(self._export_pdf_action)
 
+            # NY v8 (2026-10-12): kalenderexport (.ics) → Google Calendar m.fl.
+            self._export_calendar_action = self._QAction(
+                "📅  Exportera till kalender (.ics)…",
+                self._tray_menu,
+            )
+            self._export_calendar_action.setToolTip(
+                "Exportera uppgifter med förfallodatum som kalenderfil.\n"
+                "Importeras i Google Calendar (Inställningar → Importera\n"
+                "och exportera), Outlook och Apple Kalender."
+            )
+            self._export_calendar_action.triggered.connect(self._export_calendar_ics)
+            self._tray_menu.addAction(self._export_calendar_action)
+
             self._tray_menu.addSeparator()
 
             # NY v6.4.1: Autostart toggle (med live-status från registry)
@@ -6356,6 +6832,88 @@ class AppController:
                 )
                 act.triggered.connect(
                     lambda checked=False, v=_t_val: self._set_window_transparency(v)
+                )
+
+            # === NY v7-fix90: E-POST & THUNDERBIRD ==========================
+            # Rickard: "importera uppgifter från mail via thunderbird" —
+            # bryggan (localhost) + inkorgsmappen + tilläggets inställningar.
+            try:
+                _svc = getattr(self, "_mail_bridge", None)
+                _status = _svc.status() if _svc is not None else None
+                _http_on = bool(
+                    _status["http_running"] if _status else False
+                )
+                _watch_on = bool(
+                    _status["watch_running"] if _status else False
+                )
+                _mail_menu = self._tray_menu.addMenu("📧  E-post & Thunderbird")
+
+                _act_bridge = _mail_menu.addAction(
+                    f"{'✅' if _http_on else '⚪'}  Brygga (lokal server)"
+                )
+                _act_bridge.setCheckable(True)
+                _act_bridge.setChecked(_http_on)
+                _act_bridge.setToolTip(
+                    "Tar emot mail från Thunderbird-tillägget på\n"
+                    "127.0.0.1 (bara denna dator) och skapar uppgifter.\n"
+                    "Uppgifterna sparas direkt i data/active.json (JSON)."
+                )
+                _act_bridge.triggered.connect(self._toggle_mail_bridge)
+
+                _act_inbox = _mail_menu.addAction(
+                    f"{'✅' if _watch_on else '⚪'}  Bevaka inkorgsmappen "
+                    f"(data/inbox)"
+                )
+                _act_inbox.setCheckable(True)
+                _act_inbox.setChecked(_watch_on)
+                _act_inbox.setToolTip(
+                    "Släpp .eml/.msg/.json i data/inbox/ → importeras\n"
+                    "automatiskt (även mail som kom när appen var avstängd)."
+                )
+                _act_inbox.triggered.connect(self._toggle_inbox_watch)
+
+                _info_action = _mail_menu.addAction(
+                    f"   {self._mail_bridge_status_text()}"
+                )
+                _info_action.setEnabled(False)
+                _mail_menu.addSeparator()
+
+                _act_copy = _mail_menu.addAction(
+                    "📋  Kopiera inställningar för Thunderbird…"
+                )
+                _act_copy.setToolTip(
+                    "Lägger adress + token på urklipp — klistra in i\n"
+                    "Thunderbird-tilläggets inställningar."
+                )
+                _act_copy.triggered.connect(self._copy_mail_bridge_settings)
+
+                _act_guide = _mail_menu.addAction(
+                    "🧩  Installera Thunderbird-tillägget…"
+                )
+                _act_guide.triggered.connect(self._show_thunderbird_guide)
+
+                _act_folder = _mail_menu.addAction("📂  Öppna inkorgsmappen")
+                _act_folder.triggered.connect(self._open_inbox_folder)
+
+                _act_import = _mail_menu.addAction(
+                    "📥  Importera e-postfiler nu…"
+                )
+                _act_import.setToolTip(
+                    "Välj .eml/.msg-filer (Thunderbird: spara mailet som\n"
+                    ".eml) — uppgifterna skapas och sparas i JSON."
+                )
+                _act_import.triggered.connect(self._import_email_files_dialog)
+
+                if _status:
+                    _mail_menu.addSeparator()
+                    _stat_txt = _mail_menu.addAction(
+                        f"   {_status['imports']} mail importerade • "
+                        f"{_status['duplicates']} dubletter"
+                    )
+                    _stat_txt.setEnabled(False)
+            except Exception as e:
+                self._log.debug(
+                    f"{LOG_PREFIX} e-post-undermeny misslyckades: {e}"
                 )
 
             self._tray_menu.addSeparator()
@@ -6724,7 +7282,7 @@ class AppController:
                     try:
                         self._tray.showMessage(
                             "➕ Snabbuppgift tillagd",
-                            f"\"{text[:40]}{"..." if len(text) > 40 else ""}\"",
+                            f"\"{text[:40]}{'...' if len(text) > 40 else ''}\"",
                             self._QSystemTrayIcon.MessageIcon.Information,
                             3000,  # 3 sekunder
                         )
@@ -7482,6 +8040,44 @@ class AppController:
                     self.stability.heartbeat()
         except Exception as e:
             self._log.debug(f"heartbeat misslyckades: {e}")
+        # NY v7-fix90: håll e-postbryggan vid liv (Thunderbird-tillägget)
+        with suppress(Exception):
+            self._mail_bridge_watchdog()
+
+    def _mail_bridge_watchdog(self) -> None:
+        """
+        NY v7-fix90: starta om bryggan om den dött (port stulen, fel, krasch).
+
+        Körs var 5:e sekund via heartbeat. Max 3 återstart-försök per
+        session — annars skulle en permanent portkonflikt snurra i evighet.
+        """
+        svc = getattr(self, "_mail_bridge", None)
+        if svc is None:
+            return
+        if getattr(self, "_mail_bridge_restarts", 0) >= 3:
+            return
+        restarted = False
+        try:
+            if getattr(svc, "http_enabled", True) and not svc.server.running:
+                if svc.server.start():
+                    self._mail_bridge_restarts = (
+                        getattr(self, "_mail_bridge_restarts", 0) + 1
+                    )
+                    restarted = True
+            if getattr(svc, "watch_enabled", True) and not svc.watch_running:
+                if svc.start_watcher():
+                    restarted = True
+        except Exception as e:
+            self._log.debug(f"{LOG_PREFIX} brygg-watchdog: {e}")
+            return
+        if restarted:
+            svc.config_payload()
+            self._log.info(
+                f"{LOG_PREFIX} e-postbryggan återstartad av watchdog "
+                f"(port {svc.server.port or svc.port})"
+            )
+            with suppress(Exception):
+                self._populate_tray_menu()
 
     def _check_idle(self) -> None:
         """Kontrollera idle-tid (dölj widget om idle > 10 min)."""
@@ -7769,6 +8365,111 @@ class AppController:
             self._log.warning(
                 f"{LOG_PREFIX} PDF-export misslyckades (modul returnerade False)"
             )
+
+    def _export_calendar_ics(self) -> None:
+        """
+        NY v8 (2026-10-12): exportera uppgifter med förfallodatum till .ics
+        (Google Calendar, Outlook, Apple Kalender).
+
+        Samma uppgiftslista som Aktiva-fliken visar. Uppgifter utan
+        förfallodatum kan inte bli händelser och rapporteras i dialogen.
+        """
+        try:
+            tasks = self.store.active_tasks() if hasattr(
+                self.store, "active_tasks"
+            ) else []
+        except Exception as _at_e:
+            self._log.warning(
+                f"{LOG_PREFIX} Kalenderexport: task-list misslyckades: {_at_e}"
+            )
+            tasks = []
+        tasks = [t for t in tasks if str(t.get("id", "")).strip()]
+        try:
+            from core.calendar_export import tasks_with_due, write_ics
+        except Exception as _ce_imp:
+            self._log.error(
+                f"{LOG_PREFIX} Kalenderexport: import misslyckades: {_ce_imp}",
+                exc_info=True,
+            )
+            return
+        valda = tasks_with_due(tasks)
+        if not valda:
+            try:
+                show_error_dialog(
+                    title="Inga datum",
+                    user_message=(
+                        "Inga aktiva uppgifter har ett förfallodatum.\n\n"
+                        "Sätt ett förfallodatum på en uppgift så kan den "
+                        "bli en händelse i kalendern."
+                    ),
+                    technical="",
+                    category="user_input",
+                )
+            except Exception:
+                pass
+            return
+        from PySide6.QtWidgets import QFileDialog
+        ts = _datetime.now().strftime("%Y%m%d_%H%M")
+        try:
+            store_path = (
+                getattr(self.store, "file_path", None)
+                or getattr(self.store, "_file_path", None)
+            )
+            default_dir = str(Path(str(store_path)).resolve().parent) \
+                if store_path else os.path.expanduser("~")
+        except Exception:
+            default_dir = os.path.expanduser("~")
+        default_path = os.path.join(default_dir, f"{APP_NAME}_kalender_{ts}.ics")
+        try:
+            fname, _ = QFileDialog.getSaveFileName(
+                None,
+                "Spara kalenderfil (.ics)",
+                default_path,
+                "Kalenderfil (*.ics)",
+            )
+        except Exception as _fd_e:
+            self._log.warning(
+                f"{LOG_PREFIX} Kalenderexport: file-dialog misslyckades: {_fd_e}"
+            )
+            fname = ""
+        if not fname:
+            fname = default_path
+            self._log.info(
+                f"{LOG_PREFIX} Kalenderexport: ingen fil vald → {fname}"
+            )
+        if not str(fname).lower().endswith(".ics"):
+            fname = str(fname) + ".ics"
+        try:
+            antal = write_ics(valda, str(fname), calendar_name=APP_NAME)
+        except Exception as _w_e:
+            self._log.error(
+                f"{LOG_PREFIX} Kalenderexport: skrivning misslyckades: {_w_e}",
+                exc_info=True,
+            )
+            return
+        hoppade = len(tasks) - antal
+        self._log.info(
+            f"{LOG_PREFIX} Kalenderexport klar: {fname} ({antal} händelser, "
+            f"{hoppade} utan datum)"
+        )
+        extra = (
+            f"\n\n{hoppade} uppgifter utan förfallodatum hoppades över."
+            if hoppade > 0 else ""
+        )
+        try:
+            show_error_dialog(
+                title="Kalenderfil skapad",
+                user_message=(
+                    f"{antal} uppgifter exporterade till:\n{fname}{extra}\n\n"
+                    "Google Calendar: ⚙️ Inställningar →\n"
+                    "Importera och exportera → Importera.\n"
+                    "Filen fungerar även i Outlook och Apple Kalender."
+                ),
+                technical="",
+                category="user_input",
+            )
+        except Exception:
+            pass
 
 
     def _safe_update_widgets(self) -> None:
@@ -8192,6 +8893,9 @@ class AppController:
             self._log.warning(
                 f"{LOG_PREFIX} Slutgiltig save misslyckades: {e}", exc_info=True
             )
+        # NY v7-fix90: stoppa e-postbryggan (släpper porten + skriver status)
+        with suppress(Exception):
+            self._stop_mail_bridge()
         try:
             # 1. Stäng alla widgets
             with self._widget_lock:
