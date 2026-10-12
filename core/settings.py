@@ -1415,7 +1415,8 @@ class Settings(QObject):
     @_log_call
     def save(self) -> bool:
         """Spara settings till JSON (synkron, anti-deadlock via timeout)."""
-        return self._save_internal() is not None and self._save_internal().success  # type: ignore[union-attr]
+        res = self._save_internal()  # EN gång (tidigare anropades den två gånger)
+        return res is not None and res.success
 
     def _save_internal(self) -> Optional[SaveResult]:
         """Privat save: trådsäker + anti-deadlock."""
@@ -2195,6 +2196,11 @@ class Settings(QObject):
             self._log.debug(
                 f"{LOG_PREFIX} window {wid}: geometri ({x},{y}) {w}x{h}"
             )
+            # FIX v8 (2026-10-12): spara PÅ DISK. Tidigare sattes bara _dirty —
+            # ingenting skrev filen (och nedstängningen sparade inte settings),
+            # så storlek/position försvann vid omstart. Anropas bara efter
+            # avslutad drag/resize (debouncad), så en bakgrundssparning räcker.
+            self.save_async()
             return True
         except Exception as e:
             self._log.warning(

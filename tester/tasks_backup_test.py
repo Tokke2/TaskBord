@@ -7,6 +7,7 @@ Använder en riktig TaskStore i en tillfällig mapp. Ingen Qt behövs.
 """
 from __future__ import annotations
 
+import json
 import sys
 import tempfile
 import zipfile
@@ -115,6 +116,74 @@ def main() -> int:
         s.save()
         q = tb.create_backup(s, dest=tmp / "arkiv.zip")
         check("arkiv ingår", tb.inspect_backup(q)["archive"] >= 1)
+
+    # --- automatisk yttre backup + återställning efter "uppdatering" --------------
+    app = tmp / "app"          # appmappen (js/ ligger i den)
+    ext = tmp / "yttre"        # mappen utanför appen
+    js = app / "js"
+    js.mkdir(parents=True)
+    st = TaskStore(data_dir_override=str(js))
+    st.add_task("Överlever uppdatering", priority="high")
+    st.add_task("Och den här")
+    st.save()
+    (js / "settings.json").write_text(json.dumps(
+        {"version": 11, "windows": [{"id": "default", "x": 321, "y": 123, "w": 480, "h": 700}],
+         "_meta": {"last_modified": "1"}}), encoding="utf-8")
+    z1 = tb.snapshot_external(js, dest=ext)
+    check("yttre backup skapad", z1 is not None and z1.is_file())
+    check("oförändrat → ingen ny kopia", tb.snapshot_external(js, dest=ext) is None)
+    st.save()  # ny saved_at men samma innehåll
+    (js / "settings.json").write_text(json.dumps(
+        {"version": 11, "windows": [{"id": "default", "x": 321, "y": 123, "w": 480, "h": 700}],
+         "_meta": {"last_modified": "2"}}), encoding="utf-8")
+    check("bara tidsstämplar ändrade → ingen ny kopia", tb.snapshot_external(js, dest=ext) is None)
+    st.add_task("Ny uppgift")
+    st.save()
+    z2 = tb.snapshot_external(js, dest=ext)
+    check("ändring → ny kopia", z2 is not None and z2 != z1)
+
+    # befintliga giltiga filer rörs aldrig
+    check("inget görs när allt finns", tb.restore_if_missing(js, source=ext) == {"active": False, "settings": False, "from": ""})
+
+    # "uppdatering": hela js/-mappen försvinner
+    import shutil
+    shutil.rmtree(js)
+    r = tb.restore_if_missing(js, source=ext)
+    check("återställer uppgifter + inställningar", r["active"] and r["settings"])
+    st2 = TaskStore(data_dir_override=str(js))
+    check("uppgifterna är tillbaka vid start",
+          titles(st2) == sorted(["Överlever uppdatering", "Och den här", "Ny uppgift"]))
+    w = json.loads((js / "settings.json").read_text(encoding="utf-8"))["windows"][0]
+    check("fönsterläge tillbaka", (w["x"], w["y"], w["w"], w["h"]) == (321, 123, 480, 700))
+
+    # skadad fil ersätts, men originalet sparas undan
+    (js / "active.json").write_text("{trasig", encoding="utf-8")
+    r = tb.restore_if_missing(js, source=ext)
+    check("skadad active.json återställs", r["active"] and not r["settings"])
+    check("skadad fil sparades undan", any(p.name.startswith("active.json.skadad") for p in js.iterdir()))
+
+    # skadad backup hoppas över, äldre används
+    (js / "active.json").unlink()
+    bad = sorted(ext.glob(f"{tb.AUTO_PREFIX}*.zip"), key=lambda p: p.stat().st_mtime)[-1]
+    bad.write_bytes(b"skrap")
+    r = tb.restore_if_missing(js, source=ext)
+    check("hoppar över skadad backup, tar äldre", r["active"])
+
+    # trasig active.json blir inte backup
+    (js / "active.json").write_text("{trasig", encoding="utf-8")
+    check("skadad uppgiftsfil backas inte upp", tb.snapshot_external(js, dest=tmp / "x") is None)
+
+    # rensning: behåller senaste med uppgifter
+    ext2 = tmp / "ext2"
+    s3 = TaskStore(data_dir_override=str(tmp / "d3"))
+    s3.add_task("Q0")
+    s3.save()
+    first = tb.snapshot_external(tmp / "d3", dest=ext2, keep=2)
+    for i in range(4):
+        s3.add_task(f"Q{i + 1}")
+        s3.save()
+        tb.snapshot_external(tmp / "d3", dest=ext2, keep=2)
+    check("rensar till keep", len(list(ext2.glob("*.zip"))) <= 3 and first is not None)
 
     print(f"\ntasks_backup_test: {_ok} lyckades, {_fail} misslyckades")
     return 1 if _fail else 0

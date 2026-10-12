@@ -6827,6 +6827,10 @@ if _QT_AVAILABLE:
             try:
                 _sh = getattr(self, "_shell", None)
                 _g = _sh if _sh is not None else self
+                # FIX v8: spara aldrig skräpgeometri (minimerat fönster ligger på
+                # (-32000,-32000) i Windows) — då skulle riktiga läget skrivas över.
+                if _g.isMinimized() or _g.x() <= -10000 or _g.y() <= -10000:
+                    return
                 if hasattr(self.settings, "update_window_geometry"):
                     self.settings.update_window_geometry(
                         self.win_id,

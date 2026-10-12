@@ -86,7 +86,8 @@ if _QT:
             self.lista.clear()
             for b in tb.list_backups(self.store):
                 t = datetime.fromtimestamp(b["mtime"]).strftime("%Y-%m-%d %H:%M")
-                extra = "  (före återställning)" if "fore-aterstallning" in b["name"] else ""
+                extra = ("  (före återställning)" if "fore-aterstallning" in b["name"]
+                         else "  (automatisk)" if b.get("auto") else "")
                 it = QListWidgetItem(f"{t}  —  {_human(b['size'])}{extra}")
                 it.setData(Qt.ItemDataRole.UserRole, b["path"])
                 self.lista.addItem(it)
@@ -98,6 +99,9 @@ if _QT:
             self.info.setText(
                 f"Du har <b>{n}</b> aktiva och <b>{a}</b> arkiverade uppgifter. "
                 f"En backup är en ZIP-fil med allt. Standardmapp:<br><code>{tb.default_dir(self.store)}</code><br>"
+                "<b>Automatisk backup:</b> uppgifter och inställningar (fönsterläge) kopieras även "
+                f"vid avslut och var 5:e minut till <code>{tb.external_dir()}</code> — utanför appmappen. "
+                "Försvinner dina uppgifter vid en uppdatering läses de in därifrån vid nästa start.<br>"
                 "Tips: använd <i>Spara kopia som…</i> för att lägga en kopia på ett USB-minne eller i en molnmapp."
             )
 

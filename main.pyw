@@ -4014,6 +4014,12 @@ class AppController:
         """
         self._log.info(f"{LOG_PREFIX} === Initierar subsystems (mode={self._mode.name}) ===")
 
+        # 0. NY v8 (2026-10-12): saknas uppgifter/inställningar (t.ex. efter en
+        # uppdatering som bytt ut appmappen) → läs in dem från den yttre backupen
+        # INNAN något annat läser filerna.
+        with suppress(Exception):
+            self._restore_from_external_backup()
+
         # 1. Settings (eller dummy)
         settings_status = self._imports.get("settings")
         if settings_status and settings_status.ok and self._mode != AppMode.SAFE_MODE:
@@ -4148,6 +4154,10 @@ class AppController:
         # 6d. NY v7-fix64: påminnelsetjänst (förfallna + dagens uppgifter)
         with suppress(Exception):
             self._init_reminder_service()
+
+        # 6e-2. NY v8: yttre säkerhetskopia av uppgifter + inställningar
+        with suppress(Exception):
+            self._init_external_backup()
 
         # 6e. NY v7-fix90: e-postbrygga (Thunderbird-tillägg) + inkorgsmapp
         # (tar emot mail från tillägget och skapar uppgifter som sparas i JSON)
@@ -5330,6 +5340,49 @@ class AppController:
     #    2. Inkorgsmappen data/inbox/ (fungerar även om appen var avstängd)
     #  Se core/mail_bridge.py + katalogen thunderbird-tillagg/.
     # -----------------------------------------------------------------------
+
+    # ------------------------------------------------------------------
+    # NY v8 (2026-10-12): yttre säkerhetskopia (överlever uppdatering)
+    # ------------------------------------------------------------------
+    def _user_data_dir(self) -> Path:
+        """Mappen med active.json/archive.json/settings.json (js/)."""
+        store = getattr(self, "store", None)
+        d = getattr(store, "data_dir", None) if store is not None else None
+        if callable(d):
+            with suppress(Exception):
+                d = d()
+        return Path(str(d)) if d else JS_DIR
+
+    def _restore_from_external_backup(self) -> None:
+        from core import tasks_backup as _tb
+        r = _tb.restore_if_missing(JS_DIR)
+        if r.get("active") or r.get("settings"):
+            self._log.warning(
+                f"{LOG_PREFIX} ♻ Återställde från yttre backup ({r.get('from')}): "
+                f"uppgifter={r.get('active')}, inställningar={r.get('settings')}"
+            )
+
+    def _external_backup(self, reason: str = "") -> None:
+        """Kopiera uppgifter + inställningar till mappen utanför appen (hoppar över om oförändrat)."""
+        try:
+            if self._mode == AppMode.SAFE_MODE:
+                return
+            from core import tasks_backup as _tb
+            p = _tb.snapshot_external(self._user_data_dir())
+            if p is not None:
+                self._log.info(f"{LOG_PREFIX} yttre backup ({reason}): {p.name}")
+        except Exception as e:
+            self._log.debug(f"{LOG_PREFIX} yttre backup misslyckades ({reason}): {e}")
+
+    def _init_external_backup(self) -> None:
+        """Första kopian strax efter start, därefter var 5:e minut (bara ändringar sparas)."""
+        if self._mode == AppMode.SAFE_MODE:
+            return
+        self._ext_backup_timer = self._QTimer(self._app)
+        self._ext_backup_timer.setInterval(5 * 60 * 1000)
+        self._ext_backup_timer.timeout.connect(lambda: self._external_backup("timer"))
+        self._ext_backup_timer.start()
+        self._QTimer.singleShot(15_000, lambda: self._external_backup("start"))
 
     def _mail_bridge_data_dir(self) -> Path:
         """data/-katalogen (där active.json och mail_bridge/ ligger)."""
@@ -8968,6 +9021,25 @@ class AppController:
         # NY v7-fix90: stoppa e-postbryggan (släpper porten + skriver status)
         with suppress(Exception):
             self._stop_mail_bridge()
+        # NY v8 (2026-10-12): spara fönstrets position + storlek INNAN något stängs
+        # och skriv settings till disk (nedstängningen sparade tidigare inte settings
+        # alls → fönsterläget glömdes vid omstart).
+        with suppress(Exception):
+            with self._widget_lock:
+                _geo_widgets = list(self._widgets.values())
+            for _w in _geo_widgets:
+                with suppress(Exception):
+                    if hasattr(_w, "_save_geometry_now"):
+                        _w._save_geometry_now()
+            if self.settings is not None and hasattr(self.settings, "save"):
+                _ok_s = self.settings.save()
+                self._log.info(
+                    f"{LOG_PREFIX} Settings sparade vid nedstängning: "
+                    f"{'OK' if _ok_s else 'MISSLYCKADES'}"
+                )
+        # NY v8: yttre säkerhetskopia av uppgifter + inställningar (överlever uppdatering)
+        with suppress(Exception):
+            self._external_backup("nedstängning")
         try:
             # 1. Stäng alla widgets
             with self._widget_lock:

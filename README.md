@@ -52,6 +52,13 @@ Högerklicka på fönstret (eller tray-ikonen) → **💾 Backup av uppgifter…
   innan något ersätts sparas en säkerhetskopia av nuläget (`…-fore-aterstallning-….zip`), så
   du kan ångra dig. Dessa rensas aldrig automatiskt.
 
+**Automatisk backup som överlever uppdatering:** uppgifter, arkiv och inställningar
+(fönsterposition och storlek) kopieras vid avslut och var 5:e minut till en mapp *utanför*
+appmappen — `%APPDATA%\TaskBord\backup` på Windows, `~/.local/share/TaskBord/backup` annars
+(kan ändras med miljövariabeln `TASKBORD_BACKUP_DIR`). Bara ändringar sparas, de 20 senaste
+behålls. Saknas eller är `active.json`/`settings.json` skadade vid start — till exempel efter att
+en uppdatering bytt ut appmappen — läses de in från den senaste kopian automatiskt.
+
 Test: `python tester/tasks_backup_test.py`.
 
 ## 📅 Exportera uppgifter till kalendern (Google Calendar m.fl.)
