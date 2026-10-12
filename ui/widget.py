@@ -2458,6 +2458,24 @@ if _QT_AVAILABLE:
                 act.triggered.connect(lambda _c: self._prompt_rename(tid))
                 act = menu.addAction("🗑 Ta bort…")
                 act.triggered.connect(lambda _c: self._prompt_delete(tid))
+                # --- NY v8: kalender (Google Calendar m.fl.) -------------
+                menu.addSeparator()
+                act = menu.addAction("📅 Lägg till i Google Calendar")
+                act.setToolTip(
+                    "Öppnar Google Calendar med uppgiften förifylld\n"
+                    "(förfallodatumet blir en heldagshändelse)"
+                )
+                act.triggered.connect(
+                    lambda _c, _t=dict(task): self._on_open_google_calendar(_t)
+                )
+                act = menu.addAction("📅 Exportera uppgiften (.ics)…")
+                act.setToolTip(
+                    "Sparar uppgiften som kalenderfil — importeras i\n"
+                    "Google Calendar, Outlook och Apple Kalender"
+                )
+                act.triggered.connect(
+                    lambda _c, _t=dict(task): self._on_export_task_ics(_t)
+                )
                 menu.addSeparator()
 
                 # --- ⏰ Senarelägg ------------------------------------
@@ -5589,6 +5607,178 @@ if _QT_AVAILABLE:
                     exc_info=True,
                 )
 
+        def _on_export_calendar_ics(self) -> None:
+            """
+            NY v8: exportera aktiva uppgifter med förfallodatum till .ics.
+
+            Rickard 2026-10-12: "kan man koppla ihop den med Google
+            Calendar så man kan exportera vissa uppgifter dit?" — JA:
+            .ics-filen importeras i Google Calendar (Inställningar →
+            Importera och exportera), Outlook och Apple Kalender.
+            Bara uppgifter som HAR ett förfallodatum kan bli händelser —
+            resten hoppas över och antalet redovisas.
+            """
+            try:
+                get_throttle().notify_activity()
+                from core.calendar_export import tasks_with_due, write_ics
+
+                tasks: list = []
+                with suppress(Exception):
+                    if hasattr(self.store, "active_tasks_filtered"):
+                        tasks = self.store.active_tasks_filtered(
+                            sort_by="pinned_first"
+                        )
+                    elif hasattr(self.store, "active_tasks"):
+                        tasks = self.store.active_tasks()
+                valda = tasks_with_due(list(tasks or []))
+                if not valda:
+                    from PySide6.QtWidgets import QMessageBox
+                    QMessageBox.information(
+                        self,
+                        "📅 Exportera till kalender",
+                        "Inga aktiva uppgifter har ett förfallodatum.\n\n"
+                        "Sätt ett förfallodatum på en uppgift (⋯-menyn →\n"
+                        "📅 Förfallodatum) så kan den bli en kalenderhändelse.",
+                    )
+                    return
+
+                from PySide6.QtWidgets import QFileDialog
+                ts = datetime.now().strftime("%Y%m%d_%H%M")
+                default_dir = os.path.expanduser("~")
+                with suppress(Exception):
+                    _sp = getattr(self.store, "file_path", None) or getattr(
+                        self.store, "_file_path", None
+                    )
+                    if _sp:
+                        default_dir = str(Path(str(_sp)).resolve().parent)
+                fname, _ = QFileDialog.getSaveFileName(
+                    self,
+                    "Spara kalenderfil (.ics)",
+                    os.path.join(default_dir, f"TaskBord_kalender_{ts}.ics"),
+                    "Kalenderfil (*.ics)",
+                )
+                if not fname:
+                    return  # avbruten av användaren
+                if not str(fname).lower().endswith(".ics"):
+                    fname = str(fname) + ".ics"
+                antal = write_ics(valda, str(fname), calendar_name="TaskBord")
+                hoppade = len(tasks or []) - antal
+                logger.info(
+                    f"{LOG_PREFIX} Kalenderexport: {antal} händelser → {fname} "
+                    f"({hoppade} utan datum hoppades över)"
+                )
+                from PySide6.QtWidgets import QMessageBox
+                extra = (
+                    f"\n\n{hoppade} uppgifter utan förfallodatum hoppades över."
+                    if hoppade > 0 else ""
+                )
+                QMessageBox.information(
+                    self,
+                    "📅 Kalenderfil sparad",
+                    f"{antal} uppgifter exporterade till:\n{fname}{extra}\n\n"
+                    "Så importerar du i Google Calendar:\n"
+                    "1. Öppna calendar.google.com\n"
+                    "2. ⚙️ Inställningar → Importera och exportera\n"
+                    "3. Välj filen → Importera\n\n"
+                    "(Filen fungerar även i Outlook och Apple Kalender.)",
+                )
+            except Exception as e:
+                logger.error(
+                    f"{LOG_PREFIX} _on_export_calendar_ics misslyckades: "
+                    f"{_describe_widget_error(e)}",
+                    exc_info=True,
+                )
+
+        def _on_open_google_calendar(self, task: Dict[str, Any]) -> None:
+            """
+            NY v8: öppna Google Calendar med EN uppgift förifylld.
+
+            Använder Googles egen "skapa händelse"-länk (action=TEMPLATE)
+            — inget konto, ingen nyckel och ingen synk behövs. Ingenting
+            sparas förrän användaren trycker Spara i Google Calendar.
+            """
+            try:
+                get_throttle().notify_activity()
+                from core.calendar_export import google_calendar_url
+
+                url = google_calendar_url(task)
+                if not url:
+                    from PySide6.QtWidgets import QMessageBox
+                    QMessageBox.information(
+                        self,
+                        "📅 Google Calendar",
+                        "Uppgiften behöver ett förfallodatum för att kunna\n"
+                        "bli en händelse i kalendern.",
+                    )
+                    return
+                # stdlib-webb läsare: fungerar oavsett Qt-backend
+                import webbrowser
+                if webbrowser.open(url):
+                    logger.info(
+                        f"{LOG_PREFIX} Google Calendar-länk öppnad för "
+                        f"uppgift {str(task.get('id', ''))[:8]}"
+                    )
+                else:
+                    logger.warning(
+                        f"{LOG_PREFIX} kunde inte öppna webbläsaren för "
+                        f"Google Calendar-länken"
+                    )
+            except Exception as e:
+                logger.warning(
+                    f"{LOG_PREFIX} _on_open_google_calendar misslyckades: "
+                    f"{_describe_widget_error(e)}"
+                )
+
+        def _on_export_task_ics(self, task: Dict[str, Any]) -> None:
+            """NY v8: exportera EN uppgift till en egen .ics-fil."""
+            try:
+                get_throttle().notify_activity()
+                from core.calendar_export import has_due_date, write_ics
+
+                if not has_due_date(task):
+                    from PySide6.QtWidgets import QMessageBox
+                    QMessageBox.information(
+                        self,
+                        "📅 Exportera uppgift",
+                        "Uppgiften behöver ett förfallodatum för att kunna\n"
+                        "bli en kalenderhändelse.",
+                    )
+                    return
+                from PySide6.QtWidgets import QFileDialog
+                titel = str(task.get("title", "uppgift"))
+                säker = "".join(
+                    c for c in titel[:40] if c.isalnum() or c in " -_"
+                ).strip() or "uppgift"
+                default_dir = os.path.expanduser("~")
+                with suppress(Exception):
+                    _sp = getattr(self.store, "file_path", None) or getattr(
+                        self.store, "_file_path", None
+                    )
+                    if _sp:
+                        default_dir = str(Path(str(_sp)).resolve().parent)
+                fname, _ = QFileDialog.getSaveFileName(
+                    self,
+                    "Spara uppgiften som kalenderfil",
+                    os.path.join(default_dir, f"{säker}.ics"),
+                    "Kalenderfil (*.ics)",
+                )
+                if not fname:
+                    return
+                if not str(fname).lower().endswith(".ics"):
+                    fname = str(fname) + ".ics"
+                write_ics([task], str(fname), calendar_name="TaskBord")
+                from PySide6.QtWidgets import QMessageBox
+                QMessageBox.information(
+                    self,
+                    "📅 Kalenderfil sparad",
+                    f"Uppgiften sparad som:\n{fname}",
+                )
+            except Exception as e:
+                logger.warning(
+                    f"{LOG_PREFIX} _on_export_task_ics misslyckades: "
+                    f"{_describe_widget_error(e)}"
+                )
+
         def _on_email_import(self) -> None:
             """
             NY v7-fix35: Importera e-postfil (.eml/.msg) som uppgift.
@@ -5831,6 +6021,8 @@ if _QT_AVAILABLE:
                 )
                 # NY v7-fix81: PDF-export även här (utom 📄-knappen + tray)
                 act_pdf = menu.addAction("📄 Exportera checklista → PDF…")
+                # NY v8: kalenderexport (.ics) → Google Calendar m.fl.
+                act_cal = menu.addAction("📅 Exportera till kalender (.ics)…")
                 # NY v8: frivillig donation (öppnar ui/donate.py-dialogen)
                 menu.addSeparator()
                 act_donate = menu.addAction("💖 Stöd TaskBord…")
@@ -5843,6 +6035,8 @@ if _QT_AVAILABLE:
                     self._toggle_lock()
                 elif chosen is act_pdf:
                     self._on_export_pdf()
+                elif chosen is act_cal:
+                    self._on_export_calendar_ics()
                 elif chosen is act_donate:
                     self._on_open_donate()
             except Exception as e:

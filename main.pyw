@@ -6529,6 +6529,19 @@ class AppController:
             self._export_pdf_action.triggered.connect(self._export_checklist_pdf)
             self._tray_menu.addAction(self._export_pdf_action)
 
+            # NY v8 (2026-10-12): kalenderexport (.ics) → Google Calendar m.fl.
+            self._export_calendar_action = self._QAction(
+                "📅  Exportera till kalender (.ics)…",
+                self._tray_menu,
+            )
+            self._export_calendar_action.setToolTip(
+                "Exportera uppgifter med förfallodatum som kalenderfil.\n"
+                "Importeras i Google Calendar (Inställningar → Importera\n"
+                "och exportera), Outlook och Apple Kalender."
+            )
+            self._export_calendar_action.triggered.connect(self._export_calendar_ics)
+            self._tray_menu.addAction(self._export_calendar_action)
+
             self._tray_menu.addSeparator()
 
             # NY v6.4.1: Autostart toggle (med live-status från registry)
@@ -8352,6 +8365,111 @@ class AppController:
             self._log.warning(
                 f"{LOG_PREFIX} PDF-export misslyckades (modul returnerade False)"
             )
+
+    def _export_calendar_ics(self) -> None:
+        """
+        NY v8 (2026-10-12): exportera uppgifter med förfallodatum till .ics
+        (Google Calendar, Outlook, Apple Kalender).
+
+        Samma uppgiftslista som Aktiva-fliken visar. Uppgifter utan
+        förfallodatum kan inte bli händelser och rapporteras i dialogen.
+        """
+        try:
+            tasks = self.store.active_tasks() if hasattr(
+                self.store, "active_tasks"
+            ) else []
+        except Exception as _at_e:
+            self._log.warning(
+                f"{LOG_PREFIX} Kalenderexport: task-list misslyckades: {_at_e}"
+            )
+            tasks = []
+        tasks = [t for t in tasks if str(t.get("id", "")).strip()]
+        try:
+            from core.calendar_export import tasks_with_due, write_ics
+        except Exception as _ce_imp:
+            self._log.error(
+                f"{LOG_PREFIX} Kalenderexport: import misslyckades: {_ce_imp}",
+                exc_info=True,
+            )
+            return
+        valda = tasks_with_due(tasks)
+        if not valda:
+            try:
+                show_error_dialog(
+                    title="Inga datum",
+                    user_message=(
+                        "Inga aktiva uppgifter har ett förfallodatum.\n\n"
+                        "Sätt ett förfallodatum på en uppgift så kan den "
+                        "bli en händelse i kalendern."
+                    ),
+                    technical="",
+                    category="user_input",
+                )
+            except Exception:
+                pass
+            return
+        from PySide6.QtWidgets import QFileDialog
+        ts = _datetime.now().strftime("%Y%m%d_%H%M")
+        try:
+            store_path = (
+                getattr(self.store, "file_path", None)
+                or getattr(self.store, "_file_path", None)
+            )
+            default_dir = str(Path(str(store_path)).resolve().parent) \
+                if store_path else os.path.expanduser("~")
+        except Exception:
+            default_dir = os.path.expanduser("~")
+        default_path = os.path.join(default_dir, f"{APP_NAME}_kalender_{ts}.ics")
+        try:
+            fname, _ = QFileDialog.getSaveFileName(
+                None,
+                "Spara kalenderfil (.ics)",
+                default_path,
+                "Kalenderfil (*.ics)",
+            )
+        except Exception as _fd_e:
+            self._log.warning(
+                f"{LOG_PREFIX} Kalenderexport: file-dialog misslyckades: {_fd_e}"
+            )
+            fname = ""
+        if not fname:
+            fname = default_path
+            self._log.info(
+                f"{LOG_PREFIX} Kalenderexport: ingen fil vald → {fname}"
+            )
+        if not str(fname).lower().endswith(".ics"):
+            fname = str(fname) + ".ics"
+        try:
+            antal = write_ics(valda, str(fname), calendar_name=APP_NAME)
+        except Exception as _w_e:
+            self._log.error(
+                f"{LOG_PREFIX} Kalenderexport: skrivning misslyckades: {_w_e}",
+                exc_info=True,
+            )
+            return
+        hoppade = len(tasks) - antal
+        self._log.info(
+            f"{LOG_PREFIX} Kalenderexport klar: {fname} ({antal} händelser, "
+            f"{hoppade} utan datum)"
+        )
+        extra = (
+            f"\n\n{hoppade} uppgifter utan förfallodatum hoppades över."
+            if hoppade > 0 else ""
+        )
+        try:
+            show_error_dialog(
+                title="Kalenderfil skapad",
+                user_message=(
+                    f"{antal} uppgifter exporterade till:\n{fname}{extra}\n\n"
+                    "Google Calendar: ⚙️ Inställningar →\n"
+                    "Importera och exportera → Importera.\n"
+                    "Filen fungerar även i Outlook och Apple Kalender."
+                ),
+                technical="",
+                category="user_input",
+            )
+        except Exception:
+            pass
 
 
     def _safe_update_widgets(self) -> None:

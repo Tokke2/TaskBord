@@ -41,6 +41,26 @@ Snabbstart:
 5. Högerklicka på ett mail → 📋 Skicka till TaskBord
 ```
 
+## 📅 Exportera uppgifter till kalendern (Google Calendar m.fl.)
+
+Vill du se vissa uppgifter i Google Calendar? Högerklicka på en uppgift:
+
+* **📅 Lägg till i Google Calendar** — öppnar Google Calendar med uppgiften
+  förifylld (förfallodatumet blir en heldagshändelse). Inget konto eller
+  någon nyckel behövs i appen — du trycker bara *Spara*.
+* **📅 Exportera uppgiften (.ics)…** — sparar uppgiften som kalenderfil.
+
+Flera på en gång? Högerklicka på fönstret eller använd tray-menyn →
+**📅 Exportera till kalender (.ics)…** Alla uppgifter med förfallodatum blir
+då händelser i en kalenderfil. Importera den i Google Calendar via
+*⚙️ Inställningar → Importera och exportera → Importera* — filen fungerar
+också i Outlook och Apple Kalender. Uppgifter utan förfallodatum kan inte
+bli händelser och hoppas över (antalet visas i dialogen).
+
+> En full tvåvägssynk mot Google Calendar kräver OAuth-uppsättning i Google
+> Cloud (klient-id/hemlighet) — det här är den nyckelfria vägen, som täcker
+> "exportera vissa uppgifter dit".
+
 ## 💖 Stöd projektet
 
 TaskBord är gratis och utan reklam. Donationer är helt frivilliga och går till utveckling och underhåll. Appen fungerar exakt lika bra utan donation.

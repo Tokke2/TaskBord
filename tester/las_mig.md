@@ -5,13 +5,15 @@
 | `../core/mail_bridge.py` (`python core/mail_bridge.py`) | Bryggans självtest: HTTP, token, dedup, extras, inkorgsmapp, JSON-sparning | Inget extra (stdlib) |
 | `smoke_main_bridge.py` | Att **main.pyw** kopplar upp bryggan rätt: start, token i `settings.json`, widget-flash, watchdog, tray-togglar, `data/inbox/*.json` → uppgift | Inget extra (körs utan Qt) |
 | `mock_test.js` | Hela kedjan **Thunderbird-tillägget → bryggan**: meny-klick, popup, snabbuppgift, taggar, dedup, offline-kö, notiser | Node 18+ (`fetch`) + en körande brygga |
+| `calendar_test.py` | **Kalenderexporten**: .ics-filen mot RFC 5545, radvikning med å ä ö, heldagsdatum, Google Calendar-länken, menykopplingen i appen | Inget extra (stdlib). Med `pip install icalendar` görs även en riktig rundtur (skriv → läs tillbaka → jämför) |
 
 ## Kör allt
 
 ```bash
-# 1. Bryggan (självtest + integration mot main.pyw)
+# 1. Bryggan (självtest + integration mot main.pyw) + kalenderexporten
 python core/mail_bridge.py
 python tester/smoke_main_bridge.py
+python tester/calendar_test.py
 
 # 2. Tillägget — starta först en fristående brygga i en egen terminal:
 python - <<'PY'
