@@ -41,6 +41,19 @@ Snabbstart:
 5. Högerklicka på ett mail → 📋 Skicka till TaskBord
 ```
 
+## 💾 Backup av uppgifter
+
+Högerklicka på fönstret (eller tray-ikonen) → **💾 Backup av uppgifter…**
+
+* **Säkerhetskopiera nu** — sparar alla aktiva och arkiverade uppgifter i en ZIP-fil i
+  `backups/uppgifter/` bredvid `active.json` (de 30 senaste behålls).
+* **Spara kopia som…** — lägg en kopia på ett USB-minne eller i en molnmapp (OneDrive, Dropbox …).
+* **Återställ** — välj en backup i listan eller en egen ZIP-fil. Filen kontrolleras först, och
+  innan något ersätts sparas en säkerhetskopia av nuläget (`…-fore-aterstallning-….zip`), så
+  du kan ångra dig. Dessa rensas aldrig automatiskt.
+
+Test: `python tester/tasks_backup_test.py`.
+
 ## 📅 Exportera uppgifter till kalendern (Google Calendar m.fl.)
 
 Vill du se vissa uppgifter i Google Calendar? Högerklicka på en uppgift:

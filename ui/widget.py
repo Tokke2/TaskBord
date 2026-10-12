@@ -5543,6 +5543,18 @@ if _QT_AVAILABLE:
                     f"{_describe_widget_error(e)}"
                 )
 
+        def _on_open_backup(self) -> None:
+            """NY v8: 💾 Backup av uppgifter (skapa/spara/återställ)."""
+            try:
+                get_throttle().notify_activity()
+                from ui.backup_dialog import open_backup_dialog
+                open_backup_dialog(self, store=getattr(self, "store", None))
+            except Exception as e:
+                logger.warning(
+                    f"{LOG_PREFIX} _on_open_backup misslyckades: "
+                    f"{_describe_widget_error(e)}"
+                )
+
         def _on_push_task_to_google(self, task: Dict[str, Any]) -> None:
             """
             NY v8: skicka EN uppgift till Google Calendar (från uppgiftsmenyn).
@@ -6108,6 +6120,8 @@ if _QT_AVAILABLE:
                     "Koppla ett Google-konto lokalt (OAuth i webbläsaren) och\n"
                     "skicka uppgifter rakt in i din kalender."
                 )
+                # NY v8: backup av uppgifter
+                act_backup = menu.addAction("💾 Backup av uppgifter…")
                 # NY v8: frivillig donation (öppnar ui/donate.py-dialogen)
                 menu.addSeparator()
                 act_donate = menu.addAction("💖 Stöd TaskBord…")
@@ -6124,6 +6138,8 @@ if _QT_AVAILABLE:
                     self._on_export_calendar_ics()
                 elif chosen is act_google:
                     self._on_open_google_calendar()
+                elif chosen is act_backup:
+                    self._on_open_backup()
                 elif chosen is act_donate:
                     self._on_open_donate()
             except Exception as e:

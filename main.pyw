@@ -6574,6 +6574,17 @@ class AppController:
             )
             self._tray_menu.addAction(self._google_calendar_action)
 
+            # NY v8 (2026-10-12): backup av uppgifter
+            self._backup_tasks_action = self._QAction(
+                "💾  Backup av uppgifter…", self._tray_menu
+            )
+            self._backup_tasks_action.setToolTip(
+                "Säkerhetskopiera alla uppgifter till en ZIP-fil,\n"
+                "spara en kopia på USB/moln-mapp eller återställ."
+            )
+            self._backup_tasks_action.triggered.connect(self._open_backup_dialog)
+            self._tray_menu.addAction(self._backup_tasks_action)
+
             self._tray_menu.addSeparator()
 
             # NY v6.4.1: Autostart toggle (med live-status från registry)
@@ -8397,6 +8408,14 @@ class AppController:
             self._log.warning(
                 f"{LOG_PREFIX} PDF-export misslyckades (modul returnerade False)"
             )
+
+    def _open_backup_dialog(self) -> None:
+        """NY v8: öppna backup-dialogen från tray-menyn."""
+        try:
+            from ui.backup_dialog import open_backup_dialog
+            open_backup_dialog(None, store=getattr(self, "store", None))
+        except Exception as e:
+            self._log.warning(f"{LOG_PREFIX} kunde inte öppna backup-dialogen: {e}")
 
     def _open_google_calendar(self) -> None:
         """
