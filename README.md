@@ -41,27 +41,6 @@ Snabbstart:
 5. Högerklicka på ett mail → 📋 Skicka till TaskBord
 ```
 
-## ▶ Regler (kör alla regler, 1 gång per timme + nya mail)
-
-En regel är *villkor → åtgärder*: t.ex. “om ämnet innehåller *faktura* → prioritet Hög,
-tagg *ekonomi*, förfaller om 3 dagar”. Åtgärder: sätt prioritet, lägg till taggar, sätt
-förfallodatum (bara om det saknas — ett befintligt datum skrivs aldrig över) och nåla fast.
-Villkor kan gälla titel, avsändare, ämne, mailtext, taggar, prioritet och anteckning
-(innehåller / är exakt / börjar med / slutar med / regex), och en regel kan begränsas
-till uppgifter som kommit från mail.
-
-* **▶-knappen** bredvid 📄 (eller tray-menyn / högerklick → **▶ Kör alla regler nu**)
-  kör alla påslagna regler direkt och visar vad som ändrades.
-* **📏 Hantera regler…** (tray-menyn / högerklick) — lägg till, ändra, slå av, ta bort
-  och ändra ordning. För prioritet vinner den sista matchande regeln.
-* **Automatiskt varje timme** — tidpunkten för senaste körning sparas, så en omstart
-  varken kör för ofta eller hoppar över en timme.
-* **Nya mail** (Thunderbird-tillägget och `data/inbox/`) körs mot reglerna direkt när de
-  blir uppgifter.
-
-Reglerna sparas i `rules.json` bredvid `active.json`. Körningen är idempotent: kör man
-om reglerna ändras ingenting som redan stämmer. Test: `python tester/rules_test.py`.
-
 ## 📅 Exportera uppgifter till kalendern (Google Calendar m.fl.)
 
 Vill du se vissa uppgifter i Google Calendar? Högerklicka på en uppgift:

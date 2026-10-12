@@ -2189,17 +2189,6 @@ if _QT_AVAILABLE:
             )
             self.pdf_export_btn.clicked.connect(self._on_export_pdf)
             input_row.addWidget(self.pdf_export_btn)
-            # NY v8: kör alla regler (villkor → prioritet/tagg/datum/nål)
-            self.rules_run_btn = QPushButton("▶", self)
-            self.rules_run_btn.setObjectName("rulesRunBtn")
-            self.rules_run_btn.setFixedSize(28, 28)
-            self.rules_run_btn.setToolTip(
-                "Kör alla regler nu\n"
-                "(körs även automatiskt 1 gång per timme och på varje nytt mail)\n"
-                "Hantera regler: högerklick på fönstret → 📏 Hantera regler…"
-            )
-            self.rules_run_btn.clicked.connect(self._on_run_all_rules)
-            input_row.addWidget(self.rules_run_btn)
             root.addLayout(input_row)
             # NY v6.4: Resize-grip i nedre högra hörnet (synlig indikator)
             from PySide6.QtWidgets import QSizeGrip
@@ -4481,14 +4470,14 @@ if _QT_AVAILABLE:
                     border: 2px solid {accent_hex};
                 }}
                 /* --- Focus Mode-knappar --------------------------------------- */
-                QPushButton#emailImportBtn, QPushButton#emailBadge, QPushButton#rulesRunBtn {{
+                QPushButton#emailImportBtn, QPushButton#emailBadge {{
                     background: {t['surface']};
                     border: 1px solid {t['surface_edge']};
                     border-radius: 9px;
                     font-size: 14px;
                     padding: 2px;
                 }}
-                QPushButton#emailImportBtn:hover, QPushButton#emailBadge:hover, QPushButton#rulesRunBtn:hover {{
+                QPushButton#emailImportBtn:hover, QPushButton#emailBadge:hover {{
                     background: {t['surface_hov']};
                     border: 1px solid {t['edge_hov']};
                 }}
@@ -5554,38 +5543,6 @@ if _QT_AVAILABLE:
                     f"{_describe_widget_error(e)}"
                 )
 
-        def _on_run_all_rules(self) -> None:
-            """NY v8: ▶ — kör alla regler nu och visa vad som ändrades."""
-            try:
-                get_throttle().notify_activity()
-                from ui.rules_dialog import run_rules_with_message
-                run_rules_with_message(
-                    self,
-                    store=getattr(self, "store", None),
-                    settings=getattr(self, "settings", None),
-                )
-            except Exception as e:
-                logger.warning(
-                    f"{LOG_PREFIX} _on_run_all_rules misslyckades: "
-                    f"{_describe_widget_error(e)}"
-                )
-
-        def _on_manage_rules(self) -> None:
-            """NY v8: öppna regeldialogen (lägg till/ändra/kör regler)."""
-            try:
-                get_throttle().notify_activity()
-                from ui.rules_dialog import open_rules_dialog
-                open_rules_dialog(
-                    self,
-                    store=getattr(self, "store", None),
-                    settings=getattr(self, "settings", None),
-                )
-            except Exception as e:
-                logger.warning(
-                    f"{LOG_PREFIX} _on_manage_rules misslyckades: "
-                    f"{_describe_widget_error(e)}"
-                )
-
         def _on_push_task_to_google(self, task: Dict[str, Any]) -> None:
             """
             NY v8: skicka EN uppgift till Google Calendar (från uppgiftsmenyn).
@@ -6151,10 +6108,6 @@ if _QT_AVAILABLE:
                     "Koppla ett Google-konto lokalt (OAuth i webbläsaren) och\n"
                     "skicka uppgifter rakt in i din kalender."
                 )
-                # NY v8: regler
-                menu.addSeparator()
-                act_rules_run = menu.addAction("▶ Kör alla regler nu")
-                act_rules_manage = menu.addAction("📏 Hantera regler…")
                 # NY v8: frivillig donation (öppnar ui/donate.py-dialogen)
                 menu.addSeparator()
                 act_donate = menu.addAction("💖 Stöd TaskBord…")
@@ -6171,10 +6124,6 @@ if _QT_AVAILABLE:
                     self._on_export_calendar_ics()
                 elif chosen is act_google:
                     self._on_open_google_calendar()
-                elif chosen is act_rules_run:
-                    self._on_run_all_rules()
-                elif chosen is act_rules_manage:
-                    self._on_manage_rules()
                 elif chosen is act_donate:
                     self._on_open_donate()
             except Exception as e:
