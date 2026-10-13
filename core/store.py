@@ -836,7 +836,7 @@ def _safe_copy(obj: Any) -> Any:
 class _LRUCache:
     """LRU-cache med TTL (för snabb lookup)."""
 
-    __slots__ = ("_data", "_access_order", "_max_size", "_ttl", "_lock", "_hits", "_misses")
+    __slots__ = ("_data", "_access_order", "_max_size", "_ttl", "_lock", "_hits", "_misses", "_gen")
 
     def __init__(self, max_size: int = LUCACHE_MAX_SIZE, ttl_sec: float = LUCACHE_TTL_SEC) -> None:
         self._data: Dict[Any, Tuple[float, Any]] = {}
@@ -846,6 +846,12 @@ class _LRUCache:
         self._lock = threading.Lock()
         self._hits = 0
         self._misses = 0
+        self._gen = 0  # FIX v8: ökas vid clear() — stoppar inaktuella resultat från att cachas
+
+    def token(self) -> int:
+        """FIX v8: hämta generation FÖRE ögonblicksbilden; skicka till set(token=...)."""
+        with self._lock:
+            return self._gen
 
     def get(self, key: Any) -> Tuple[bool, Any]:
         """Hämta värde (returnerar (hit, value))."""
@@ -873,9 +879,17 @@ class _LRUCache:
             self._hits += 1
             return True, value
 
-    def set(self, key: Any, value: Any) -> None:
-        """Sätt värde (LRU-eviction vid full)."""
+    def set(self, key: Any, value: Any, token: Optional[int] = None) -> None:
+        """Sätt värde (LRU-eviction vid full).
+
+        FIX v8: om `token` anges och cachen rensats sedan token togs (en annan tråd
+        la till/ändrade en uppgift under tiden) sparas inget. Annars kunde en lista
+        beräknad FÖRE en mail-import cachas EFTER att importen rensat cachen → den nya
+        uppgiften "försvann" ur listan tills nästa ändring.
+        """
         with self._lock:
+            if token is not None and token != self._gen:
+                return
             if key in self._data:
                 try:
                     self._access_order.remove(key)
@@ -890,6 +904,7 @@ class _LRUCache:
     def clear(self) -> None:
         """Rensa cache."""
         with self._lock:
+            self._gen += 1
             self._data.clear()
             self._access_order.clear()
             self._hits = 0
@@ -2549,9 +2564,10 @@ class TaskStore(QObject):
         hit, value = self._filter_cache.get(cache_key)
         if hit:
             return value
+        _tok = self._filter_cache.token()
         with self._lock:
             tags = sorted(self._by_tag.keys())
-        self._filter_cache.set(cache_key, tags)
+        self._filter_cache.set(cache_key, tags, _tok)
         logger.trace(f"{LOG_PREFIX} all_tags: {len(tags)} unika")
         return tags
 
@@ -2562,9 +2578,10 @@ class TaskStore(QObject):
         hit, value = self._filter_cache.get(cache_key)
         if hit:
             return value
+        _tok = self._filter_cache.token()
         with self._lock:
             counts = {tag: len(ids) for tag, ids in self._by_tag.items()}
-        self._filter_cache.set(cache_key, counts)
+        self._filter_cache.set(cache_key, counts, _tok)
         return counts
 
     @_log_call
@@ -2663,6 +2680,7 @@ class TaskStore(QObject):
             return value
         # Filtrera
         q = (query or "").lower().strip()
+        _tok = self._filter_cache.token()  # FIX v8: se _LRUCache.set
         with self._lock:
             # Snapshot tasks (för att inte blocka vid sortering)
             tasks = list(self._active_tasks)
@@ -2721,7 +2739,7 @@ class TaskStore(QObject):
             tasks.sort(key=lambda t: t.get("created") or "", reverse=reverse)
         # Kopiera (för säkerhet)
         result = [_safe_copy(t) for t in tasks]
-        self._filter_cache.set(cache_key, result)
+        self._filter_cache.set(cache_key, result, _tok)
         logger.trace(
             f"{LOG_PREFIX} active_tasks_filtered: "
             f"query={q!r}, priority={priority}, tag={tag}, "
@@ -2736,6 +2754,7 @@ class TaskStore(QObject):
         hit, value = self._filter_cache.get(cache_key)
         if hit:
             return value
+        _tok = self._filter_cache.token()
         with self._lock:
             active = self._active_tasks
             archive = self._archive_tasks
@@ -2771,7 +2790,7 @@ class TaskStore(QObject):
             "top_tags": top_tags,
             "schema_version": self._schema_version,
         }
-        self._filter_cache.set(cache_key, result)
+        self._filter_cache.set(cache_key, result, _tok)
         return result
 
     @_log_call

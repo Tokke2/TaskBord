@@ -3635,7 +3635,12 @@ if _QT_AVAILABLE:
                 scroll = tabs.widget(0)
                 if scroll is not None and hasattr(scroll, "ensureWidgetVisible"):
                     scroll.ensureWidgetVisible(target, 16, 16)
-            # Accent-flash
+            # Accent-flash (FIX v8: kommer ihåg flashen så den överlever en ombyggnad av listan)
+            self._flash_state = (task_id, time.monotonic() + 1.8)
+            self._apply_flash(target, name, 1800)
+            return True
+
+        def _apply_flash(self, target: Any, name: str, ms: int) -> None:
             accent = getattr(self, "_theme_accent_hex", "#818cf8")
 
             def _clear_flash() -> None:
@@ -3650,13 +3655,33 @@ if _QT_AVAILABLE:
                     f" border-radius: 8px;"
                     f"}}"
                 )
-                QTimer.singleShot(1800, _clear_flash)
+                QTimer.singleShot(max(50, int(ms)), _clear_flash)
             except Exception as e:
                 logger.debug(
-                    f"{LOG_PREFIX} _flash_new_task: stylesheet kunde ej "
+                    f"{LOG_PREFIX} _flash: stylesheet kunde ej "
                     f"sättas ({_describe_widget_error(e)}) — scroll räcker"
                 )
-            return True
+
+        def _reapply_flash(self) -> None:
+            """FIX v8: en ombyggnad av listan raderar korten → flashen försvann efter ~250 ms."""
+            try:
+                st = getattr(self, "_flash_state", None)
+                if not st:
+                    return
+                tid, until = st
+                left_ms = int((until - time.monotonic()) * 1000)
+                if left_ms <= 0:
+                    self._flash_state = None
+                    return
+                name = f"task_{tid}"
+                layout = getattr(self, "active_layout", None)
+                for i in range(layout.count() if layout is not None else 0):
+                    w = layout.itemAt(i).widget() if layout.itemAt(i) is not None else None
+                    if w is not None and w.objectName() == name:
+                        self._apply_flash(w, name, left_ms)
+                        break
+            except Exception:
+                pass
 
         def _schedule_rebuild(self) -> None:
             """Schemalagg rebuild (debounce 50ms)."""
@@ -3708,6 +3733,7 @@ if _QT_AVAILABLE:
                     archive = []
                 self._render_tasks(active, archived=False)
                 self._render_tasks(archive, archived=True)
+                self._reapply_flash()
                 self._build_search_index()
                 duration = (time.perf_counter() - start) * 1000
                 self._render_count += 1

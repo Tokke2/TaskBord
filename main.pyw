@@ -5495,6 +5495,15 @@ class AppController:
     def _poll_mail_bridge(self) -> None:
         """NY v7-fix90: töm notiskön och visa resultatet i tray/widget."""
         try:
+            if getattr(self, "_store_changed_in_thread", False):
+                # FIX v8: store ändrades av bryggtråden → rita om + autospara HÄR (GUI-tråden)
+                self._store_changed_in_thread = False
+                with suppress(Exception):
+                    self._refresh_task_lists()
+                with suppress(Exception):
+                    self._schedule_autosave()
+                with suppress(Exception):
+                    self._update_tray_tooltip()
             events = getattr(self, "_mail_bridge_events", None)
             if not events:
                 return
@@ -5507,6 +5516,11 @@ class AppController:
             else:
                 while events:
                     batch.append(events.popleft())
+            _last_tid = None
+            for evt in batch:
+                for res in evt.get("results", []):
+                    if res.get("ok") and res.get("task_id"):
+                        _last_tid = res.get("task_id")
             for evt in batch:
                 for res in evt.get("results", []):
                     if not res.get("ok"):
@@ -5518,8 +5532,9 @@ class AppController:
                     task_id = res.get("task_id")
                     title = str(res.get("title", ""))[:60]
                     duplicate = bool(res.get("duplicate"))
-                    # 1. Flasha uppgiften i Aktiva (widgeten)
-                    if task_id:
+                    # 1. Flasha uppgiften i Aktiva (widgeten). FIX v8: bara den SISTA i en
+                    # batch — varje flash bygger om hela listan och byter flik.
+                    if task_id and task_id == _last_tid:
                         self._flash_task_in_widgets(task_id)
                     # 2. Tray-notis
                     if self._tray is not None:
@@ -8292,6 +8307,11 @@ class AppController:
     def _on_tasks_changed(self, *_args: Any) -> None:
         """Hantera task-ändring (uppdatera tray-tooltip + meny)."""
         try:
+            if threading.current_thread() is not threading.main_thread():
+                # FIX v8: mail-bryggan ändrar store från egen tråd — Qt (tray, timers)
+                # får bara röras från GUI-tråden. Läggs i kö → _poll_mail_bridge.
+                self._store_changed_in_thread = True
+                return
             self._update_tray_tooltip()
             # Uppdatera inte menyn varje gång (för dyrt) — bara tooltip
         except Exception as e:
@@ -8310,6 +8330,9 @@ class AppController:
         Loop-säkert: save() emiterar INTE 'changed' (fix i store.py v7-fix11).
         """
         try:
+            if threading.current_thread() is not threading.main_thread():
+                self._store_changed_in_thread = True  # FIX v8: se _on_tasks_changed
+                return
             self._schedule_task_refresh()
             self._schedule_autosave()
         except Exception as e:
@@ -8343,15 +8366,20 @@ class AppController:
             widgets = list(self._widgets.values())
         for w in widgets:
             try:
-                if hasattr(w, "_render_tasks"):
+                if hasattr(w, "_rebuild_task_list"):
+                    # FIX v8: SAMMA renderare som övriga flöden (sorterad pinned→prio→skapad,
+                    # respekterar sökfilter). Tidigare ritade denna om listan osorterad
+                    # → mail-uppgifter hoppade runt/hamnade utom synhåll efter ~250 ms.
+                    w._rebuild_task_list()
+                elif hasattr(w, "_render_tasks"):
                     w._render_tasks(
                         self.store.active_tasks(), archived=False
                     )
                     w._render_tasks(
                         self.store.archive_tasks(), archived=True
                     )
-                if hasattr(w, "_build_search_index"):
-                    w._build_search_index()
+                    if hasattr(w, "_build_search_index"):
+                        w._build_search_index()
                 refreshed += 1
             except Exception as e:
                 self._log.warning(
