@@ -1225,7 +1225,7 @@ class TaskStore(QObject):
         # Meta
         "_schema_version", "_saved_at", "_dirty",
         # Locks
-        "_lock", "_save_lock", "_save_thread",
+        "_lock", "_save_lock", "_save_thread", "_known_ids", "_disk_sig",
         # Audit
         "_audit_log",
         # Stats
@@ -1282,6 +1282,10 @@ class TaskStore(QObject):
         self._active_mtime: float = 0.0
         self._archive_mtime: float = 0.0
         self._mtime_cache_time: float = 0.0
+        # FIX v8: skydd mot att en ANNAN process (t.ex. en andra TaskBord-instans)
+        # skriver samma filer — se _merge_external()
+        self._known_ids: Set[str] = set()
+        self._disk_sig: Optional[Tuple[Any, ...]] = None
         # Dummy-signaler (v7-fix11): utan Qt skapas EN cachead _DummySignal
         # per signalnamn — connect()/emit() funkar då identiskt i tester.
         self._dummy_signals: Dict[str, Any] = {}
@@ -1588,6 +1592,7 @@ class TaskStore(QObject):
         # Rensa cache (indices ändrade)
         self._find_cache.clear()
         self._filter_cache.clear()
+        self._remember_disk_state()
         duration = (time.perf_counter() - start) * 1000
         logger.debug(
             f"{LOG_PREFIX} rebuild_index: {len(self._by_id)} tasks, "
@@ -1605,6 +1610,79 @@ class TaskStore(QObject):
         self._by_priority.setdefault(priority, set()).add(tid)
         if task.get("pinned"):
             self._pinned_ids.add(tid)
+
+    # ------------------------------------------------------------------
+    # FIX v8: flera processer mot samma filer (t.ex. två TaskBord-fönster)
+    # ------------------------------------------------------------------
+    def _disk_signature(self) -> Tuple[Any, ...]:
+        sig: List[Any] = []
+        for p in (self._active_path, self._archive_path):
+            try:
+                st = p.stat()
+                sig.append((st.st_mtime_ns, st.st_size))
+            except OSError:
+                sig.append(None)
+        return tuple(sig)
+
+    def _remember_disk_state(self) -> None:
+        """Kom ihåg vilka id:n vi känner till + hur filerna såg ut (för _merge_external)."""
+        with suppress(Exception):
+            with self._lock:
+                self._known_ids = set(self._by_id.keys())
+            self._disk_sig = self._disk_signature()
+
+    def _merge_external(self) -> int:
+        """
+        Om en ANNAN process skrivit active/archive.json sedan vi senast läste/sparade:
+        lägg till uppgifter vi inte känner till (3-vägs på id). Sparas vi utan detta
+        skriver vi över den andras uppgifter → de "ploppar upp och försvinner".
+
+        Uppgifter vi själva tagit bort (id finns i _known_ids men inte i minnet) återskapas
+        inte. Ändringar i uppgifter som finns hos båda: sista skrivaren vinner.
+        Returnerar antal tillagda uppgifter. Kastar aldrig.
+        """
+        try:
+            sig = self._disk_signature()
+            if sig == self._disk_sig:
+                return 0
+            added = 0
+            with self._lock:
+                for path, target in (
+                    (self._active_path, self._active_tasks),
+                    (self._archive_path, self._archive_tasks),
+                ):
+                    for ct in self._load_from_path(path):
+                        tid = ct.get("id")
+                        if not tid or tid in self._by_id or tid in self._known_ids:
+                            continue
+                        target.append(ct)
+                        self._known_ids.add(tid)
+                        added += 1
+                        self._by_id[tid] = ct
+                if added:
+                    self._dirty = True
+                    self._rebuild_index()
+                else:
+                    self._disk_sig = sig
+            if added:
+                logger.warning(
+                    f"{LOG_PREFIX} ★ en annan process ändrade filerna — {added} uppgift(er) "
+                    f"hämtades in (annars hade de skrivits över)"
+                )
+                self._emit("changed")
+            return added
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} _merge_external misslyckades: {e}")
+            return 0
+
+    def sync_external(self) -> int:
+        """Anropas regelbundet av appen: hämta in uppgifter som en annan process lagt till."""
+        if not self._save_lock.acquire(timeout=1.0):
+            return 0
+        try:
+            return self._merge_external()
+        finally:
+            self._save_lock.release()
 
     @_log_call
     def save(self) -> bool:
@@ -1626,6 +1704,7 @@ class TaskStore(QObject):
             )
             return _SaveResult(False, 0.0, "Save-timeout")
         try:
+            self._merge_external()  # FIX v8: skriv aldrig över en annan process uppgifter
             with self._lock:
                 # Snapshot
                 saved_at = _now_iso()
@@ -1657,6 +1736,8 @@ class TaskStore(QObject):
                 self._save_count += 1
                 self._active_mtime = self._active_path.stat().st_mtime
                 self._archive_mtime = self._archive_path.stat().st_mtime
+                self._known_ids = set(self._by_id.keys())
+                self._disk_sig = self._disk_signature()
             duration = time.perf_counter() - start
             logger.info(
                 f"{LOG_PREFIX} save OK: {len(self._active_tasks)} active, "

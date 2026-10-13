@@ -5384,6 +5384,24 @@ class AppController:
         self._ext_backup_timer.timeout.connect(lambda: self._external_backup("timer"))
         self._ext_backup_timer.start()
         self._QTimer.singleShot(15_000, lambda: self._external_backup("start"))
+        # FIX v8: fånga upp uppgifter som en ANNAN process skrivit till filerna (3 s)
+        self._ext_sync_timer = self._QTimer(self._app)
+        self._ext_sync_timer.setInterval(3000)
+        self._ext_sync_timer.timeout.connect(self._sync_external_store)
+        self._ext_sync_timer.start()
+
+    def _sync_external_store(self) -> None:
+        """FIX v8: hämta in uppgifter från annan process (GUI-tråden); store emitterar 'changed'."""
+        try:
+            fn = getattr(self.store, "sync_external", None)
+            if callable(fn):
+                n = fn()
+                if n:
+                    self._log.warning(
+                        f"{LOG_PREFIX} {n} uppgift(er) hämtades in från en annan TaskBord-process"
+                    )
+        except Exception as e:
+            self._log.debug(f"{LOG_PREFIX} _sync_external_store: {e}")
 
     def _mail_bridge_data_dir(self) -> Path:
         """data/-katalogen (där active.json och mail_bridge/ ligger)."""
@@ -10026,6 +10044,36 @@ def run() -> int:
                 return 0
             atexit.register(lock.release)
             log.info(f"{LOG_PREFIX} ✓ Single Instance Lock acquired")
+
+    # 11b. FIX v8: fillås per datamapp — stoppar två processer mot samma uppgiftsfiler
+    try:
+        from core.single_instance import DataDirLock
+        _data_lock = DataDirLock(JS_DIR)
+        if not _data_lock.acquire():
+            log.warning(
+                f"{LOG_PREFIX} datamappen {JS_DIR} används redan av en annan TaskBord-process "
+                f"— avslutar (annars skriver två processer över varandras uppgifter)"
+            )
+            _notified2 = False
+            with suppress(Exception):
+                from core.single_instance import InstanceMessenger, default_key
+                _notified2 = InstanceMessenger().notify(default_key(), "SHOW")
+            if not _notified2 and is_pyw:
+                with suppress(Exception):
+                    import ctypes
+                    ctypes.windll.user32.MessageBoxW(
+                        None,
+                        "TaskBord körs redan med samma uppgifter.\n\n"
+                        "Kolla att inte en äldre kopia ligger kvar (Aktivitetshanteraren → "
+                        "pythonw.exe) och att Autostart bara pekar på EN mapp.",
+                        APP_NAME,
+                        0x00000040,
+                    )
+            return 0
+        atexit.register(_data_lock.release)
+        log.info(f"{LOG_PREFIX} ✓ Datamapps-lås taget ({JS_DIR})")
+    except Exception as _dl_e:
+        log.debug(f"{LOG_PREFIX} datamapps-lås ej aktivt: {_dl_e}")
 
     # 12. Skapa AppController
     try:

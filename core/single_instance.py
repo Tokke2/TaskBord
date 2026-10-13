@@ -41,6 +41,74 @@ def default_key() -> str:
     return f"TaskBord_SingleInstance_{safe_user or 'default'}"
 
 
+class DataDirLock:
+    """
+    FIX v8: ett andra, FILBASERAT lås per datamapp (js/).
+
+    Bakgrund: det namngivna mutex-låset räckte inte — två TaskBord-processer mot samma
+    uppgiftsfiler (t.ex. autostart + manuell start) skriver över varandras uppgifter, och
+    mail-bryggan hamnar hos den ena medan fönstret man tittar på tillhör den andra
+    → uppgifter "ploppar upp och försvinner". Operativsystemet släpper fillåset
+    automatiskt när processen dör (även vid krasch), så inget kan fastna.
+
+    Windows: msvcrt.locking · Unix: fcntl.flock. Filen ligger i datamappen (appmappen).
+    """
+
+    def __init__(self, data_dir) -> None:
+        from pathlib import Path
+        self._path = Path(data_dir) / ".taskbord_instans.lock"
+        self._fh = None
+
+    def acquire(self) -> bool:
+        """True = vi äger låset (eller låsning går inte att göra → fortsätt, blockera aldrig)."""
+        try:
+            self._path.parent.mkdir(parents=True, exist_ok=True)
+            fh = open(self._path, "a+b")
+        except OSError as e:
+            logger.debug(f"{LOG_PREFIX} datamapps-lås: kan inte öppna ({e}) — hoppar över")
+            return True
+        try:
+            try:
+                import msvcrt  # Windows
+                fh.seek(0)
+                msvcrt.locking(fh.fileno(), msvcrt.LK_NBLCK, 1)
+            except ImportError:
+                import fcntl  # Unix
+                fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            with __import__("contextlib").suppress(Exception):
+                fh.close()
+            return False
+        except Exception as e:
+            logger.debug(f"{LOG_PREFIX} datamapps-lås ej möjligt ({e}) — hoppar över")
+            with __import__("contextlib").suppress(Exception):
+                fh.close()
+            return True
+        with __import__("contextlib").suppress(Exception):
+            import os
+            fh.seek(0)
+            fh.truncate()
+            fh.write(f"{os.getpid()}\n".encode("ascii"))
+            fh.flush()
+        self._fh = fh
+        return True
+
+    def release(self) -> None:
+        fh, self._fh = self._fh, None
+        if fh is None:
+            return
+        with __import__("contextlib").suppress(Exception):
+            try:
+                import msvcrt
+                fh.seek(0)
+                msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
+            except ImportError:
+                import fcntl
+                fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+        with __import__("contextlib").suppress(Exception):
+            fh.close()
+
+
 class InstanceMessenger:
     """
     NY v7-fix87: lyssna/meddela mellan TaskBord-instanser.
