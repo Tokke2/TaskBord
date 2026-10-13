@@ -4390,10 +4390,12 @@ def _enable_autostart_startup(cmd: str) -> bool:
         with suppress(OSError):
             os.makedirs(startup_dir, exist_ok=True)
     bat_path = os.path.join(startup_dir, f"{AUTOSTART_VALUE_NAME}.bat")
-    cmd_unquoted = cmd.replace('"', "")
     try:
-        with open(bat_path, "w", encoding="utf-8") as f:
-            f.write(f'@echo off\nstart "" "{cmd_unquoted}"\n')
+        # FIX v8: tidigare togs ALLA citattecken bort och hela kommandot citerades
+        # som EN fil ("pythonw.exe main.pyw") → Windows: "Det går inte att hitta
+        # filen" vid varje inloggning. Nu behålls citaten runt exe och skript.
+        with open(bat_path, "w", encoding="utf-8", newline="") as f:
+            f.write(f'@echo off\r\nchcp 65001 >nul\r\nstart "" {cmd}\r\n')
         logger.info(f"Autostart aktiverat (Startup-mapp): {bat_path}")
         return True
     except OSError as e:

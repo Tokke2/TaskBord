@@ -2022,6 +2022,12 @@ if _QT_AVAILABLE:
             den en gång direkt, och en gång till när fönstret hunnit visas.
             """
             try:
+                with suppress(Exception):
+                    logger.info(
+                        f"{LOG_PREFIX} start: {len(self.store.active_tasks())} aktiva, "
+                        f"{len(self.store.archive_tasks())} arkiverade uppgifter "
+                        f"i datamappen {self.store.data_dir}"
+                    )
                 self._rebuild_task_list()
                 QTimer.singleShot(400, self._rebuild_task_list)
             except Exception as e:

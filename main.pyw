@@ -162,6 +162,7 @@ APP_NAME: Final[str] = "TaskBord"
 APP_VERSION: Final[str] = "6.4.1-v7"
 APP_VERSION_DISPLAY: Final[str] = "6.4.1 v7"
 APP_VERSION_TUPLE: Final[Tuple[int, int, int]] = (6, 4, 1)
+RELEASE_VERSION: Final[str] = "1.1.1"  # GitHub-release (visas i loggen vid start)
 ORG_NAME: Final[str] = "Rickard Längkvist"
 COPYRIGHT_YEARS: Final[str] = "2025–2026"
 APP_DESCRIPTION: Final[str] = "Desktop todo-widget med glasmorphism, pin-funktion och stabilitet-system"
@@ -7624,6 +7625,31 @@ class AppController:
         self._log.debug(f"{LOG_PREFIX} autostart-kommando: {cmd}")
         return cmd
 
+    @staticmethod
+    def _autostart_bat_text(cmd: str) -> str:
+        """FIX v8: korrekt Startup-.bat. `cmd` är redan '"exe" "skript"' med citat runt var del.
+
+        Tidigare skrevs tre citattecken (start \"\"\") eller så citerades hela kommandot som
+        EN fil → "Det går inte att hitta filen …pythonw.exe …main.pyw" vid inloggning.
+        """
+        return f'@echo off\r\nrem TaskBord (v8)\r\nchcp 65001 >nul\r\nstart "" {cmd}\r\n'
+
+    def _autostart_repair_startup_bat(self) -> None:
+        """FIX v8: reparerar en gammal, trasig Startup-.bat (skriver bara om om den redan finns)."""
+        if sys.platform != "win32":
+            return
+        try:
+            bat = Path(os.environ.get("APPDATA", ""), "Microsoft", "Windows",
+                       "Start Menu", "Programs", "Startup", f"{APP_NAME}.bat")
+            if not bat.is_file():
+                return
+            want = self._autostart_bat_text(self._autostart_build_command())
+            if bat.read_bytes().decode("utf-8", "replace") != want:
+                bat.write_bytes(want.encode("utf-8"))
+                self._log.warning(f"{LOG_PREFIX} ★ AUTOSTART: reparerade Startup-.bat ({bat})")
+        except Exception as e:
+            self._log.debug(f"{LOG_PREFIX} _autostart_repair_startup_bat: {e}")
+
     def _autostart_enable_robust(self) -> Dict[str, bool]:
         """NY v7-fix37: Aktivera autostart via multipla metoder + verifiering."""
         results: Dict[str, bool] = {}
@@ -7655,9 +7681,7 @@ class AppController:
                       "Start Menu", "Programs", "Startup")
             sd.mkdir(parents=True, exist_ok=True)
             bat = sd / f"{APP_NAME}.bat"
-            bat.write_text(
-                f"@echo off\r\nrem TaskBord (v7-fix37)\r\n"
-                f"start \"\"\" /b {cmd}\r\n", encoding="utf-8")
+            bat.write_bytes(self._autostart_bat_text(cmd).encode("utf-8"))
             results["startup-mapp"] = bat.is_file()
         except Exception as e:
             self._log.warning(f"{LOG_PREFIX} autostart startup: {e}")
@@ -7722,6 +7746,7 @@ class AppController:
             )
             if not settings_on:
                 return
+            self._autostart_repair_startup_bat()
             if sys.platform == "win32":
                 import winreg
                 kp = r"Software\Microsoft\Windows\CurrentVersion\Run"
@@ -9823,6 +9848,7 @@ def run() -> int:
     # 4. NY v6.4: Förbättrad startlog (inkl dubblklick-info)
     log.info("=" * 60)
     log.info(f"--- Programstart ({APP_NAME} v{APP_VERSION_DISPLAY}, mode={mode.name}) ---")
+    log.info(f"{LOG_PREFIX} Release: v{RELEASE_VERSION}")
     log.info(f"{LOG_PREFIX} Python: {sys.version.split()[0]}")
     log.info(f"{LOG_PREFIX} Plattform: {sys.platform}")
     log.info(f"{LOG_PREFIX} Arbetskatalog: {Path.cwd()}")
