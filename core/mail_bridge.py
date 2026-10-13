@@ -1356,6 +1356,21 @@ class MailBridgeServer:
     def _bind_server(self) -> Optional[_BridgeHTTPServer]:
         """Binda porten (provar nästa port om den är upptagen)."""
         attempts = PORT_SCAN_ATTEMPTS if self.allow_port_scan else 1
+        # FIX v8: är porten upptagen av en ANNAN TaskBord ska vi inte starta en andra brygga
+        # på nästa port — då finns två appar som tävlar om mailen. Den som kör först äger den.
+        try:
+            from core.single_instance import probe_taskbord
+        except Exception:
+            try:
+                from single_instance import probe_taskbord  # type: ignore
+            except Exception:
+                probe_taskbord = None  # type: ignore
+        if probe_taskbord is not None and self.requested_port and probe_taskbord(self.requested_port):
+            logger.error(
+                f"{LOG_PREFIX} port {self.requested_port} används redan av en annan körande "
+                f"TaskBord — startar ingen andra brygga (en instans åt gången)"
+            )
+            return None
         for offset in range(attempts):
             port = self.requested_port + offset
             if port > 65535:

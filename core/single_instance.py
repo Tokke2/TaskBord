@@ -41,6 +41,35 @@ def default_key() -> str:
     return f"TaskBord_SingleInstance_{safe_user or 'default'}"
 
 
+def probe_taskbord(port: int, timeout: float = 0.4, host: str = "127.0.0.1") -> bool:
+    """
+    FIX v8: svarar en KÖRANDE TaskBord (valfri version/mapp) på 127.0.0.1:port?
+
+    Mail-bryggans /health kräver ingen token och svarar {"app": "TaskBord", ...}. Fungerar
+    därför även mot äldre kopior som saknar mutex/fillås. Kastar aldrig.
+    """
+    try:
+        import json
+        import urllib.request
+
+        req = urllib.request.Request(f"http://{host}:{int(port)}/health")
+        # ingen proxy för localhost
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        with opener.open(req, timeout=timeout) as resp:
+            data = json.loads(resp.read(65536).decode("utf-8", "replace"))
+        return isinstance(data, dict) and str(data.get("app", "")).lower() == "taskbord"
+    except Exception:
+        return False
+
+
+def find_running_taskbord(first_port: int = 8765, attempts: int = 12) -> Optional[int]:
+    """FIX v8: porten där en redan körande TaskBord svarar (annars None)."""
+    for p in range(int(first_port), int(first_port) + int(attempts)):
+        if probe_taskbord(p):
+            return p
+    return None
+
+
 class DataDirLock:
     """
     FIX v8: ett andra, FILBASERAT lås per datamapp (js/).

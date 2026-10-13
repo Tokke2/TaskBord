@@ -9996,6 +9996,38 @@ def run() -> int:
             autostart_status = "check_failed"
         log.info(f"{LOG_PREFIX} Autostart (basic check): {autostart_status}")
 
+    # 10b. FIX v8: kör redan en TaskBord (valfri version/mapp)? Mail-bryggan svarar på /health.
+    # Fångar även äldre kopior utan lås. Då startas INGEN ny instans — den körande visas.
+    try:
+        from core.single_instance import find_running_taskbord, InstanceMessenger, default_key
+        _running_port = find_running_taskbord(8765, 12)
+        # liten respit: användaren kan ha stängt appen och startat om direkt
+        for _ in range(3):
+            if _running_port is None:
+                break
+            time.sleep(0.5)
+            _running_port = find_running_taskbord(8765, 12)
+        if _running_port is not None:
+            log.warning(
+                f"{LOG_PREFIX} TaskBord kör redan (bryggan svarar på port {_running_port}) "
+                f"— startar ingen ny instans"
+            )
+            _shown = False
+            with suppress(Exception):
+                _shown = InstanceMessenger().notify(default_key(), "SHOW")
+            if not _shown and is_pyw:
+                with suppress(Exception):
+                    import ctypes
+                    ctypes.windll.user32.MessageBoxW(
+                        None,
+                        "TaskBord körs redan.\n\nEn andra instans startas inte.",
+                        APP_NAME,
+                        0x00000040,
+                    )
+            return 0
+    except Exception as _rp_e:
+        log.debug(f"{LOG_PREFIX} kontroll av körande instans misslyckades: {_rp_e}")
+
     # 11. Single Instance Lock (med retry)
     utils_status = imports.get("utils", ImportStatus(module="utils", ok=False))
     if utils_status.ok:
