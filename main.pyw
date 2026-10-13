@@ -4163,7 +4163,7 @@ class AppController:
         # 6e. NY v7-fix90: e-postbrygga (Thunderbird-tillägg) + inkorgsmapp
         # (tar emot mail från tillägget och skapar uppgifter som sparas i JSON)
         with suppress(Exception):
-            self._init_mail_bridge()
+            self._init_mail_bridge(at_startup=True)
 
         # 7. NY v6.4.1 v7: Erbjud installera saknade plugins (icke-blockerande)
         # Körs BARA i NORMAL-läge (inte --safe-mode eller --no-tray)
@@ -5412,7 +5412,7 @@ class AppController:
             self._log.debug(f"{LOG_PREFIX} data_dir via settings: {e}")
         return Path(getattr(self, "_SCRIPT_DIR", SCRIPT_DIR)) / "data"
 
-    def _init_mail_bridge(self) -> None:
+    def _init_mail_bridge(self, at_startup: bool = False) -> None:
         """
         NY v7-fix90: starta e-postbryggan (Thunderbird-tillägg) + bevaka
         inkorgsmappen. Misslyckas tyst — appen får aldrig hindras av detta.
@@ -5439,6 +5439,18 @@ class AppController:
 
             _http_on = _setting("mail_bridge_enabled", True, bool)
             _watch_on = _setting("inbox_watch_enabled", True, bool)
+            if at_startup:
+                # FIX v8: bryggan + inkorgsbevakningen startar ALLTID automatiskt när appen
+                # startar — även om de stängts av i tray-menyn förra gången.
+                if not (_http_on and _watch_on):
+                    self._log.info(
+                        f"{LOG_PREFIX} e-postbryggan var avstängd i inställningarna — "
+                        f"slås på igen vid start"
+                    )
+                _http_on = _watch_on = True
+                with suppress(Exception):
+                    self.settings.set_mail_bridge_enabled(True)
+                    self.settings.set_inbox_watch_enabled(True)
             _port = _setting("mail_bridge_port", 8765, int)
             _poll = _setting("inbox_poll_seconds", 3, int)
             _token = _setting("mail_bridge_token", "", str)
@@ -5477,6 +5489,10 @@ class AppController:
                     f"{LOG_PREFIX} kunde inte starta brygg-poll-timer: {e}"
                 )
 
+            if at_startup and not status.get("http_running"):
+                # port kan vara upptagen en kort stund (app nyss stängd) → försök igen
+                self._mail_bridge_start_retries = 0
+                self._QTimer.singleShot(1500, self._retry_mail_bridge_start)
             self._log.info(
                 f"{LOG_PREFIX} ✓ E-postbrygga: http="
                 f"{'PÅ' if status['http_running'] else 'AV'} "
@@ -5489,6 +5505,31 @@ class AppController:
                 f"{LOG_PREFIX} _init_mail_bridge misslyckades: {e}",
                 exc_info=True,
             )
+
+    def _retry_mail_bridge_start(self) -> None:
+        """FIX v8: starta bryggan igen om den inte kom igång vid appstart (max 8 försök, 2 s)."""
+        try:
+            svc = getattr(self, "_mail_bridge", None)
+            if svc is None or svc.server.running:
+                return
+            n = getattr(self, "_mail_bridge_start_retries", 0) + 1
+            self._mail_bridge_start_retries = n
+            if svc.server.start():
+                svc.port = svc.server.port
+                svc.config_payload()
+                self._log.info(f"{LOG_PREFIX} e-postbryggan startad (försök {n}, port {svc.port})")
+                with suppress(Exception):
+                    self._populate_tray_menu()
+                return
+            if n < 8:
+                self._QTimer.singleShot(2000, self._retry_mail_bridge_start)
+            else:
+                self._log.warning(
+                    f"{LOG_PREFIX} e-postbryggan kunde inte starta efter {n} försök "
+                    f"(port upptagen?) — watchdog fortsätter försöka"
+                )
+        except Exception as e:
+            self._log.debug(f"{LOG_PREFIX} _retry_mail_bridge_start: {e}")
 
     def _mail_bridge_notify(self, event: Dict[str, Any]) -> None:
         """

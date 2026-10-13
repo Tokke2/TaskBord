@@ -74,5 +74,8 @@ srv.shutdown()
 main = (ROOT / "main.pyw").read_text(encoding="utf-8")
 check("main.pyw avbryter om TaskBord redan kör", "find_running_taskbord(8765, 12)" in main and "startar ingen ny instans" in main)
 
+check("bryggan startar alltid vid appstart", "_init_mail_bridge(at_startup=True)" in main and "_http_on = _watch_on = True" in main)
+check("brygg-omstart om porten var upptagen", "_retry_mail_bridge_start" in main)
+
 print(f"\nsingle_instance_test: {ok} lyckades, {fail} misslyckades")
 sys.exit(1 if fail else 0)
