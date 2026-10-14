@@ -30,6 +30,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _src import app_files, app_source  # noqa: E402
 
 from core import google_calendar as gc  # noqa: E402
 
@@ -755,7 +757,7 @@ with tempfile.TemporaryDirectory() as tmpdir:
 
 # --- 17. Kopplingen in i appen (statisk kontroll) -------------------------
 print("\n17. Menykoppling i appen")
-main_py = (ROOT / "main.pyw").read_text(encoding="utf-8")
+main_py = app_source(ROOT)
 widget_py = (ROOT / "ui" / "widget.py").read_text(encoding="utf-8")
 dlg_py = (ROOT / "ui" / "google_calendar_dialog.py").read_text(encoding="utf-8") \
     if (ROOT / "ui" / "google_calendar_dialog.py").is_file() else ""
@@ -844,8 +846,8 @@ for _fil, _namn in [
     ("ui/widget.py", "_on_export_calendar_ics"),
     ("ui/widget.py", "_on_open_task_in_google_calendar"),
     ("ui/widget.py", "_on_export_task_ics"),
-    ("main.pyw", "_open_google_calendar"),
-    ("main.pyw", "_export_calendar_ics"),
+    ("app/mixins/exports.py", "_open_google_calendar"),
+    ("app/mixins/exports.py", "_export_calendar_ics"),
     ("ui/google_calendar_dialog.py", "open_google_calendar_dialog"),
     ("ui/google_calendar_dialog.py", "push_task_with_dialog"),
     ("ui/google_calendar_dialog.py", "run_google_job"),
@@ -860,9 +862,10 @@ for _fil, _namn in [
 
 # Alla dubbletter i appens filer visas (den sista vinner tyst = död kod)
 _alla = []
-for _f in ("main.pyw", "ui/widget.py", "ui/google_calendar_dialog.py", "ui/donate.py",
-           "core/google_calendar.py", "core/settings.py", "core/store.py",
-           "core/mail_bridge.py", "core/calendar_export.py"):
+for _f in ([str(_p.relative_to(ROOT)) for _p in app_files(ROOT)] +
+           ["ui/widget.py", "ui/google_calendar_dialog.py", "ui/donate.py",
+            "core/google_calendar.py", "core/settings.py", "core/store.py",
+            "core/mail_bridge.py", "core/calendar_export.py"]):
     _alla.extend(_dubbletter(str(ROOT / _f)))
 if _alla:
     print("\n  ⓘ dubblerade namn i appens filer (sista definitionen vinner):")

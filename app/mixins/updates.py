@@ -1,0 +1,351 @@
+# -*- coding: utf-8 -*-
+"""Sök ny version: manuell och automatisk uppdatering av appen (core/updater.py)."""
+
+from __future__ import annotations
+
+import threading
+import time
+from contextlib import suppress
+from typing import Any, Tuple
+
+from app.constants import AppMode, LOG_PREFIX, SCRIPT_DIR
+
+
+class UpdateMixin:
+    """Sök ny version: manuell och automatisk uppdatering av appen (core/updater.py)."""
+
+    # ------------------------------------------------------------------
+    # 🔄 Sök ny version (core/updater.py)
+    # ------------------------------------------------------------------
+    def _update_dialog(self, kind: str, title: str, text: str) -> bool:
+        """Visa dialog. kind: info | warn | ask. Returnerar True vid Ja."""
+        from PySide6.QtWidgets import QMessageBox
+        box = QMessageBox()
+        box.setWindowTitle(title)
+        box.setText(text)
+        if kind == "ask":
+            box.setIcon(QMessageBox.Icon.Question)
+            yes = box.addButton("Uppdatera nu", QMessageBox.ButtonRole.YesRole)
+            box.addButton("Avbryt", QMessageBox.ButtonRole.NoRole)
+            box.exec()
+            return box.clickedButton() is yes
+        box.setIcon(QMessageBox.Icon.Warning if kind == "warn" else QMessageBox.Icon.Information)
+        box.exec()
+        return True
+
+    def _update_progress_cb(self, phase: str, done: int, total: int) -> None:
+        """Anropas från arbetstråden: lagra förlopp (GUI-tråden läser) och hantera avbryt."""
+        self._update_progress = (phase, int(done), int(total))
+        if getattr(self, "_update_cancel", False) and phase in ("release", "download"):
+            from core import updater
+            raise updater.UpdateError("Avbröts av dig.")
+
+    def _update_progress_open(self, text: str, cancelable: bool, maximum: int = 0) -> None:
+        """Förloppsfönster (GUI-tråden). maximum=0 → obestämd 'upptagen'-stapel."""
+        from PySide6.QtCore import Qt
+        from PySide6.QtWidgets import QProgressDialog
+        self._update_progress_close()
+        pd = QProgressDialog(text, "Avbryt" if cancelable else "", 0, maximum)
+        pd.setWindowTitle("TaskBord – uppdatering")
+        pd.setMinimumDuration(0)
+        pd.setAutoClose(False)
+        pd.setAutoReset(False)
+        pd.setMinimumWidth(400)
+        if cancelable:
+            pd.canceled.connect(self._update_cancel_requested)
+        else:
+            # Under filbytet ska inget kunna avbrytas eller stängas av misstag.
+            pd.setCancelButton(None)
+            pd.setWindowModality(Qt.WindowModality.ApplicationModal)
+            pd.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, False)
+        pd.setValue(0)
+        pd.show()
+        self._update_pd = pd
+        with suppress(Exception):
+            self._app.processEvents()
+
+    def _update_cancel_requested(self) -> None:
+        self._update_cancel = True
+
+    def _update_progress_close(self) -> None:
+        pd = getattr(self, "_update_pd", None)
+        self._update_pd = None
+        if pd is not None:
+            with suppress(Exception):
+                pd.canceled.disconnect()
+            with suppress(Exception):
+                pd.close()
+                pd.deleteLater()
+
+    def _update_progress_refresh(self) -> None:
+        """GUI-tråden: spegla senaste förloppet i förloppsfönstret."""
+        from core import updater
+        pd = getattr(self, "_update_pd", None)
+        prog = getattr(self, "_update_progress", None)
+        if pd is None or not prog:
+            return
+        phase, done, total = prog
+        with suppress(Exception):
+            pd.setLabelText(updater.phase_text(phase, done, total))
+            if phase in ("install", "done"):
+                if pd.maximum() != max(total, 1):
+                    pd.setRange(0, max(total, 1))
+                pd.setValue(min(done, max(total, 1)))
+                if not pd.isVisible():
+                    pd.show()
+            elif phase == "download" and total > 0:
+                if pd.maximum() != total:
+                    pd.setRange(0, total)
+                pd.setValue(min(done, total))
+            elif pd.maximum() != 0:
+                pd.setRange(0, 0)
+
+    def _refresh_update_action(self) -> None:
+        """Tray-texten markerar när en ny version väntar."""
+        act = getattr(self, "_update_action", None)
+        if act is None:
+            return
+        with suppress(Exception):   # QAction kan ha raderats när menyn byggdes om
+            act.setText(self._update_action_text())
+
+    def _update_action_text(self) -> str:
+        if getattr(self, "_update_available", False):
+            return "🆕  Ny version finns — uppdatera…"
+        return "🔄  Sök ny version…"
+
+    def _check_for_updates(self, silent: bool = False) -> None:
+        """
+        Sök i bakgrunden (nätverk) och visa resultatet på GUI-tråden.
+        silent=True (automatisk koll): inga fönster alls, bara tray-notis om det finns en ny version.
+        """
+        if getattr(self, "_update_busy", False):
+            if not silent:
+                self._update_dialog("info", "Sök ny version", "En uppdatering pågår redan.")
+            return
+        self._update_busy = True
+        self._update_silent = bool(silent)
+        self._update_cancel = False
+        self._update_stage = "check"
+        self._update_progress = None
+        self._update_result = None
+        self._update_info = None
+        if not silent:
+            self._update_progress_open("Kontaktar GitHub…", cancelable=True)
+
+        def _work() -> None:
+            try:
+                from core import updater
+                self._update_result = (
+                    "ok",
+                    updater.check_for_update(SCRIPT_DIR, progress=self._update_progress_cb),
+                )
+            except Exception as e:  # UpdateError har svenskt meddelande
+                self._update_result = ("err", str(e) or e.__class__.__name__)
+
+        threading.Thread(target=_work, name="UpdateCheck", daemon=True).start()
+        self._update_timer = self._QTimer(self._app)
+        self._update_timer.setInterval(500 if silent else 120)
+        self._update_timer.timeout.connect(self._poll_update_check)
+        self._update_timer.start()
+
+    def _update_finish(self) -> None:
+        with suppress(Exception):
+            self._update_timer.stop()
+        self._update_progress_close()
+        self._update_result = None
+        self._update_busy = False
+
+    def _poll_update_check(self) -> None:
+        """GUI-tråd, ticker medan en koll/installation pågår."""
+        self._update_progress_refresh()
+        res = getattr(self, "_update_result", None)
+        if res is None:
+            return
+        # Stoppa tickandet INNAN några (modala) dialoger visas.
+        with suppress(Exception):
+            self._update_timer.stop()
+        self._update_result = None
+        try:
+            if getattr(self, "_update_stage", "check") == "apply":
+                self._finish_apply(res)
+            else:
+                self._finish_check(res)
+        except Exception as e:
+            self._log.error(f"{LOG_PREFIX} uppdatering misslyckades: {e}", exc_info=True)
+            self._update_finish()
+            if not getattr(self, "_update_silent", False):
+                with suppress(Exception):
+                    self._update_dialog("warn", "Uppdatering misslyckades", str(e))
+
+    def _finish_check(self, res: Tuple[str, Any]) -> None:
+        from core import updater
+        kind, payload = res
+        silent = getattr(self, "_update_silent", False)
+        self._update_progress_close()
+        if kind == "err":
+            self._update_finish()
+            if silent:
+                self._log.debug(f"{LOG_PREFIX} automatisk uppdateringskoll misslyckades: {payload}")
+            elif getattr(self, "_update_cancel", False):
+                self._log.info(f"{LOG_PREFIX} uppdateringskoll avbröts av användaren")
+            else:
+                self._update_dialog("warn", "Sök ny version", str(payload))
+            return
+        info = payload
+        with suppress(Exception):
+            self.settings.set_update_last_check(int(time.time()))
+        self._update_available = not info.up_to_date
+        self._refresh_update_action()
+        if silent:
+            self._update_finish()
+            self._notify_update_available(info)
+            return
+        if info.up_to_date:
+            self._update_finish()
+            self._update_dialog(
+                "info", "Sök ny version",
+                f"Du har redan senaste versionen.\n\n(Release {info.tag}, "
+                f"commit {info.commit[:7] or '?'} — inga filer skiljer sig.)",
+            )
+            return
+        extra = ""
+        if info.requirements_changed:
+            extra = ("\n\n⚠️ requirements.txt har ändrats. Efter uppdateringen: kör "
+                     "FORSTA_START.bat (installerar nya paket). Appen startar inte om "
+                     "automatiskt.")
+        if not self._update_dialog(
+            "ask", "Ny version finns",
+            updater.describe(info)
+            + "\n\nDina uppgifter och inställningar (js\\ och data\\) rörs inte. "
+              "Ersatta filer sparas i data\\backups\\app-update\\.\n"
+              "Appen startar om efter uppdateringen." + extra,
+        ):
+            self._update_finish()
+            return
+        # --- Installationsfas: eget förloppsfönster, filbytet i bakgrundstråd ---
+        n = len(info.changed)
+        self._update_progress_open(updater.phase_text("save"), cancelable=False, maximum=0)
+        with suppress(Exception):
+            self.store.save()
+        with suppress(Exception):
+            self._external_backup("före uppdatering")
+        self._update_info = info
+        self._update_stage = "apply"
+        self._update_progress = ("install", 0, n)
+        self._update_result = None
+        self._update_progress_refresh()
+
+        def _apply() -> None:
+            try:
+                self._update_result = (
+                    "ok", updater.apply_update(SCRIPT_DIR, info, progress=self._update_progress_cb)
+                )
+            except Exception as e:
+                self._update_result = ("err", str(e) or e.__class__.__name__)
+
+        threading.Thread(target=_apply, name="UpdateApply", daemon=True).start()
+        self._update_timer.setInterval(100)
+        self._update_timer.start()
+
+    def _finish_apply(self, res: Tuple[str, Any]) -> None:
+        from core import updater
+        kind, payload = res
+        info = self._update_info
+        self._update_finish()
+        if kind == "err":
+            self._log.error(f"{LOG_PREFIX} installation misslyckades: {payload}")
+            self._update_dialog(
+                "warn", "Uppdatering misslyckades",
+                f"{payload}\n\nInget har ändrats — din installation är som förut.",
+            )
+            return
+        self._update_available = False
+        self._refresh_update_action()
+        self._log.info(
+            f"{LOG_PREFIX} uppdaterad till {info.tag} ({info.commit[:7]}), backup {payload}"
+        )
+        if info.requirements_changed:
+            self._update_dialog(
+                "info", "Uppdaterad",
+                "Uppdateringen är installerad.\n\nKör FORSTA_START.bat för att installera "
+                "nya paket och starta om TaskBord.",
+            )
+            return
+        self._update_dialog(
+            "info", "Uppdaterad",
+            f"{len(info.changed)} fil(er) uppdaterade. TaskBord startar om nu.",
+        )
+        if updater.schedule_restart(SCRIPT_DIR):
+            self.shutdown()
+        else:
+            self._update_dialog(
+                "warn", "Uppdaterad",
+                "Starta om TaskBord manuellt (Avsluta i tray-menyn, starta sedan igen).",
+            )
+
+    # --- automatisk, tyst koll (max 1 gång/dygn) ------------------------
+    def _init_update_check(self) -> None:
+        """Första kollen ~30 s efter start, därefter var 3:e timme om det är >24 h sedan sist."""
+        if self._mode == AppMode.SAFE_MODE:
+            return
+        self._update_auto_timer = self._QTimer(self._app)
+        self._update_auto_timer.setInterval(3 * 3600 * 1000)
+        self._update_auto_timer.timeout.connect(self._auto_update_check)
+        self._update_auto_timer.start()
+        self._QTimer.singleShot(30_000, self._auto_update_check)
+
+    def _auto_update_check(self) -> None:
+        try:
+            from core import updater
+            if self._mode == AppMode.SAFE_MODE or getattr(self, "_update_busy", False):
+                return
+            if not self.settings.update_check_enabled():
+                return
+            if (SCRIPT_DIR / ".git").exists():     # utvecklarmapp: använd git
+                return
+            if not updater.check_due(self.settings.update_last_check()):
+                return
+            self._log.info(f"{LOG_PREFIX} tyst uppdateringskoll")
+            self._check_for_updates(silent=True)
+        except Exception as e:
+            self._log.debug(f"{LOG_PREFIX} _auto_update_check: {e}")
+
+    def _notify_update_available(self, info: Any) -> None:
+        """Tyst koll hittade något: tray-notis EN gång per uppdatering (menytexten markeras alltid)."""
+        from core import updater
+        if info.up_to_date:
+            return
+        fp = updater.fingerprint(info)
+        self._log.info(f"{LOG_PREFIX} ny version finns ({info.tag}, {len(info.changed)} filer, {fp})")
+        if fp == self.settings.update_notified():
+            return
+        with suppress(Exception):
+            self.settings.set_update_notified(fp)
+        if self._tray is None:
+            return
+        with suppress(Exception):
+            if not getattr(self, "_update_msg_connected", False):
+                self._tray.messageClicked.connect(self._on_tray_message_clicked)
+                self._update_msg_connected = True
+            self._update_balloon_ts = time.monotonic()
+            self._tray.showMessage(
+                "🆕 Ny version av TaskBord",
+                f"{len(info.changed)} fil(er) skiljer sig från din installation. "
+                "Klicka här eller välj “Ny version finns” i tray-menyn.",
+                self._QSystemTrayIcon.MessageIcon.Information, 10000,
+            )
+
+    def _on_tray_message_clicked(self) -> None:
+        if time.monotonic() - getattr(self, "_update_balloon_ts", -999.0) < 30:
+            self._update_balloon_ts = -999.0
+            self._check_for_updates()
+
+    def _toggle_auto_update(self, checked: bool = False) -> None:
+        new = not self.settings.update_check_enabled()
+        with suppress(Exception):
+            self.settings.set_update_check_enabled(new)
+        self._log.info(f"{LOG_PREFIX} automatisk uppdateringskoll: {'PÅ' if new else 'AV'}")
+        with suppress(Exception):
+            self._populate_tray_menu()
+        if new:
+            self._QTimer.singleShot(1000, self._auto_update_check)

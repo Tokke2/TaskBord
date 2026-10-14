@@ -240,7 +240,9 @@ except ImportError:
     print("  (PySide6 saknas — hoppar över inställningstest)")
 
 # main.pyw: meny + hanterare
-main = (ROOT / "main.pyw").read_text(encoding="utf-8")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _src import app_source  # noqa: E402
+main = app_source(ROOT)
 check("tray-menyn har automatisk koll", "_toggle_auto_update" in main and "_init_update_check()" in main)
 check("tray-menyn har Sök ny version", "Sök ny version" in main and "self._check_for_updates" in main)
 check("uppdateringen sparar uppgifter först", "self.store.save()" in main.split("def _finish_check")[1][:4000])

@@ -6,6 +6,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _src import app_files, app_source  # noqa: E402
 sys.path.insert(0, str(ROOT / "core"))
 
 ok = fail = 0
@@ -71,7 +73,7 @@ t.start()
 check("annan tjänst är inte TaskBord", probe_taskbord(p2) is False)
 srv.shutdown()
 
-main = (ROOT / "main.pyw").read_text(encoding="utf-8")
+main = app_source(ROOT)
 check("main.pyw avbryter om TaskBord redan kör", "find_running_taskbord(8765, 12)" in main and "startar ingen ny instans" in main)
 
 check("bryggan startar alltid vid appstart", "_init_mail_bridge(at_startup=True)" in main and "_http_on = _watch_on = True" in main)

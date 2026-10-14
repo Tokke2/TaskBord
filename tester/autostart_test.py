@@ -6,6 +6,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _src import app_files, app_source  # noqa: E402
 sys.path.insert(0, str(ROOT / "core"))
 
 ok = fail = 0
@@ -37,7 +39,7 @@ with tempfile.TemporaryDirectory() as tmp:
 # main.pyw: samma format via _autostart_bat_text (hämtas utan att importera Qt)
 import ast  # noqa: E402
 
-src = (ROOT / "main.pyw").read_text(encoding="utf-8")
+src = app_source(ROOT)
 fn = None
 for node in ast.walk(ast.parse(src)):
     if isinstance(node, ast.FunctionDef) and node.name == "_autostart_bat_text":

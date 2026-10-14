@@ -14,6 +14,8 @@ if not "%~1"=="" (set TARGET=%~1) else (set TARGET=D:\Program\todo)
 if not exist "%TARGET%" mkdir "%TARGET%"
 if not exist "%TARGET%\core" mkdir "%TARGET%\core"
 if not exist "%TARGET%\ui"   mkdir "%TARGET%\ui"
+if not exist "%TARGET%\app"   mkdir "%TARGET%\app"
+if not exist "%TARGET%\app\mixins" mkdir "%TARGET%\app\mixins"
 REM NY v7-fix90: Thunderbird-tillagget foljer med installationen
 if not exist "%TARGET%\thunderbird-tillagg" mkdir "%TARGET%\thunderbird-tillagg"
 
@@ -21,6 +23,8 @@ echo Kopierar filer ...
 copy /Y "%~dp0main.pyw"         "%TARGET%\"      >nul
 copy /Y "%~dp0core\*.py"        "%TARGET%\core\" >nul
 copy /Y "%~dp0ui\*.py"          "%TARGET%\ui\"   >nul
+copy /Y "%~dp0app\*.py"         "%TARGET%\app\"  >nul
+copy /Y "%~dp0app\mixins\*.py"  "%TARGET%\app\mixins\" >nul
 if exist "%~dp0requirements.txt" copy /Y "%~dp0requirements.txt" "%TARGET%\" >nul
 
 REM NY v7-fix90: e-postbrygga / Thunderbird-tillagg
@@ -32,8 +36,8 @@ if exist "%~dp0TaskBord-Thunderbird.xpi" copy /Y "%~dp0TaskBord-Thunderbird.xpi"
 
 echo.
 echo Kontrollerar versioner:
-findstr /C:"v7-fix51" "%TARGET%\main.pyw" >nul 2>&1
-if %errorlevel%==0 (echo   [OK] main.pyw    = senaste ^(v7-fix51^)) else (echo   [FEL] main.pyw    = GAMMAL!)
+findstr /C:"v7-fix51" "%TARGET%\app\mixins\windows.py" >nul 2>&1
+if %errorlevel%==0 (echo   [OK] app\      = senaste ^(v7-fix51^)) else (echo   [FEL] app\      = GAMMAL eller SAKNAS!)
 findstr /C:"attach_window_above_desktop_icons" "%TARGET%\core\desktop.py" >nul 2>&1
 if %errorlevel%==0 (echo   [OK] desktop.py  = senaste ^(desktop-lager^)) else (echo   [FEL] desktop.py  = GAMMAL!)
 findstr /C:"_save_geometry_now" "%TARGET%\ui\widget.py" >nul 2>&1

@@ -142,6 +142,22 @@ Sedan:
 * Vill du hellre ha en fil att importera? **📅 Exportera till kalender (.ics)…**
   fungerar utan konto (Outlook, Apple Kalender och Google Calendar).
 
+## 🧱 Kodstruktur (för den som ändrar koden)
+
+`main.pyw` är bara startfilen (~130 rader). Allt annat ligger i paketet `app/`:
+
+| Fil | Innehåll |
+| --- | --- |
+| `app/bootstrap.py` | `run()` — hela uppstartsflödet, global felhanterare |
+| `app/controller.py` | `AppController`, sätts ihop av mixins |
+| `app/mixins/*.py` | en fil per ansvar: `tray`, `updates`, `mail_bridge_ctl`, `autostart`, `windows`, `desktop_shell`, `hotkeys`, `reminders`, `backup_sync`, `exports`, `diagnostics`, `app_icon`, `plugin_updates`, `maintenance` |
+| `app/constants.py` | version, sökvägar (`SCRIPT_DIR` = appmappen), enums, undantag |
+| `app/*.py` (övriga) | loggning, plugin-system, central logg, prestanda, förkontroller, modulladdning |
+
+Regler som testerna vaktar (`tester/structure_test.py`): alla moduler går att importera, ingen metod
+finns i två mixins (annars vinner en tyst), inga odefinierade namn, sökvägar byggs från `SCRIPT_DIR`
+(aldrig från `__file__` i `app/`). `tester/app_boot_test.py` startar hela appen offscreen och läser loggen.
+
 ## 💖 Stöd projektet
 
 TaskBord är gratis och utan reklam. Donationer är helt frivilliga och går till utveckling och underhåll. Appen fungerar exakt lika bra utan donation.

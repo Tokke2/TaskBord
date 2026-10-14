@@ -1,5 +1,5 @@
 """
-Test av uppdateringsflödet i main.pyw (utan Qt-fönster): metoderna plockas ur main.pyw
+Test av uppdateringsflödet i main.pyw (utan Qt-fönster): metoderna plockas ur app/mixins/updates.py
 med ast och körs mot en stubb med falsk timer/dialog/inställningar + riktig updater
 och falsk GitHub. Täcker tyst dagskoll, notis en gång per uppdatering och förlopp.
 """
@@ -32,8 +32,9 @@ def check(name, cond):
 
 
 # --- plocka metoderna ur main.pyw -------------------------------------------
-src = (ROOT / "main.pyw").read_text(encoding="utf-8")
-tree = ast.parse(src)
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _src import app_files  # noqa: E402
+trees = [ast.parse(p.read_text(encoding="utf-8")) for p in app_files(ROOT)]
 NAMES = {
     "_update_progress_cb", "_update_progress_close", "_update_progress_refresh", "_update_cancel_requested",
     "_refresh_update_action", "_update_action_text", "_check_for_updates", "_update_finish",
@@ -41,12 +42,12 @@ NAMES = {
     "_notify_update_available", "_on_tray_message_clicked", "_toggle_auto_update",
 }
 methods = {}
-for node in ast.walk(tree):
+for node in (n for t in trees for n in ast.walk(t)):
     if isinstance(node, ast.ClassDef):
         for f in node.body:
             if isinstance(f, ast.FunctionDef) and f.name in NAMES:
                 methods[f.name] = f
-check("alla uppdateringsmetoder finns i main.pyw", set(methods) == NAMES)
+check("alla uppdateringsmetoder finns i appens kod", set(methods) == NAMES)
 
 APP = Path(tempfile.mkdtemp())
 G = dict(SCRIPT_DIR=APP, LOG_PREFIX="[MAIN]", suppress=suppress, threading=threading, time=time,

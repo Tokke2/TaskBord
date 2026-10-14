@@ -6,6 +6,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _src import app_files, app_source  # noqa: E402
 sys.path.insert(0, str(ROOT / "core"))
 
 ok = fail = 0
@@ -90,7 +92,7 @@ with tempfile.TemporaryDirectory() as d:
     r = subprocess.run([sys.executable, "-c", code], capture_output=True)
     check("efter release går det att ta låset", r.returncode == 0)
 
-main = (ROOT / "main.pyw").read_text(encoding="utf-8")
+main = app_source(ROOT)
 check("main.pyw tar datamapps-lås", "DataDirLock(JS_DIR)" in main)
 check("main.pyw synkar externa ändringar", "self._sync_external_store" in main)
 
