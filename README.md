@@ -41,6 +41,21 @@ Snabbstart:
 5. Högerklicka på ett mail → 📋 Skicka till TaskBord
 ```
 
+## 🔄 Uppdatera appen (Sök ny version)
+
+Tray-menyn → **🔄 Sök ny version…** hämtar GitHub-releasen *Latest* och jämför filerna med
+din installation (innehållet, inte versionsnumret — releasen kan heta v1.0.0 och ändå ha ny
+kod). Finns skillnader visas vilka filer, och du väljer **Uppdatera nu**.
+
+* **Dina uppgifter rörs inte:** `js\` (uppgifter, inställningar, Google-koppling) och `data\`
+  (loggar, backuper) hoppas alltid över. Uppgifterna sparas och backas upp före uppdateringen.
+* **Ångra:** ersatta filer sparas i `data\backups\app-update\<tid>\`.
+* **Säkert:** hämtar bara från GitHub över https, kompilerar alla Python-filer först (en trasig
+  release installeras aldrig), rullar tillbaka om något går fel och skriver inget utanför
+  appmappen. Filer du själv lagt till tas inte bort.
+* Appen startar om automatiskt. Ändras `requirements.txt` ska du köra `FORSTA_START.bat`.
+* Kör du från en git-mapp (`.git`) används `git pull` i stället.
+
 ## 💾 Backup av uppgifter
 
 Högerklicka på fönstret (eller tray-ikonen) → **💾 Backup av uppgifter…**

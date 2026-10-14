@@ -5506,6 +5506,117 @@ class AppController:
                 exc_info=True,
             )
 
+    # ------------------------------------------------------------------
+    # 🔄 Sök ny version (core/updater.py)
+    # ------------------------------------------------------------------
+    def _update_dialog(self, kind: str, title: str, text: str) -> bool:
+        """Visa dialog. kind: info | warn | ask. Returnerar True vid Ja."""
+        from PySide6.QtWidgets import QMessageBox
+        box = QMessageBox()
+        box.setWindowTitle(title)
+        box.setText(text)
+        if kind == "ask":
+            box.setIcon(QMessageBox.Icon.Question)
+            yes = box.addButton("Uppdatera nu", QMessageBox.ButtonRole.YesRole)
+            box.addButton("Avbryt", QMessageBox.ButtonRole.NoRole)
+            box.exec()
+            return box.clickedButton() is yes
+        box.setIcon(QMessageBox.Icon.Warning if kind == "warn" else QMessageBox.Icon.Information)
+        box.exec()
+        return True
+
+    def _check_for_updates(self) -> None:
+        """Sök i bakgrunden (nätverk) och visa resultatet på GUI-tråden."""
+        if getattr(self, "_update_busy", False):
+            return
+        self._update_busy = True
+        self._update_result = None
+        try:
+            if self._tray is not None:
+                self._tray.showMessage(
+                    "🔄 TaskBord", "Söker efter ny version…",
+                    self._QSystemTrayIcon.MessageIcon.Information, 3000,
+                )
+        except Exception:
+            pass
+
+        def _work() -> None:
+            try:
+                from core import updater
+                self._update_result = ("ok", updater.check_for_update(SCRIPT_DIR))
+            except Exception as e:  # UpdateError har svenskt meddelande
+                self._update_result = ("err", str(e) or e.__class__.__name__)
+
+        threading.Thread(target=_work, name="UpdateCheck", daemon=True).start()
+        self._update_timer = self._QTimer(self._app)
+        self._update_timer.setInterval(300)
+        self._update_timer.timeout.connect(self._poll_update_check)
+        self._update_timer.start()
+
+    def _poll_update_check(self) -> None:
+        res = getattr(self, "_update_result", None)
+        if res is None:
+            return
+        self._update_timer.stop()
+        self._update_result = None
+        self._update_busy = False
+        try:
+            kind, payload = res
+            if kind == "err":
+                self._update_dialog("warn", "Sök ny version", str(payload))
+                return
+            from core import updater
+            info = payload
+            if info.up_to_date:
+                self._update_dialog(
+                    "info", "Sök ny version",
+                    f"Du har redan senaste versionen.\n\n(Release {info.tag}, "
+                    f"commit {info.commit[:7] or '?'} — inga filer skiljer sig.)",
+                )
+                return
+            extra = ""
+            if info.requirements_changed:
+                extra = ("\n\n⚠️ requirements.txt har ändrats. Efter uppdateringen: kör "
+                         "FORSTA_START.bat (installerar nya paket). Appen startar inte om "
+                         "automatiskt.")
+            if not self._update_dialog(
+                "ask", "Ny version finns",
+                updater.describe(info)
+                + "\n\nDina uppgifter och inställningar (js\\ och data\\) rörs inte. "
+                  "Ersatta filer sparas i data\\backups\\app-update\\.\n"
+                  "Appen startar om efter uppdateringen." + extra,
+            ):
+                return
+            # Spara allt först
+            with suppress(Exception):
+                self.store.save()
+            with suppress(Exception):
+                self._external_backup("före uppdatering")
+            backup = updater.apply_update(SCRIPT_DIR, info)
+            self._log.info(f"{LOG_PREFIX} uppdaterad till {info.tag} ({info.commit[:7]}), backup {backup}")
+            if info.requirements_changed:
+                self._update_dialog(
+                    "info", "Uppdaterad",
+                    "Uppdateringen är installerad.\n\nKör FORSTA_START.bat för att installera "
+                    "nya paket och starta om TaskBord.",
+                )
+                return
+            self._update_dialog(
+                "info", "Uppdaterad",
+                f"{len(info.changed)} fil(er) uppdaterade. TaskBord startar om nu.",
+            )
+            if updater.schedule_restart(SCRIPT_DIR):
+                self.shutdown()
+            else:
+                self._update_dialog(
+                    "warn", "Uppdaterad",
+                    "Starta om TaskBord manuellt (Avsluta i tray-menyn, starta sedan igen).",
+                )
+        except Exception as e:
+            self._log.error(f"{LOG_PREFIX} uppdatering misslyckades: {e}", exc_info=True)
+            with suppress(Exception):
+                self._update_dialog("warn", "Uppdatering misslyckades", str(e))
+
     def _retry_mail_bridge_start(self) -> None:
         """FIX v8: starta bryggan igen om den inte kom igång vid appstart (max 8 försök, 2 s)."""
         try:
@@ -6701,6 +6812,15 @@ class AppController:
                 self._open_google_calendar
             )
             self._tray_menu.addAction(self._google_calendar_action)
+
+            # NY v8 (2026-10-13): uppdatera appen inifrån (GitHub-releasen Latest)
+            self._update_action = self._QAction("🔄  Sök ny version…", self._tray_menu)
+            self._update_action.setToolTip(
+                "Hämtar senaste releasen från GitHub och byter ut programfilerna.\n"
+                "Dina uppgifter och inställningar (js\\ och data\\) rörs inte."
+            )
+            self._update_action.triggered.connect(self._check_for_updates)
+            self._tray_menu.addAction(self._update_action)
 
             # NY v8 (2026-10-12): backup av uppgifter
             self._backup_tasks_action = self._QAction(
