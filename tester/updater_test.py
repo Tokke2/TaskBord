@@ -36,13 +36,16 @@ def make_zip(files, top="Tokke2-TaskBord-abc1234", comment=b"abc1234def5678abc12
 
 
 def fake_http(zip_bytes, tag="v1.0.0"):
-    def _get(url, max_bytes, timeout=20.0, accept=""):
+    def _get(url, max_bytes, timeout=20.0, accept="", progress=None):
         if url == updater.LATEST_API:
             return json.dumps({
                 "tag_name": tag, "name": "TaskBord " + tag, "published_at": "2026-10-13T08:28:09Z",
                 "html_url": "https://github.com/x/y/releases/tag/" + tag,
                 "zipball_url": "https://api.github.com/repos/x/y/zipball/" + tag,
             }).encode()
+        if progress:
+            for i in range(0, len(zip_bytes), 200):
+                progress(min(i + 200, len(zip_bytes)), len(zip_bytes))
         return zip_bytes
     return _get
 
@@ -172,10 +175,75 @@ with tempfile.TemporaryDirectory() as d:
 cmd = updater.restart_command(ROOT, 3)
 check("omstartskommando innehåller main.pyw", "main.pyw" in " ".join(cmd) or "main.py" in " ".join(cmd))
 
+# --- förlopp, fingeravtryck, dygnsgräns ---------------------------------------
+with tempfile.TemporaryDirectory() as d:
+    app = Path(d)
+    (app / "main.pyw").write_bytes(b"print('gammal')\n")
+    seen = []
+    info = updater.check_for_update(app, fake_http(make_zip(REL)), progress=lambda ph, a, b: seen.append((ph, a, b)))
+    phases = []
+    for ph, _a, _b in seen:
+        if not phases or phases[-1] != ph:
+            phases.append(ph)
+    check("förloppsfaser i rätt ordning", phases == ["release", "download", "compare", "validate"])
+    dl = [(a, b) for ph, a, b in seen if ph == "download" and b]
+    check("nedladdning rapporterar byte/total", dl and dl[-1][0] == dl[-1][1])
+
+    def cancel_cb(ph, a, b):
+        if ph == "download" and a > 0:
+            raise UpdateError("Avbröts av dig.")
+    try:
+        updater.check_for_update(app, fake_http(make_zip(REL)), progress=cancel_cb)
+        check("avbryt under nedladdning stoppar kollen", False)
+    except UpdateError as e:
+        check("avbryt under nedladdning stoppar kollen", "Avbröts" in str(e))
+
+    ins = []
+    updater.apply_update(app, info, progress=lambda ph, a, b: ins.append((ph, a, b)))
+    inst = [(a, b) for ph, a, b in ins if ph == "install"]
+    n = len(info.changed)
+    check("installation rapporterar fil för fil", [a for a, _ in inst] == list(range(n)) and all(b == n for _, b in inst))
+    check("installation slutar med 'done'", ins[-1] == ("done", n, n))
+
+    # ändrad uppsättning filer => nytt fingeravtryck
+    fp1 = updater.fingerprint(info)
+    info.files["main.pyw"] = b"print('annan')\n"
+    check("fingeravtryck ändras med innehållet", updater.fingerprint(info) != fp1 and len(fp1) == 16)
+
+check("fas-texter på svenska", "MB" in updater.phase_text("download", 1048576, 2097152)
+      and "2 av 5" in updater.phase_text("install", 2, 5) and "Klart" in updater.phase_text("done"))
+check("okänd total: bara MB", "av" not in updater.phase_text("download", 1048576, 0))
+check("aldrig kollat => dags", updater.check_due(0, 1000))
+check("nyss kollat => inte dags", not updater.check_due(1000, 1000 + 3600))
+check("efter 24 h => dags", updater.check_due(1000, 1000 + 24 * 3600))
+check("klockan gått bakåt => dags", updater.check_due(5000, 1000))
+
+# --- inställningar överlever omstart ------------------------------------------
+try:
+    import os
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtCore import QCoreApplication
+    QCoreApplication.instance() or QCoreApplication([])
+    from core.settings import Settings
+    f = Path(tempfile.mkdtemp()) / "settings.json"
+    st = Settings(file_path=f)
+    check("auto-koll är på som standard", st.update_check_enabled() is True and st.update_last_check() == 0)
+    st.set_update_check_enabled(False)
+    st.set_update_last_check(1760000000)
+    st.set_update_notified("abc123")
+    st.save()
+    st2 = Settings(file_path=f)
+    check("auto-koll av sparas", st2.update_check_enabled() is False)
+    check("senaste koll sparas", st2.update_last_check() == 1760000000)
+    check("notifierad uppdatering sparas", st2.update_notified() == "abc123")
+except ImportError:
+    print("  (PySide6 saknas — hoppar över inställningstest)")
+
 # main.pyw: meny + hanterare
 main = (ROOT / "main.pyw").read_text(encoding="utf-8")
+check("tray-menyn har automatisk koll", "_toggle_auto_update" in main and "_init_update_check()" in main)
 check("tray-menyn har Sök ny version", "Sök ny version" in main and "self._check_for_updates" in main)
-check("uppdateringen sparar uppgifter först", "self.store.save()" in main.split("def _poll_update_check")[1][:2500])
+check("uppdateringen sparar uppgifter först", "self.store.save()" in main.split("def _finish_check")[1][:4000])
 
 print(f"\nupdater_test: {ok} lyckades, {fail} misslyckades")
 sys.exit(1 if fail else 0)

@@ -95,13 +95,28 @@ def _check_url(url: str) -> None:
 
 
 def _http_get(url: str, max_bytes: int, timeout: float = 20.0,
-              accept: str = "*/*") -> bytes:
+              accept: str = "*/*",
+              progress: Optional[Callable[[int, int], None]] = None) -> bytes:
     _check_url(url)
     opener = urllib.request.build_opener(_HostCheckRedirect())
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": accept})
     try:
         with opener.open(req, timeout=timeout) as resp:
-            data = resp.read(max_bytes + 1)
+            try:
+                total = int(resp.headers.get("Content-Length") or 0)
+            except (TypeError, ValueError):
+                total = 0
+            buf = bytearray()
+            while True:
+                chunk = resp.read(64 * 1024)
+                if not chunk:
+                    break
+                buf += chunk
+                if len(buf) > max_bytes:
+                    break
+                if progress is not None:
+                    progress(len(buf), total)   # kan kasta UpdateError (avbrutet)
+            data = bytes(buf)
     except urllib.error.HTTPError as e:
         if e.code == 404:
             raise UpdateError("Hittade ingen release på GitHub.") from e
@@ -231,9 +246,53 @@ def validate(files: Dict[str, bytes], changed: List[str]) -> List[str]:
     return errors
 
 
+ProgressCb = Callable[[str, int, int], None]   # (fas, klart, totalt)
+
+
+def phase_text(phase: str, done: int = 0, total: int = 0) -> str:
+    """Svensk text för en förloppsfas (visas i förloppsfönstret)."""
+    if phase == "release":
+        return "Kontaktar GitHub…"
+    if phase == "download":
+        mb = done / (1024 * 1024)
+        if total > 0:
+            return f"Hämtar uppdateringen… {mb:.1f} av {total / (1024 * 1024):.1f} MB"
+        return f"Hämtar uppdateringen… {mb:.1f} MB"
+    if phase == "compare":
+        return "Jämför filer med din installation…"
+    if phase == "validate":
+        return "Kontrollerar att koden är hel…"
+    if phase == "save":
+        return "Sparar dina uppgifter först…"
+    if phase == "install":
+        return f"Installerar filer… {done} av {total}"
+    if phase == "done":
+        return "Klart!"
+    return "Arbetar…"
+
+
+def fingerprint(info: "UpdateInfo") -> str:
+    """Kort ID för just den här uppsättningen ändringar (för att inte tjata om samma uppdatering)."""
+    h = hashlib.sha256()
+    for rel in sorted(info.changed):
+        h.update(rel.encode("utf-8"))
+        h.update(_sha(info.files.get(rel, b"")).encode("ascii"))
+    return h.hexdigest()[:16]
+
+
+def check_due(last_check: float, now: Optional[float] = None,
+              interval_sec: float = 24 * 3600) -> bool:
+    """Har det gått minst ``interval_sec`` sedan senaste lyckade kollen? (klockhopp bakåt räknas som 'dags')."""
+    now = time.time() if now is None else now
+    if last_check <= 0 or last_check > now:
+        return True
+    return (now - last_check) >= interval_sec
+
+
 def check_for_update(
     app_dir: Path,
     http_get: Callable[..., bytes] = _http_get,
+    progress: Optional[ProgressCb] = None,
 ) -> UpdateInfo:
     """Hämta senaste releasen och räkna ut vad som skiljer. Skriver inget till disk."""
     app_dir = Path(app_dir)
@@ -242,12 +301,23 @@ def check_for_update(
             "Den här mappen är en git-mapp. Uppdatera med git (git pull) i stället, "
             "så skrivs inget över av misstag."
         )
+    _p: ProgressCb = progress or (lambda *_a: None)
+    _p("release", 0, 0)
     meta = fetch_latest_release(http_get)
     if not meta["zip_url"]:
         raise UpdateError("Releasen saknar nedladdningsbar källkod.")
-    zip_bytes = http_get(meta["zip_url"], MAX_ZIP_BYTES, timeout=60.0)
+    _p("download", 0, 0)
+    if progress is not None:
+        zip_bytes = http_get(
+            meta["zip_url"], MAX_ZIP_BYTES, timeout=60.0,
+            progress=lambda d, t: _p("download", d, t),
+        )
+    else:
+        zip_bytes = http_get(meta["zip_url"], MAX_ZIP_BYTES, timeout=60.0)
+    _p("compare", 0, 0)
     files, commit = read_release_zip(zip_bytes)
     changed, new = compare(app_dir, files)
+    _p("validate", 0, 0)
     errors = validate(files, changed)
     if errors:
         raise UpdateError(
@@ -261,7 +331,8 @@ def check_for_update(
     )
 
 
-def apply_update(app_dir: Path, info: UpdateInfo) -> Path:
+def apply_update(app_dir: Path, info: UpdateInfo,
+                 progress: Optional[ProgressCb] = None) -> Path:
     """
     Installera ``info.changed``. Returnerar backupmappen med de ersatta filerna.
     Vid fel rullas allt tillbaka och UpdateError kastas.
@@ -274,8 +345,11 @@ def apply_update(app_dir: Path, info: UpdateInfo) -> Path:
     stamp = time.strftime("%Y%m%d-%H%M%S")
     backup_root = app_dir / "data" / "backups" / "app-update" / stamp
     written: List[Tuple[Path, bool]] = []   # (sökväg, fanns innan)
+    _p: ProgressCb = progress or (lambda *_a: None)
+    total = len(info.changed)
     try:
-        for rel in info.changed:
+        for i, rel in enumerate(info.changed, 1):
+            _p("install", i - 1, total)
             target = Path(app_dir, *rel.split("/"))
             existed = target.is_file()
             if existed:
@@ -292,6 +366,7 @@ def apply_update(app_dir: Path, info: UpdateInfo) -> Path:
         rollback(app_dir, backup_root, written)
         raise UpdateError(f"Installationen misslyckades och återställdes: {e}") from e
     (backup_root).mkdir(parents=True, exist_ok=True)
+    _p("done", total, total)
     try:
         (backup_root / "UPPDATERING.txt").write_text(
             f"Release {info.tag} ({info.commit})\n"

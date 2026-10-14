@@ -43,10 +43,18 @@ Snabbstart:
 
 ## 🔄 Uppdatera appen (Sök ny version)
 
-Tray-menyn → **🔄 Sök ny version…** hämtar GitHub-releasen *Latest* och jämför filerna med
-din installation (innehållet, inte versionsnumret — releasen kan heta v1.0.0 och ändå ha ny
-kod). Finns skillnader visas vilka filer, och du väljer **Uppdatera nu**.
+**Automatiskt:** vid start (efter ca 30 s) och därefter högst en gång per dygn kollar TaskBord
+tyst i bakgrunden. Är allt aktuellt märker du ingenting. Finns en ny version får du *en*
+tray-notis (klicka på den för att uppdatera), och menyraden ändras till
+**🆕 Ny version finns — uppdatera…**. Inget installeras utan att du godkänner. Stäng av med
+tray → *Sök ny version automatiskt*. (Hoppas över i en git-mapp.)
 
+**Manuellt:** tray-menyn → **🔄 Sök ny version…** hämtar GitHub-releasen *Latest* och jämför
+filerna med din installation (innehållet, inte versionsnumret — releasen kan heta v1.0.0 och
+ändå ha ny kod). Finns skillnader visas vilka filer, och du väljer **Uppdatera nu**.
+
+* **Förlopp hela vägen:** ett förloppsfönster visar sökning och nedladdning (MB, kan avbrytas)
+  och sedan installationen ("Installerar filer… 3 av 14"), så det aldrig ser ut som att det hängt sig.
 * **Dina uppgifter rörs inte:** `js\` (uppgifter, inställningar, Google-koppling) och `data\`
   (loggar, backuper) hoppas alltid över. Uppgifterna sparas och backas upp före uppdateringen.
 * **Ångra:** ersatta filer sparas i `data\backups\app-update\<tid>\`.

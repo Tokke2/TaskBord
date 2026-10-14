@@ -1319,6 +1319,10 @@ class Settings(QObject):
             "google_calendar_color_by_priority": True,
             # Klara uppgifter i kalendern: "grey" | "strike" | "off"
             "google_calendar_done_style": "grey",
+            # NY v8: automatisk, tyst koll efter ny version (max 1 gång/dygn)
+            "update_check_enabled": True,
+            "update_last_check": 0,        # epoch-sekunder, senaste LYCKADE kollen
+            "update_notified": "",         # fingeravtryck för uppdatering vi redan sagt till om
             "_meta": {
                 "schema_version": SETTINGS_VERSION,
                 "created_at": datetime.now(timezone.utc).isoformat(),
@@ -1376,6 +1380,9 @@ class Settings(QObject):
             "google_calendar_done_style": lambda v: _coerce_str(
                 v, "grey", ("grey", "strike", "off")
             ),
+            "update_check_enabled": lambda v: _coerce_bool(v, True),
+            "update_last_check": lambda v: _coerce_int(v, 0, 0, 4102444800),
+            "update_notified": lambda v: _coerce_str(v, "")[:64],
             "autostart_method": lambda v: _coerce_str(v, DEFAULT_AUTOSTART_METHOD, VALID_AUTOSTART_METHODS),
             "animations": lambda v: _coerce_bool(v, True),
             "start_minimized_to_tray": lambda v: _coerce_bool(v, False),
@@ -2797,6 +2804,52 @@ class Settings(QObject):
             self._data["google_calendar_done_style"] = v
         self._dirty = True
         self._log.info(f"{LOG_PREFIX} google_calendar_done_style: {v}")
+        self._save_async_worker(self._data)
+        return True
+
+    # --- NY v8: automatisk uppdateringskoll ------------------------------
+    @_log_call
+    def update_check_enabled(self) -> bool:
+        """Sök tyst efter ny version vid start och därefter max 1 gång/dygn?"""
+        with self._lock:
+            return bool(self._data.get("update_check_enabled", True))
+
+    @_log_setter("update_check_enabled")
+    def set_update_check_enabled(self, enabled: bool) -> bool:
+        v = _coerce_bool(enabled, True)
+        with self._lock:
+            self._data["update_check_enabled"] = v
+        self._dirty = True
+        self._save_async_worker(self._data)
+        return True
+
+    @_log_call
+    def update_last_check(self) -> int:
+        """Epoch-sekunder för senaste lyckade uppdateringskollen (0 = aldrig)."""
+        with self._lock:
+            return _coerce_int(self._data.get("update_last_check", 0), 0, 0, 4102444800)
+
+    @_log_setter("update_last_check")
+    def set_update_last_check(self, ts: int) -> bool:
+        v = _coerce_int(ts, 0, 0, 4102444800)
+        with self._lock:
+            self._data["update_last_check"] = v
+        self._dirty = True
+        self._save_async_worker(self._data)
+        return True
+
+    @_log_call
+    def update_notified(self) -> str:
+        """Fingeravtryck för den uppdatering användaren redan blivit underrättad om."""
+        with self._lock:
+            return _coerce_str(self._data.get("update_notified", ""), "")[:64]
+
+    @_log_setter("update_notified")
+    def set_update_notified(self, fp: str) -> bool:
+        v = _coerce_str(fp, "")[:64]
+        with self._lock:
+            self._data["update_notified"] = v
+        self._dirty = True
         self._save_async_worker(self._data)
         return True
 
