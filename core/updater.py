@@ -436,21 +436,32 @@ def restore_backup(app_dir: Path, backup_dir: Path) -> int:
 # Omstart
 # ---------------------------------------------------------------------------
 
+_RESTART_PROGRAM = (
+    "import sys, time, subprocess\n"
+    "time.sleep(float(sys.argv[1]))\n"
+    "kw = {'cwd': sys.argv[3], 'close_fds': True}\n"
+    "if sys.platform == 'win32':\n"
+    "    kw['creationflags'] = 0x00000008 | 0x00000200 | 0x08000000\n"
+    "else:\n"
+    "    kw['start_new_session'] = True\n"
+    "subprocess.Popen([sys.executable, sys.argv[2]], **kw)\n"
+)
+
+
 def restart_command(app_dir: Path, delay_sec: int = RESTART_DELAY_SEC) -> List[str]:
-    """Kommando som väntar ``delay_sec`` s och sedan startar appen (pythonw på Windows)."""
-    exe = sys.executable
-    if exe.lower().endswith("python.exe"):
-        pw = Path(exe).with_name("pythonw.exe")
-        if pw.is_file():
-            exe = str(pw)
+    """
+    Kommando som väntar ``delay_sec`` s och sedan startar appen (pythonw på Windows).
+
+    Hjälparen är ett litet Python-program (``python -c``), INTE ``cmd /c "… start "" …"``:
+    Python citerar de inre citattecknen som ``\\"`` och cmd.exe förstår inte det — ``start`` fick då
+    en bakstreck som program och Windows svarade "Det går inte att hitta '\\'" (appen startade
+    aldrig om efter en uppdatering). Inga citattecken-trick, inga beroenden av cmd.
+    """
+    exe = _pythonw(sys.executable)
     script = Path(app_dir) / "main.pyw"
     if not script.is_file():
         script = Path(app_dir) / "main.py"
-    if sys.platform == "win32":
-        # ping i stället för 'timeout': timeout kräver en konsol och avbryts direkt utan en
-        inner = f'ping -n {int(delay_sec) + 1} 127.0.0.1 >nul & start "" "{exe}" "{script}"'
-        return ["cmd.exe", "/c", inner]
-    return ["sh", "-c", f'sleep {int(delay_sec)}; exec "{exe}" "{script}"']
+    return [exe, "-c", _RESTART_PROGRAM, str(int(delay_sec)), str(script), str(app_dir)]
 
 
 def _pythonw(exe: str) -> str:

@@ -174,6 +174,20 @@ with tempfile.TemporaryDirectory() as d:
 # omstartskommando
 cmd = updater.restart_command(ROOT, 3)
 check("omstartskommando innehåller main.pyw", "main.pyw" in " ".join(cmd) or "main.py" in " ".join(cmd))
+check("omstartskommando använder inte cmd.exe (citattecken-buggen: 'Det går inte att hitta \\\\')",
+      "cmd" not in Path(cmd[0]).name.lower() and "start" not in cmd[2].split("\n")[0])
+import subprocess as _sp
+import time as _t
+with tempfile.TemporaryDirectory() as _d:
+    _app = Path(_d) / "mapp med mellanslag"
+    _app.mkdir()
+    (_app / "main.pyw").write_text("from pathlib import Path\nPath('startad.txt').write_text('ja')\n", encoding="utf-8")
+    _sp.run(updater.restart_command(_app, 1), timeout=30)
+    _t0 = _t.time()
+    while not (_app / "startad.txt").exists() and _t.time() - _t0 < 10:
+        _t.sleep(0.2)
+    check("omstartshjälparen startar skriptet på riktigt (sökväg med mellanslag)", (_app / "startad.txt").exists())
+    check("... och startar det i appmappen (cwd)", (_app / "startad.txt").exists())
 
 # --- förlopp, fingeravtryck, dygnsgräns ---------------------------------------
 with tempfile.TemporaryDirectory() as d:
