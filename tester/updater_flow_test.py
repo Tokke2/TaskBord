@@ -40,6 +40,7 @@ NAMES = {
     "_refresh_update_action", "_update_action_text", "_check_for_updates", "_update_finish",
     "_poll_update_check", "_finish_check", "_finish_apply", "_auto_update_check",
     "_notify_update_available", "_on_tray_message_clicked", "_toggle_auto_update",
+    "_update_failed_fp",
 }
 methods = {}
 for node in (n for t in trees for n in ast.walk(t)):
@@ -91,6 +92,7 @@ class FakeSettings:
     def set_update_last_check(self, v): self.last = v
     def update_notified(self): return self.notified
     def set_update_notified(self, v): self.notified = v
+    def update_failed(self): return ""
 
 
 class Log:

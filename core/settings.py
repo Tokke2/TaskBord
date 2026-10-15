@@ -1323,6 +1323,7 @@ class Settings(QObject):
             "update_check_enabled": True,
             "update_last_check": 0,        # epoch-sekunder, senaste LYCKADE kollen
             "update_notified": "",         # fingeravtryck för uppdatering vi redan sagt till om
+            "update_failed": "",           # fingeravtryck för uppdatering som återställdes (startade inte)
             # NY: Thunderbird-tillägget (.xpi) — se core/addon_watch.py
             "addon_xpi_seen": "",          # .xpi som användaren bekräftat installerad
             "addon_xpi_notified": "",      # .xpi vi redan visat notis om
@@ -1386,6 +1387,7 @@ class Settings(QObject):
             "update_check_enabled": lambda v: _coerce_bool(v, True),
             "update_last_check": lambda v: _coerce_int(v, 0, 0, 4102444800),
             "update_notified": lambda v: _coerce_str(v, "")[:64],
+            "update_failed": lambda v: _coerce_str(v, "")[:64],
             "addon_xpi_seen": lambda v: _coerce_str(v, "")[:64],
             "addon_xpi_notified": lambda v: _coerce_str(v, "")[:64],
             "autostart_method": lambda v: _coerce_str(v, DEFAULT_AUTOSTART_METHOD, VALID_AUTOSTART_METHODS),
@@ -2854,6 +2856,21 @@ class Settings(QObject):
         v = _coerce_str(fp, "")[:64]
         with self._lock:
             self._data["update_notified"] = v
+        self._dirty = True
+        self._save_async_worker(self._data)
+        return True
+
+    @_log_call
+    def update_failed(self) -> str:
+        """Fingeravtryck för en uppdatering som fick appen att inte starta (och därför återställdes)."""
+        with self._lock:
+            return _coerce_str(self._data.get("update_failed", ""), "")[:64]
+
+    @_log_setter("update_failed")
+    def set_update_failed(self, fp: str) -> bool:
+        v = _coerce_str(fp, "")[:64]
+        with self._lock:
+            self._data["update_failed"] = v
         self._dirty = True
         self._save_async_worker(self._data)
         return True

@@ -213,12 +213,16 @@ class UpdateMixin:
             extra = ("\n\n⚠️ requirements.txt har ändrats. Efter uppdateringen: kör "
                      "FORSTA_START.bat (installerar nya paket). Appen startar inte om "
                      "automatiskt.")
+        if updater.fingerprint(info) == self._update_failed_fp():
+            extra += ("\n\n⚠️ Just den här uppdateringen fick TaskBord att inte starta förra gången och "
+                      "återställdes automatiskt. Installera den bara om du vet att något ändrats.")
         if not self._update_dialog(
             "ask", "Ny version finns",
             updater.describe(info)
             + "\n\nDina uppgifter och inställningar (js\\ och data\\) rörs inte. "
               "Ersatta filer sparas i data\\backups\\app-update\\.\n"
-              "Appen startar om efter uppdateringen." + extra,
+              "Appen startar om efter uppdateringen. Kommer den inte igång inom 60 sekunder "
+              "återställs den förra versionen automatiskt." + extra,
         ):
             self._update_finish()
             return
@@ -280,13 +284,84 @@ class UpdateMixin:
             "info", "Uppdaterad",
             f"{len(info.changed)} fil(er) uppdaterade. TaskBord startar om nu." + _addon_note,
         )
-        if updater.schedule_restart(SCRIPT_DIR):
+        if updater.schedule_restart(SCRIPT_DIR, backup_root=payload):
             self.shutdown()
         else:
             self._update_dialog(
                 "warn", "Uppdaterad",
                 "Starta om TaskBord manuellt (Avsluta i tray-menyn, starta sedan igen).",
             )
+
+    # --- självläkande uppdatering (core/update_watchdog.py) -------------
+    _update_guard_pending = False
+
+    def _init_update_guard(self) -> None:
+        """
+        Startades vi av väktaren efter en uppdatering? Då finns data/update_pending.json.
+        Appen bekräftar att den kom igång (tar bort filen) ~10 s efter start — annars
+        återställer väktaren de gamla filerna efter 60 s. Visar även ett meddelande om en
+        återställning skett sedan sist.
+        """
+        from core import update_watchdog as wd
+        self._update_guard_pending = wd.read_pending(SCRIPT_DIR) is not None
+        if self._update_guard_pending:
+            self._log.info(f"{LOG_PREFIX} startad efter uppdatering — bekräftar att allt fungerar om 10 s")
+            self._QTimer.singleShot(10_000, self._confirm_update_health)
+        self._QTimer.singleShot(8_000, self._show_update_rollback_notice)
+
+    def _update_failed_fp(self) -> str:
+        """Fingeravtryck för uppdateringen som senast återställdes ('' om ingen)."""
+        try:
+            return str(self.settings.update_failed() or "")
+        except Exception:
+            return ""
+
+    def _confirm_update_health(self, on_exit: bool = False) -> None:
+        if not self._update_guard_pending:
+            return
+        if on_exit and time.time() - getattr(self, "_start_time", time.time()) < 3:
+            return      # föll direkt efter start: låt väktaren bedöma
+        from core import update_watchdog as wd
+        self._update_guard_pending = False
+        if wd.confirm_healthy(SCRIPT_DIR):
+            self._log.info(f"{LOG_PREFIX} uppdateringen bekräftad som fungerande")
+        with suppress(Exception):
+            if self.settings.update_failed():
+                self.settings.set_update_failed("")
+
+    def _show_update_rollback_notice(self) -> None:
+        """Visa (en gång) att en uppdatering återställdes eftersom appen inte startade."""
+        from core import update_watchdog as wd
+        info = wd.read_rollback(SCRIPT_DIR)
+        if not info:
+            return
+        wd.clear_rollback(SCRIPT_DIR)
+        fp = str(info.get("fingerprint") or "")
+        if fp:
+            with suppress(Exception):
+                self.settings.set_update_failed(fp)
+        tag = str(info.get("tag") or "?")
+        commit = str(info.get("commit") or "")[:7]
+        self._log.warning(
+            f"{LOG_PREFIX} uppdateringen {tag} {commit} återställdes automatiskt: {info.get('reason')}"
+        )
+        text = (
+            f"Uppdateringen till {tag}{' (' + commit + ')' if commit else ''} fick TaskBord att inte "
+            f"starta ({info.get('reason', 'okänd orsak')}).\n\n"
+            f"Din förra version har återställts automatiskt "
+            f"({info.get('restored', 0)} fil(er) tillbaka, {info.get('removed', 0)} nya borttagna). "
+            "Dina uppgifter och inställningar är orörda.\n\n"
+            "Du får inte fler notiser om just den här uppdateringen. "
+            "Detaljer: data\\update_watchdog.log. Backup: " + str(info.get("backup", ""))
+        )
+        with suppress(Exception):
+            if self._tray is not None:
+                self._tray.showMessage(
+                    "↩️ Uppdateringen återställdes", f"{tag} startade inte — din förra version är tillbaka.",
+                    self._QSystemTrayIcon.MessageIcon.Warning, 10000,
+                )
+        with suppress(Exception):
+            self._update_dialog("warn", "Uppdateringen återställdes", text)
 
     # --- automatisk, tyst koll (max 1 gång/dygn) ------------------------
     def _init_update_check(self) -> None:
@@ -322,6 +397,9 @@ class UpdateMixin:
             return
         fp = updater.fingerprint(info)
         self._log.info(f"{LOG_PREFIX} ny version finns ({info.tag}, {len(info.changed)} filer, {fp})")
+        if fp and fp == self._update_failed_fp():
+            self._log.info(f"{LOG_PREFIX} den här uppdateringen återställdes förut (startade inte) — ingen notis")
+            return
         if fp == self.settings.update_notified():
             return
         with suppress(Exception):

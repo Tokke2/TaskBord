@@ -331,6 +331,15 @@ def check_for_update(
     )
 
 
+def _watchdog():
+    """core/update_watchdog.py (heter ``core.update_watchdog`` eller ``update_watchdog`` beroende på sys.path)."""
+    try:
+        from core import update_watchdog as w
+    except ImportError:
+        import update_watchdog as w  # type: ignore[no-redef]
+    return w
+
+
 def apply_update(app_dir: Path, info: UpdateInfo,
                  progress: Optional[ProgressCb] = None) -> Path:
     """
@@ -347,6 +356,13 @@ def apply_update(app_dir: Path, info: UpdateInfo,
     written: List[Tuple[Path, bool]] = []   # (sökväg, fanns innan)
     _p: ProgressCb = progress or (lambda *_a: None)
     total = len(info.changed)
+    # Väktaren (self-healing): en kopia av den NUVARANDE, fungerande koden läggs i backupen INNAN
+    # något byts, så att den inte påverkas om den nya koden är trasig.
+    guard_ok = False
+    try:
+        guard_ok = _watchdog().copy_self_to(backup_root)
+    except Exception as e:
+        logger.warning(f"{LOG_PREFIX} kunde inte lägga väktaren i backupen: {e}")
     try:
         for i, rel in enumerate(info.changed, 1):
             _p("install", i - 1, total)
@@ -366,6 +382,17 @@ def apply_update(app_dir: Path, info: UpdateInfo,
         rollback(app_dir, backup_root, written)
         raise UpdateError(f"Installationen misslyckades och återställdes: {e}") from e
     (backup_root).mkdir(parents=True, exist_ok=True)
+    if guard_ok:
+        try:
+            _watchdog().write_manifest(backup_root, {
+                "tag": info.tag, "commit": info.commit, "fingerprint": fingerprint(info),
+                "stamp": stamp,
+                "replaced": [t.relative_to(app_dir).as_posix() for t, existed in written if existed],
+                "new": [t.relative_to(app_dir).as_posix() for t, existed in written if not existed],
+            })
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} kunde inte skriva manifest: {e}")
+            guard_ok = False
     _p("done", total, total)
     try:
         (backup_root / "UPPDATERING.txt").write_text(
@@ -396,7 +423,7 @@ def restore_backup(app_dir: Path, backup_dir: Path) -> int:
     n = 0
     backup_dir = Path(backup_dir)
     for p in backup_dir.rglob("*"):
-        if p.is_file() and p.name != "UPPDATERING.txt":
+        if p.is_file() and p.name not in ("UPPDATERING.txt", "manifest.json", "watchdog.py"):
             rel = p.relative_to(backup_dir)
             dst = Path(app_dir, *rel.parts)
             dst.parent.mkdir(parents=True, exist_ok=True)
@@ -426,8 +453,23 @@ def restart_command(app_dir: Path, delay_sec: int = RESTART_DELAY_SEC) -> List[s
     return ["sh", "-c", f'sleep {int(delay_sec)}; exec "{exe}" "{script}"']
 
 
-def schedule_restart(app_dir: Path, delay_sec: int = RESTART_DELAY_SEC) -> bool:
-    """Starta en frikopplad hjälpare som startar om appen när den här har avslutats."""
+def _pythonw(exe: str) -> str:
+    if exe.lower().endswith("python.exe"):
+        pw = Path(exe).with_name("pythonw.exe")
+        if pw.is_file():
+            return str(pw)
+    return exe
+
+
+def schedule_restart(app_dir: Path, delay_sec: int = RESTART_DELAY_SEC,
+                     backup_root: Optional[Path] = None) -> bool:
+    """
+    Starta en frikopplad hjälpare som startar om appen när den här har avslutats.
+
+    Med ``backup_root`` (från ``apply_update``) är hjälparen VÄKTAREN: den startar den uppdaterade
+    appen och återställer filerna från backupen om appen inte kommit igång inom 60 s
+    (se core/update_watchdog.py). Utan backup används den enkla omstartaren.
+    """
     try:
         kwargs: Dict[str, object] = {"cwd": str(app_dir), "close_fds": True}
         if sys.platform == "win32":
@@ -438,7 +480,28 @@ def schedule_restart(app_dir: Path, delay_sec: int = RESTART_DELAY_SEC) -> bool:
             )
         else:
             kwargs["start_new_session"] = True
-        subprocess.Popen(restart_command(app_dir, delay_sec), **kwargs)  # type: ignore[arg-type]
+        cmd: Optional[List[str]] = None
+        if backup_root is not None:
+            try:
+                w = _watchdog()
+                bk = Path(backup_root)
+                if (bk / w.WATCHDOG_COPY_NAME).is_file() and (bk / w.MANIFEST_NAME).is_file():
+                    script = Path(app_dir) / "main.pyw"
+                    if not script.is_file():
+                        script = Path(app_dir) / "main.py"
+                    meta = json.loads((bk / w.MANIFEST_NAME).read_text(encoding="utf-8"))
+                    if w.write_pending(Path(app_dir), {
+                        "backup": str(bk), "tag": meta.get("tag", ""), "commit": meta.get("commit", ""),
+                        "fingerprint": meta.get("fingerprint", ""),
+                    }):
+                        cmd = w.guard_command(Path(app_dir), bk, _pythonw(sys.executable), script, delay_sec)
+            except Exception as e:
+                logger.warning(f"{LOG_PREFIX} väktaren kunde inte förberedas ({e}) — vanlig omstart")
+        if cmd is None:
+            cmd = restart_command(app_dir, delay_sec)
+        else:
+            logger.info(f"{LOG_PREFIX} omstart med väktare (återställer vid uteblivet start, backup {backup_root})")
+        subprocess.Popen(cmd, **kwargs)  # type: ignore[arg-type]
         return True
     except Exception as e:
         logger.error(f"{LOG_PREFIX} kunde inte schemalägga omstart: {e}")

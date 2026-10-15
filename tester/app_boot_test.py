@@ -70,6 +70,13 @@ seed = [{"id": "plain001", "title": "Vanlig uppgift"},
          "email_message_id": "<m2@x>"}]
 (app_copy / "js" / "active.json").write_text(json.dumps({"version": 5, "tasks": seed}), encoding="utf-8")
 
+# som efter en uppdatering: väktaren har lagt update_pending.json (appen ska bekräfta den) och en
+# tidigare återställning har lämnat update_rollback.json (appen ska berätta om den)
+(app_copy / "data").mkdir(exist_ok=True)
+(app_copy / "data" / "update_pending.json").write_text(json.dumps({"tag": "v1.0.0", "started": time.time()}), encoding="utf-8")
+(app_copy / "data" / "update_rollback.json").write_text(json.dumps(
+    {"reason": "test", "tag": "v1.0.0", "commit": "abcdef0", "fingerprint": "f" * 16, "restored": 1, "removed": 0}), encoding="utf-8")
+
 proc = subprocess.Popen([sys.executable, "main.pyw"], cwd=app_copy, env=env,
                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 log = app_copy / "data" / "todo_app.log"
@@ -82,6 +89,14 @@ while time.time() - t0 < 60:
             break
     time.sleep(0.5)
 time.sleep(1.5)   # låt de första timrarna hinna gå
+# uppdateringsväktaren: appen ska ta bort update_pending.json ~10 s efter uppstart och ha tagit
+# hand om återställningsmeddelandet (~8 s)
+t1 = time.time()
+while time.time() - t1 < 30 and ((app_copy / "data" / "update_pending.json").exists()
+                                 or (app_copy / "data" / "update_rollback.json").exists()):
+    time.sleep(0.5)
+guard_cleared = not (app_copy / "data" / "update_pending.json").exists()
+rollback_taken = not (app_copy / "data" / "update_rollback.json").exists()
 alive = proc.poll() is None
 proc.kill()
 out = proc.communicate()[0] or ""
@@ -102,6 +117,8 @@ check("inga ERROR/CRITICAL i loggen", not any(("| ERROR" in l or "| CRITICAL" in
       "\n".join(l[:200] for l in text.splitlines() if "| ERROR" in l or "| CRITICAL" in l)[:600])
 check("inga ohanterade undantag", "OHANTERAT" not in text)
 check("appen levde när testet avslutade den", alive)
+check("uppdateringen bekräftades (update_pending.json borta)", guard_cleared)
+check("återställningsmeddelandet hanterades", rollback_taken and "återställdes automatiskt" in text)
 
 shutil.rmtree(work, ignore_errors=True)
 print(f"\napp_boot_test: {ok} lyckades, {fail} misslyckades")

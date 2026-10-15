@@ -27,6 +27,14 @@ finns kvar efter omstart.
   så importeras de automatiskt (även mail som kom när appen var avstängd).
 * **📧-knappen i widgeten / tray-menyn** — importera vanliga
   `.eml`/`.msg`-filer från disken.
+* **📧 Öppna mejlet** — varje uppgift som kommer från ett mail har en 📧-knapp på kortet (och
+  *📧 Öppna mejlet* i högerklicksmenyn). Den öppnar originalmailet (`.eml`) i ditt mailprogram.
+  Har appmappen flyttats hittas filen ändå i `js\emails\`; finns den inte kvar visas den sparade
+  mailtexten (avsändare, ämne, text) i en ruta i stället för att knappen verkar död.
+* **🧩 Nytt Thunderbird-tillägg** — Thunderbird byter inte ut ett installerat tillägg av sig självt.
+  Ändras `TaskBord-Thunderbird.xpi` i appmappen (t.ex. vid en uppdatering) får du en tray-notis och
+  en menyrad *🆕 Nytt Thunderbird-tillägg — installera om…* med knapp **📂 Visa filen** (öppnar mappen
+  med filen markerad) och **✔ Jag har installerat det**. Jämförs på innehåll, inte versionsnummer.
 
 Full guide (installation, API, felsökning, JSON-format):
 **[THUNDERBIRD.md](THUNDERBIRD.md)**
@@ -58,11 +66,26 @@ filerna med din installation (innehållet, inte versionsnumret — releasen kan 
 * **Dina uppgifter rörs inte:** `js\` (uppgifter, inställningar, Google-koppling) och `data\`
   (loggar, backuper) hoppas alltid över. Uppgifterna sparas och backas upp före uppdateringen.
 * **Ångra:** ersatta filer sparas i `data\backups\app-update\<tid>\`.
+* **Självläkande:** efter uppdateringen startar en liten väktare (`core/update_watchdog.py`, en kopia
+  av den gamla, fungerande koden i backupmappen) den nya appen och väntar upp till **60 sekunder** på
+  att den kommit igång. Kraschar eller hänger den sig återställs de gamla filerna automatiskt, nya
+  filer tas bort och den förra versionen startas igen. Nästa start berättar vad som hänt, och just
+  den uppdateringen aviseras inte igen. Loggen finns i `data\update_watchdog.log`. (Skyddet kommer
+  från den version som kör uppdateringen — den första uppdateringen *till* en version med väktaren
+  går alltså utan skydd.)
 * **Säkert:** hämtar bara från GitHub över https, kompilerar alla Python-filer först (en trasig
   release installeras aldrig), rullar tillbaka om något går fel och skriver inget utanför
   appmappen. Filer du själv lagt till tas inte bort.
 * Appen startar om automatiskt. Ändras `requirements.txt` ska du köra `FORSTA_START.bat`.
 * Kör du från en git-mapp (`.git`) används `git pull` i stället.
+
+## ⌨️ Snabbtangent för ny uppgift
+
+Standard **Ctrl+Alt+N** öppnar rutan för ny uppgift var som helst i Windows. Ändra den:
+tray → **⌨️ Ändra snabbtangent för ny uppgift…** — klicka i rutan och *tryck* kombinationen (inget
+att skriva). Dialogen säger direkt om den duger (minst två av Ctrl/Alt/Shift eller Win, inte en
+Windows-genväg, inte samma som Visa-över-tangenten), *Standard* återställer och *Stäng av* tar bort
+den. Är tangenten upptagen av ett annat program behålls den gamla. Gäller direkt, ingen omstart.
 
 ## 💾 Backup av uppgifter
 
@@ -150,7 +173,7 @@ Sedan:
 | --- | --- |
 | `app/bootstrap.py` | `run()` — hela uppstartsflödet, global felhanterare |
 | `app/controller.py` | `AppController`, sätts ihop av mixins |
-| `app/mixins/*.py` | en fil per ansvar: `tray`, `updates`, `mail_bridge_ctl`, `autostart`, `windows`, `desktop_shell`, `hotkeys`, `reminders`, `backup_sync`, `exports`, `diagnostics`, `app_icon`, `plugin_updates`, `maintenance` |
+| `app/mixins/*.py` | en fil per ansvar: `tray`, `updates`, `addon_update`, `mail_bridge_ctl`, `autostart`, `windows`, `desktop_shell`, `hotkeys`, `reminders`, `backup_sync`, `exports`, `diagnostics`, `app_icon`, `plugin_updates`, `maintenance` |
 | `app/constants.py` | version, sökvägar (`SCRIPT_DIR` = appmappen), enums, undantag |
 | `app/*.py` (övriga) | loggning, plugin-system, central logg, prestanda, förkontroller, modulladdning |
 

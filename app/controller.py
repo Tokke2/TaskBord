@@ -483,6 +483,10 @@ class AppController(
         with suppress(Exception):
             self._init_external_backup()
 
+        # 6e-3a. NY: självläkande uppdatering — bekräfta uppstarten för väktaren
+        with suppress(Exception):
+            self._init_update_guard()
+
         # 6e-3. NY v8: tyst, automatisk koll efter ny version (max 1 gång/dygn)
         with suppress(Exception):
             self._init_update_check()
@@ -755,6 +759,10 @@ class AppController(
             )
             return
         self._shutdown_initiated = True
+        # NY: ren avslutning efter en uppdatering räknas som "kom igång" (annars skulle
+        # väktaren återställa en fungerande uppdatering om du stänger appen inom 10 s)
+        with suppress(Exception):
+            self._confirm_update_health(on_exit=True)
         # Använd svensk uptime-text i loggen
         uptime_sec = time.time() - getattr(self, "_start_time", time.time())
         uptime_sv = format_uptime(uptime_sec)
