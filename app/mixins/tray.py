@@ -619,6 +619,14 @@ class TrayMixin:
                 dump_action.triggered.connect(self._dump_subsystem_status)
                 self._tray_menu.addAction(dump_action)
 
+            bug_action = self._QAction("🩺  Skapa felrapport…", self._tray_menu)
+            bug_action.setToolTip(
+                "Packar logg, inställningar och versioner i en ZIP (data\\felrapporter).\n"
+                "Dina uppgifter, Google-koppling och mail tas INTE med."
+            )
+            bug_action.triggered.connect(self._create_bug_report)
+            self._tray_menu.addAction(bug_action)
+
             about_action = self._QAction("ℹ  Om…", self._tray_menu)
             about_action.triggered.connect(self.show_about)
             self._tray_menu.addAction(about_action)

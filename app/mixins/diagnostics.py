@@ -11,7 +11,7 @@ from contextlib import suppress
 from typing import Any, Dict, List
 
 from app.central_log import get_central_log_stats
-from app.constants import APP_DESCRIPTION, APP_NAME, APP_VERSION, APP_VERSION_DISPLAY, COPYRIGHT_YEARS, LOG_PREFIX, ORG_NAME
+from app.constants import APP_DESCRIPTION, APP_NAME, APP_VERSION, APP_VERSION_DISPLAY, COPYRIGHT_YEARS, LOG_PREFIX, ORG_NAME, SCRIPT_DIR
 from app.errors import _describe_exception, _format_compact_traceback, show_error_dialog
 from app.formatting import format_bytes, format_uptime
 from app.jsonutil import _HAS_ORJSON, _json_dumps
@@ -285,6 +285,32 @@ class DiagnosticsMixin:
             )
             show_error_dialog(
                 title="Doctor misslyckades",
+                user_message=_describe_exception(e),
+                technical=_format_compact_traceback(e),
+                category="code_bug",
+            )
+
+    def _create_bug_report(self) -> None:
+        """🩺 Skapa felrapport: ZIP med logg/inställningar/versioner (utan uppgifter), visas i Utforskaren."""
+        try:
+            from core import addon_watch, bugreport
+            extra = {"Release": APP_VERSION_DISPLAY}
+            with suppress(Exception):
+                extra["Uppgifter"] = f"{len(self.store.active_tasks())} aktiva (innehållet tas inte med)"
+            out = bugreport.create_report(SCRIPT_DIR, extra=extra)
+            self._log.info(f"{LOG_PREFIX} felrapport skapad: {out}")
+            addon_watch.reveal_in_folder(out)
+            if self._tray is not None:
+                with suppress(Exception):
+                    self._tray.showMessage(
+                        "🩺 Felrapport skapad",
+                        f"{out.name}\nInnehåller inte dina uppgifter. Mappen är öppnad.",
+                        self._QSystemTrayIcon.MessageIcon.Information, 8000,
+                    )
+        except Exception as e:
+            self._log.error(f"{LOG_PREFIX} felrapport misslyckades: {e}", exc_info=True)
+            show_error_dialog(
+                title="Felrapport misslyckades",
                 user_message=_describe_exception(e),
                 technical=_format_compact_traceback(e),
                 category="code_bug",

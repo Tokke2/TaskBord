@@ -87,6 +87,14 @@ att skriva). Dialogen säger direkt om den duger (minst två av Ctrl/Alt/Shift e
 Windows-genväg, inte samma som Visa-över-tangenten), *Standard* återställer och *Stäng av* tar bort
 den. Är tangenten upptagen av ett annat program behålls den gamla. Gäller direkt, ingen omstart.
 
+## 🩺 Felrapport
+
+tray → **🩺 Skapa felrapport…** packar en ZIP i `data\felrapporter\` (de 10 senaste behålls) och öppnar
+mappen: version/Python/Windows, ett fingeravtryck per programfil (visar exakt vilken kod som körs),
+loggens sista rader och inställningarna. Token och mailadresser maskas, och **dina uppgifter,
+Google-koppling och mailinnehåll tas aldrig med**. Loggen kan ändå nämna uppgiftstitlar — titta
+igenom den innan du skickar den.
+
 ## 💾 Backup av uppgifter
 
 Högerklicka på fönstret (eller tray-ikonen) → **💾 Backup av uppgifter…**
