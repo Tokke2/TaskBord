@@ -101,6 +101,24 @@ class TrayMixin:
             quick_add_action.triggered.connect(self._tray_quick_add_task)
             self._tray_menu.addAction(quick_add_action)
 
+            # Snabbtangenten för ny uppgift: synlig och ändringsbar direkt
+            # i huvudmenyn (inte bara gömd under Snabbkommandon)
+            _qa_on = True
+            with suppress(Exception):
+                _qa_on = bool(self.settings.global_quick_add())
+            _qa_now = self._get_quick_add_hotkey_combo() if _qa_on else "av"
+            change_qa_action = self._QAction(
+                f"⌨️  Ändra snabbtangent för ny uppgift… ({_qa_now})",
+                self._tray_menu,
+            )
+            change_qa_action.setToolTip(
+                "Tryck den tangentkombination du vill ha — gäller direkt"
+            )
+            change_qa_action.triggered.connect(
+                self._change_quick_add_hotkey_dialog
+            )
+            self._tray_menu.addAction(change_qa_action)
+
             # "Lås upp alla" (om något är låst)
             any_locked = any(
                 getattr(w, "_locked", False)
@@ -198,6 +216,11 @@ class TrayMixin:
             )
             _auto_upd.triggered.connect(self._toggle_auto_update)
             self._tray_menu.addAction(_auto_upd)
+
+            # Ny Thunderbird-.xpi väntar på att installeras om
+            _addon_act = self._addon_tray_action()
+            if _addon_act is not None:
+                self._tray_menu.addAction(_addon_act)
 
             # NY v8 (2026-10-12): backup av uppgifter
             self._backup_tasks_action = self._QAction(

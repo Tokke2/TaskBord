@@ -1070,6 +1070,7 @@ def _reset_subtasks(subs: List[Dict[str, Any]]) -> None:
 _EXTRA_TASK_KEYS: Final[Tuple[str, ...]] = (
     "start_date", "note",
     "email_from", "email_subject", "email_body", "email_path", "email_message_id",
+    "email_date", "email_to", "email_attachments",
 )
 _EXTRA_TASK_MAX_LEN: Final[int] = 50_000
 

@@ -32,44 +32,15 @@ try:
 except ImportError:
     skip("PySide6 saknas")
 
-env = dict(os.environ, QT_QPA_PLATFORM="offscreen")
-env.pop("TASKBORD_BACKUP_DIR", None)
 work = Path(tempfile.mkdtemp(prefix="taskbord_boot_"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _qtenv import qt_env  # noqa: E402
 
-
-def qt_imports_ok(e) -> tuple[bool, str]:
-    r = subprocess.run([sys.executable, "-c", "from PySide6.QtWidgets import QApplication, QWidget"],
-                       capture_output=True, text=True, env=e)
-    return r.returncode == 0, r.stderr.strip().splitlines()[-1] if r.stderr.strip() else ""
-
-
-ok_qt, why = qt_imports_ok(env)
-if not ok_qt:
-    if sys.platform != "linux" or not (shutil.which("gcc") and shutil.which("nm")):
-        skip(f"Qt går inte att ladda ({why})")
-    # tomma stubbar för GL/EGL/dbus/xkbcommon (offscreen ritar aldrig med dem)
-    stubs = work / "stubs"
-    stubs.mkdir()
-    qt_lib = Path(PySide6.__file__).parent / "Qt"
-    libs = [str(p) for p in list((qt_lib / "lib").glob("*.so*")) + list((qt_lib / "plugins/platforms").glob("*.so"))]
-    und = subprocess.run(["nm", "-D", "--undefined-only", *libs], capture_output=True, text=True).stdout
-    syms = sorted({l.split()[-1].split("@")[0] for l in und.splitlines() if l.strip()})
-    spec = [("libGL.so.1", lambda s: s.startswith(("gl", "glX")) and s[2:3].isupper() or s.startswith("glX"), None),
-            ("libEGL.so.1", lambda s: s.startswith("egl"), None),
-            ("libdbus-1.so.3", lambda s: s.startswith("dbus_"), "LIBDBUS_1_3"),
-            ("libxkbcommon.so.0", lambda s: s.startswith("xkb_"), "V_0.5.0")]
-    for name, pick, ver in spec:
-        c = stubs / (name + ".c")
-        c.write_text("".join(f"void {s}(void){{}}\n" for s in syms if pick(s)) or "\n")
-        cmd = ["gcc", "-shared", "-o", str(stubs / name), str(c), f"-Wl,-soname,{name}"]
-        if ver:
-            (stubs / (name + ".map")).write_text(f"{ver} {{ global: *; }};\n")
-            cmd.append(f"-Wl,--version-script={stubs / (name + '.map')}")
-        subprocess.run(cmd, check=True, capture_output=True)
-    env["LD_LIBRARY_PATH"] = str(stubs) + os.pathsep + env.get("LD_LIBRARY_PATH", "")
-    ok_qt, why = qt_imports_ok(env)
-    if not ok_qt:
-        skip(f"Qt går inte att ladda ens med stubbar ({why})")
+env, why = qt_env(work)
+if env is None:
+    shutil.rmtree(work, ignore_errors=True)
+    skip(why)
+env.pop("TASKBORD_BACKUP_DIR", None)
 
 # --- kopia av projektet (utan .git, js, data) ------------------------------------
 app_copy = work / "TaskBord"
@@ -86,6 +57,18 @@ def check(name, cond, extra=""):
         fail += 1
         print("  ✗", name, extra)
 
+
+# tre uppgifter: vanlig, mail med flyttad (död) filsökväg och mail med bara sparad text — korten
+# (inkl. 📧-knappen) byggs på riktigt vid start
+import json  # noqa: E402
+(app_copy / "js" / "emails").mkdir(parents=True, exist_ok=True)
+(app_copy / "js" / "emails" / "mail00001.eml").write_text("From: a@b\nSubject: x\n\nhej\n", encoding="utf-8")
+seed = [{"id": "plain001", "title": "Vanlig uppgift"},
+        {"id": "mail00001", "title": "Mail med flyttad fil", "email_from": "Anna <a@x>", "email_subject": "Rapport",
+         "email_path": "D:\\Program\\todo\\js\\emails\\mail00001.eml"},
+        {"id": "mail00002", "title": "Mail utan fil", "email_from": "Bo <b@x>", "email_body": "text",
+         "email_message_id": "<m2@x>"}]
+(app_copy / "js" / "active.json").write_text(json.dumps({"version": 5, "tasks": seed}), encoding="utf-8")
 
 proc = subprocess.Popen([sys.executable, "main.pyw"], cwd=app_copy, env=env,
                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
@@ -113,6 +96,8 @@ check("appen startade klart (AppController klar)", "AppController klar" in text,
 check("release loggades", "Release: v" in text)
 check("e-postbryggan startade", "E-postbrygga: http=PÅ" in text)
 check("fönstret ritades (start: N aktiva)", "start: " in text and "aktiva" in text)
+check("de 3 seedade uppgifterna ritades (inkl. mailkorten)", "start: 3 aktiva" in text, text[-300:])
+check("inget kort misslyckades att byggas", "_build_task_widget" not in text and "_rebuild_task_list misslyckades" not in text)
 check("inga ERROR/CRITICAL i loggen", not any(("| ERROR" in l or "| CRITICAL" in l) for l in text.splitlines()),
       "\n".join(l[:200] for l in text.splitlines() if "| ERROR" in l or "| CRITICAL" in l)[:600])
 check("inga ohanterade undantag", "OHANTERAT" not in text)

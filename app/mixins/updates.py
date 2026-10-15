@@ -271,9 +271,14 @@ class UpdateMixin:
                 "nya paket och starta om TaskBord.",
             )
             return
+        _addon_note = (
+            "\n\nThunderbird-tillägget har också ändrats — efter omstarten får du en "
+            "påminnelse med en knapp som öppnar mappen med den nya filen."
+            if "TaskBord-Thunderbird.xpi" in info.changed else ""
+        )
         self._update_dialog(
             "info", "Uppdaterad",
-            f"{len(info.changed)} fil(er) uppdaterade. TaskBord startar om nu.",
+            f"{len(info.changed)} fil(er) uppdaterade. TaskBord startar om nu." + _addon_note,
         )
         if updater.schedule_restart(SCRIPT_DIR):
             self.shutdown()

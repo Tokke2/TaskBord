@@ -1323,6 +1323,9 @@ class Settings(QObject):
             "update_check_enabled": True,
             "update_last_check": 0,        # epoch-sekunder, senaste LYCKADE kollen
             "update_notified": "",         # fingeravtryck för uppdatering vi redan sagt till om
+            # NY: Thunderbird-tillägget (.xpi) — se core/addon_watch.py
+            "addon_xpi_seen": "",          # .xpi som användaren bekräftat installerad
+            "addon_xpi_notified": "",      # .xpi vi redan visat notis om
             "_meta": {
                 "schema_version": SETTINGS_VERSION,
                 "created_at": datetime.now(timezone.utc).isoformat(),
@@ -1383,6 +1386,8 @@ class Settings(QObject):
             "update_check_enabled": lambda v: _coerce_bool(v, True),
             "update_last_check": lambda v: _coerce_int(v, 0, 0, 4102444800),
             "update_notified": lambda v: _coerce_str(v, "")[:64],
+            "addon_xpi_seen": lambda v: _coerce_str(v, "")[:64],
+            "addon_xpi_notified": lambda v: _coerce_str(v, "")[:64],
             "autostart_method": lambda v: _coerce_str(v, DEFAULT_AUTOSTART_METHOD, VALID_AUTOSTART_METHODS),
             "animations": lambda v: _coerce_bool(v, True),
             "start_minimized_to_tray": lambda v: _coerce_bool(v, False),
@@ -2849,6 +2854,36 @@ class Settings(QObject):
         v = _coerce_str(fp, "")[:64]
         with self._lock:
             self._data["update_notified"] = v
+        self._dirty = True
+        self._save_async_worker(self._data)
+        return True
+
+    @_log_call
+    def addon_xpi_seen(self) -> str:
+        """Fingeravtryck för den Thunderbird-.xpi användaren bekräftat installerad."""
+        with self._lock:
+            return _coerce_str(self._data.get("addon_xpi_seen", ""), "")[:64]
+
+    @_log_setter("addon_xpi_seen")
+    def set_addon_xpi_seen(self, fp: str) -> bool:
+        v = _coerce_str(fp, "")[:64]
+        with self._lock:
+            self._data["addon_xpi_seen"] = v
+        self._dirty = True
+        self._save_async_worker(self._data)
+        return True
+
+    @_log_call
+    def addon_xpi_notified(self) -> str:
+        """Fingeravtryck för den .xpi vi redan visat en notis om."""
+        with self._lock:
+            return _coerce_str(self._data.get("addon_xpi_notified", ""), "")[:64]
+
+    @_log_setter("addon_xpi_notified")
+    def set_addon_xpi_notified(self, fp: str) -> bool:
+        v = _coerce_str(fp, "")[:64]
+        with self._lock:
+            self._data["addon_xpi_notified"] = v
         self._dirty = True
         self._save_async_worker(self._data)
         return True

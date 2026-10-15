@@ -180,49 +180,6 @@ def parse_args(argv: List[str]) -> Tuple[AppConfig, AppMode]:
 # SAFE IMPORTS
 # ===========================================================================
 
-def parse_hotkey_combo(combo: str) -> Tuple[int, int]:
-    """
-    NY v7-fix69: tolka 'Ctrl+Alt+V' → (mod-flaggor, vk-kod).
-
-    Returnerar (0, 0) vid ogiltig kombination.
-    Stöd: Ctrl/Control, Alt, Shift, Win + A-Z, 0-9, F1-F12,
-    Space, Enter, Tab.
-    """
-    try:
-        mods = 0
-        vk = 0
-        parts = [
-            p.strip().lower() for p in str(combo).split("+") if p.strip()
-        ]
-        if not parts:
-            return (0, 0)
-        for part in parts:
-            if part in ("ctrl", "control"):
-                mods |= 0x0002
-            elif part == "alt":
-                mods |= 0x0001
-            elif part == "shift":
-                mods |= 0x0004
-            elif part in ("win", "super", "meta"):
-                mods |= 0x0008
-            elif len(part) == 1 and "a" <= part <= "z":
-                vk = ord(part.upper())  # 0x41-0x5A
-            elif len(part) == 1 and "0" <= part <= "9":
-                vk = ord(part)  # 0x30-0x39
-            elif part == "space":
-                vk = 0x20
-            elif part == "enter":
-                vk = 0x0D
-            elif part == "tab":
-                vk = 0x09
-            elif len(part) in (2, 3) and part[0] == "f" and part[1:].isdigit():
-                n = int(part[1:])
-                if 1 <= n <= 12:
-                    vk = 0x70 + (n - 1)
-            else:
-                return (0, 0)
-        if vk == 0:
-            return (0, 0)  # Ingen huvudtangent
-        return (mods, vk)
-    except Exception:
-        return (0, 0)
+# Tolkning av snabbtangenter bor i core/hotkey_combo.py (ren Python, testbar);
+# återexporteras här så att befintliga importer fortsätter fungera.
+from core.hotkey_combo import parse_hotkey_combo  # noqa: E402,F401

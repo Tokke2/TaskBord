@@ -14,6 +14,7 @@ from typing import Any, ClassVar, Dict, List, Optional, Tuple
 from app.config import AppConfig, error_boundary
 from app.constants import APP_NAME, AppMode, GlassStyle, LOG_PREFIX, SCRIPT_DIR, StartupError, Timeouts
 from app.formatting import format_uptime
+from app.mixins.addon_update import AddonUpdateMixin
 from app.mixins.app_icon import AppIconMixin
 from app.mixins.autostart import AutostartMixin
 from app.mixins.backup_sync import BackupSyncMixin
@@ -45,6 +46,7 @@ class AppController(
     BackupSyncMixin,
     MailBridgeMixin,
     UpdateMixin,
+    AddonUpdateMixin,
     PluginUpdateMixin,
     TrayMixin,
     AutostartMixin,
@@ -484,6 +486,10 @@ class AppController(
         # 6e-3. NY v8: tyst, automatisk koll efter ny version (max 1 gång/dygn)
         with suppress(Exception):
             self._init_update_check()
+
+        # 6e-4. NY: påminn när Thunderbird-tillägget (.xpi) ändrats
+        with suppress(Exception):
+            self._init_addon_notice()
 
         # 6e. NY v7-fix90: e-postbrygga (Thunderbird-tillägg) + inkorgsmapp
         # (tar emot mail från tillägget och skapar uppgifter som sparas i JSON)

@@ -287,6 +287,16 @@ GLASS_LIGHT: Final[Dict[str, str]] = {
 }
 
 
+def _task_has_email(task: Dict[str, Any]) -> bool:
+    """Kommer uppgiften från ett mail? (fil ELLER sparad mailtext)"""
+    return any(
+        task.get(k) for k in (
+            "email_path", "email_message_id", "email_subject",
+            "email_from", "email_body",
+        )
+    )
+
+
 def _is_snoozed(task: Dict[str, Any]) -> bool:
     """
     NY v7-fix41: är uppgiften senarelagd (snoozed_until i framtiden)?
@@ -2553,6 +2563,12 @@ if _QT_AVAILABLE:
                         "toggle_pinned", tid, _what="fäst"
                     )
                 )
+                if _task_has_email(task):
+                    menu.addSeparator()
+                    act = menu.addAction("📧 Öppna mejlet")
+                    act.triggered.connect(
+                        lambda _c, tk=dict(task): self._open_task_email(tk)
+                    )
                 menu.addSeparator()
                 act = menu.addAction("✏️ Redigera titel…")
                 act.triggered.connect(lambda _c: self._prompt_rename(tid))
@@ -4061,7 +4077,7 @@ if _QT_AVAILABLE:
                     str(task.get("snoozed_until") or ""),
                     (task.get("recurring") or {}).get("interval", ""),
                     tuple(_flatten_subtasks(task.get("subtasks") or [])),
-                    bool(task.get("email_path")),
+                    _task_has_email(task),
                 )
                 if tid in self._task_widgets and not archived:
                     existing = self._task_widgets[tid]
@@ -4216,20 +4232,20 @@ if _QT_AVAILABLE:
                     menu_btn, 0, Qt.AlignmentFlag.AlignVCenter
                 )
 
-                # NY v7-fix35: 📧-ikon om uppgiften har en sparad e-post
-                email_path = task.get("email_path")
-                if email_path:
+                # 📧 "Öppna mejlet" — på ALLA uppgifter som kommer från ett
+                # mail (sparad fil ELLER sparad mailtext), inte bara de med
+                # en fungerande filsökväg
+                if _task_has_email(task):
                     mail_btn = QPushButton("📧", container)
                     mail_btn.setObjectName("emailBadge")
                     mail_btn.setFixedSize(24, 24)
-                    # NY v7-fix86: pekhand = tydligt klickbar
                     mail_btn.setCursor(Qt.CursorShape.PointingHandCursor)
                     mail_btn.setToolTip(
-                        f"Öppna original-e-post\n"
-                        f"{task.get('email_from', 'Okänd avsändare')}"
+                        "Öppna mejlet\n"
+                        f"{task.get('email_from') or 'Okänd avsändare'}"
                     )
                     mail_btn.clicked.connect(
-                        lambda _c, ep=email_path: self._open_email(ep)
+                        lambda _c, tk=dict(task): self._open_task_email(tk)
                     )
                     row1.addWidget(
                         mail_btn, 0, Qt.AlignmentFlag.AlignVCenter
@@ -6315,6 +6331,42 @@ if _QT_AVAILABLE:
                 super().dropEvent(event)
             except Exception:
                 super().dropEvent(event)
+
+        def _open_task_email(self, task: Dict[str, Any]) -> None:
+            """
+            "Öppna mejlet": originalfilen (.eml/.msg) i standardprogrammet;
+            finns den inte kvar visas den sparade mailtexten i stället.
+            """
+            try:
+                from core.email_import import open_task_email
+                data_dir = getattr(self.store, "data_dir", None)
+                if open_task_email(task, data_dir):
+                    return
+                has_text = any(
+                    task.get(k) for k in ("email_body", "email_subject", "email_from")
+                )
+                if has_text:
+                    from ui.mail_view_dialog import MailViewDialog
+                    note = (
+                        "Originalfilen finns inte kvar (eller gick inte att "
+                        "öppna) — här är texten som sparades på uppgiften."
+                        if task.get("email_path") else ""
+                    )
+                    MailViewDialog(task, self, note).exec()
+                else:
+                    from PySide6.QtWidgets import QMessageBox as _QMB
+                    _QMB.information(
+                        self, "Öppna mejlet",
+                        "Varken originalmailet eller dess text finns sparad "
+                        "på den här uppgiften.\n\n"
+                        + (f"Message-ID: {task.get('email_message_id')}"
+                           if task.get("email_message_id") else ""),
+                    )
+            except Exception as e:
+                logger.warning(
+                    f"{LOG_PREFIX} _open_task_email misslyckades: {e}",
+                    exc_info=True,
+                )
 
         def _open_email(self, email_path: str) -> None:
             """NY v7-fix35: Öppna sparad e-postfil i standardprogrammet."""
