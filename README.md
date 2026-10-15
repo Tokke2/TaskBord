@@ -20,7 +20,9 @@ skapar uppgifter. Uppgifterna sparas i **JSON** (`data/active.json`) och
 finns kvar efter omstart.
 
 * **Thunderbird-tillägget** — högerklicka på ett mail → *📋 Skicka till
-  TaskBord*, eller använd knappen i meddelandefönstret (prioritet,
+  TaskBord*. **Markera flera mail** (Ctrl/Shift-klick) så blir varje mail en egen uppgift, med
+  EN sammanfattande notis (”3 uppgifter skapade · 1 fanns redan”); redan importerade mail
+  hoppas över. Eller använd knappen i meddelandefönstret (prioritet,
   förfallodatum, taggar). Källkoden ligger i `thunderbird-tillagg/`,
   färdig fil skapas med `SKAPA_XPI.bat` → `TaskBord-Thunderbird.xpi`.
 * **Inkorgsmappen** `data/inbox/` — släpp `.eml`, `.msg` eller `.json` där
@@ -31,6 +33,10 @@ finns kvar efter omstart.
   *📧 Öppna mejlet* i högerklicksmenyn). Den öppnar originalmailet (`.eml`) i ditt mailprogram.
   Har appmappen flyttats hittas filen ändå i `js\emails\`; finns den inte kvar visas den sparade
   mailtexten (avsändare, ämne, text) i en ruta i stället för att knappen verkar död.
+* **↩ Svara på mejlet** — bredvid 📧 på kortet (och *↩️ Svara på mejlet* i högerklicksmenyn) öppnas
+  ett färdigt svar i ditt standard-mailprogram: mottagare (Reply-To om mailet har det, annars
+  avsändaren), ämne med *Re:* och originalet citerat. OBS: en `mailto:`-länk kan inte bära
+  trådinformation, så svaret hamnar som ett nytt mail i stället för i samma tråd.
 * **🧩 Nytt Thunderbird-tillägg** — Thunderbird byter inte ut ett installerat tillägg av sig självt.
   Ändras `TaskBord-Thunderbird.xpi` i appmappen (t.ex. vid en uppdatering) får du en tray-notis och
   en menyrad *🆕 Nytt Thunderbird-tillägg — installera om…* med knapp **📂 Visa filen** (öppnar mappen
@@ -86,6 +92,15 @@ tray → **⌨️ Ändra snabbtangent för ny uppgift…** — klicka i rutan oc
 att skriva). Dialogen säger direkt om den duger (minst två av Ctrl/Alt/Shift eller Win, inte en
 Windows-genväg, inte samma som Visa-över-tangenten), *Standard* återställer och *Stäng av* tar bort
 den. Är tangenten upptagen av ett annat program behålls den gamla. Gäller direkt, ingen omstart.
+
+## 📋 Lägg till från urklipp
+
+Standard **Ctrl+Alt+K**: markera text i *vilket program som helst* och tryck tangenten — texten
+blir en uppgift direkt (första raden = rubrik, resten = anteckning; en lång första rad kortas och
+hela texten hamnar i anteckningen). Appen kopierar markeringen åt dig, släpper de tangenter du
+håller, och **återställer det som låg i urklippet**. Är inget markerat används det som redan ligger
+i urklippet. En tray-notis visar vad som skapades. Ändra/stäng av: tray → **⌨️ Snabbkommandon →
+📋 Lägg till från urklipp…**. Utan snabbtangent: tray → *📋 Ny uppgift från urklipp*.
 
 ## 🩺 Felrapport
 
@@ -181,7 +196,7 @@ Sedan:
 | --- | --- |
 | `app/bootstrap.py` | `run()` — hela uppstartsflödet, global felhanterare |
 | `app/controller.py` | `AppController`, sätts ihop av mixins |
-| `app/mixins/*.py` | en fil per ansvar: `tray`, `updates`, `addon_update`, `mail_bridge_ctl`, `autostart`, `windows`, `desktop_shell`, `hotkeys`, `reminders`, `backup_sync`, `exports`, `diagnostics`, `app_icon`, `plugin_updates`, `maintenance` |
+| `app/mixins/*.py` | en fil per ansvar: `tray`, `updates`, `addon_update`, `mail_bridge_ctl`, `autostart`, `windows`, `desktop_shell`, `hotkeys`, `clip_task`, `reminders`, `backup_sync`, `exports`, `diagnostics`, `app_icon`, `plugin_updates`, `maintenance` |
 | `app/constants.py` | version, sökvägar (`SCRIPT_DIR` = appmappen), enums, undantag |
 | `app/*.py` (övriga) | loggning, plugin-system, central logg, prestanda, förkontroller, modulladdning |
 

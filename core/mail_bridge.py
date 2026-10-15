@@ -1112,7 +1112,33 @@ class _BridgeHandler(BaseHTTPRequestHandler):
         except Exception:
             return False
 
+    def _drain_unread_body(self) -> None:
+        """
+        Läs bort en POST-kropp som handlern inte läste (t.ex. vid 401 fel token).
+        Annars tolkas kroppen som nästa förfrågan på samma keep-alive-anslutning och
+        nästa (korrekta) anrop får ett kryptiskt HTTP 400.
+        """
+        try:
+            length = int(self.headers.get("Content-Length", "0") or "0")
+        except ValueError:
+            length = 0
+        if length <= 0:
+            return
+        if length > MAX_EML_BODY:
+            self.close_connection = True
+            return
+        remaining = length
+        try:
+            while remaining > 0:
+                chunk = self.rfile.read(min(remaining, 65536))
+                if not chunk:
+                    break
+                remaining -= len(chunk)
+        except Exception:
+            self.close_connection = True
+
     def _read_body(self, limit: int) -> bytes:
+        self._body_read = True
         try:
             length = int(self.headers.get("Content-Length", "0") or "0")
         except ValueError:
@@ -1187,6 +1213,14 @@ class _BridgeHandler(BaseHTTPRequestHandler):
             self._send_json({"ok": False, "error": str(e)}, 500)
 
     def do_POST(self) -> None:  # noqa: N802
+        self._body_read = False
+        try:
+            self._do_post()
+        finally:
+            if not self._body_read:
+                self._drain_unread_body()
+
+    def _do_post(self) -> None:
         query = self._query()
         path = self._path_only
         try:

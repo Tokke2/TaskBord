@@ -507,7 +507,7 @@ async function sendMessageAsTask(options) {
         const extra = buildExtras(opts.overrides, payload, cfg);
         const headers = extra ? { "X-TaskBord-Extra": extra } : {};
         const res = await postRaw(cfg, buffer, headers);
-        await notifyResult(cfg, res, "original");
+        if (!opts.quiet) await notifyResult(cfg, res, "original");
         return Object.assign({ transport: "eml", queued: false }, res);
       }
     } catch (e) {
@@ -522,7 +522,7 @@ async function sendMessageAsTask(options) {
           if (body) payload.note = body;
         }
         const len = await enqueue(payload, "TaskBord körs inte");
-        await notify(
+        if (!opts.quiet) await notify(
           "📥 TaskBord körs inte — mailet köat",
           "Uppgiften skapas automatiskt när TaskBord startar (" +
           len + " i kön)."
@@ -547,12 +547,12 @@ async function sendMessageAsTask(options) {
       body: JSON.stringify(payload),
       contentType: "application/json"
     });
-    await notifyResult(cfg, res, "json");
+    if (!opts.quiet) await notifyResult(cfg, res, "json");
     return Object.assign({ transport: "json", queued: false }, res);
   } catch (e) {
     if (e.offline) {
       const len = await enqueue(payload, "TaskBord körs inte");
-      await notify(
+      if (!opts.quiet) await notify(
         "📥 TaskBord körs inte — mailet köat",
         "Uppgiften skapas automatiskt när TaskBord startar (" + len + " i kön)."
       );
@@ -607,7 +607,7 @@ function buildMenus() {
   const items = [
     {
       id: "taskbord-send",
-      title: "📋 Skicka till TaskBord (ny uppgift)",
+      title: "📋 Skicka till TaskBord (en uppgift per markerat mail)",
       contexts: ["message_list"]
     },
     {
@@ -630,6 +630,49 @@ function buildMenus() {
   }
 }
 
+/**
+ * Skicka flera markerade mail, ett i taget (så appen aldrig översköljs), med EN
+ * sammanfattande notis i stället för en per mail. Redan importerade mail hoppas över
+ * av appens dubblettskydd.
+ */
+async function sendMessagesAsTasks(messages) {
+  const MAX = 100;
+  const list = messages.slice(0, MAX);
+  const total = { created: 0, duplicate: 0, queued: 0, failed: 0 };
+  let firstError = "";
+  for (const header of list) {
+    let res;
+    try {
+      res = await sendMessageAsTask({
+        messageId: header.id, header: header, quiet: true
+      });
+    } catch (e) {
+      res = { ok: false, error: String(e && e.message ? e.message : e) };
+    }
+    if (res && res.ok) {
+      if (res.queued) total.queued += 1;
+      else if (res.duplicate) total.duplicate += 1;
+      else total.created += 1;
+    } else {
+      total.failed += 1;
+      if (!firstError) firstError = (res && res.error) || "okänt fel";
+      // Fel token / ingen token drabbar alla — ge upp direkt
+      if (res && /token/i.test(res.error || "")) break;
+    }
+  }
+  const parts = [];
+  if (total.created) parts.push(total.created + " uppgifter skapade");
+  if (total.queued) parts.push(total.queued + " köade (TaskBord körs inte)");
+  if (total.duplicate) parts.push(total.duplicate + " fanns redan");
+  if (total.failed) parts.push(total.failed + " misslyckades: " + firstError);
+  if (messages.length > MAX) parts.push("bara de första " + MAX + " skickades");
+  await notify(
+    total.failed ? "⚠️ TaskBord" : "📋 Mail skickade till TaskBord",
+    parts.join(" · ") || "Inget skickades."
+  );
+  return total;
+}
+
 api.menus.onClicked.addListener(async (info, tab) => {
   try {
     if (info.menuItemId === "taskbord-options") {
@@ -640,12 +683,16 @@ api.menus.onClicked.addListener(async (info, tab) => {
     let messageId = null;
     let header = null;
 
-    if (info.selectedMessages && info.selectedMessages.messages) {
-      const first = info.selectedMessages.messages[0];
-      if (first) {
-        messageId = first.id;
-        header = first;
-      }
+    // FLERA MAIL PÅ EN GÅNG: alla markerade mail blir var sin uppgift
+    const selected =
+      (info.selectedMessages && info.selectedMessages.messages) || [];
+    if (selected.length > 1) {
+      await sendMessagesAsTasks(selected);
+      return;
+    }
+    if (selected.length === 1) {
+      messageId = selected[0].id;
+      header = selected[0];
     }
 
     if (!messageId && tab) {

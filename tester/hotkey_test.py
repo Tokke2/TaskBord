@@ -201,7 +201,10 @@ class Box:
     def warning(self, parent, title, text): self.warnings.append((title, text))
 
 
-class Ctl(hk.HotkeysMixin):
+from app.mixins.clip_task import ClipTaskMixin  # noqa: E402
+
+
+class Ctl(hk.HotkeysMixin, ClipTaskMixin):
     def __init__(self, settings):
         self.settings = settings
         self._log = FakeLog()
@@ -259,7 +262,10 @@ try:
     check("byte: fortfarande ETT filter (inte dubbla)", len(c._app.filters) == 1)
     check("byte: tray-menyn byggs om", c.menu_rebuilds == 1)
     check("dialog fick Visa-över-tangenten som upptagen",
-          asked["kwargs"].get("taken") == ["Ctrl+Alt+V"], str(asked))
+          "Ctrl+Alt+V" in asked["kwargs"].get("taken", []), str(asked))
+    check("dialog fick även urklipps-tangenten som upptagen",
+          "Ctrl+Alt+K" in asked["kwargs"].get("taken", []), str(asked))
+    check("urklipps-tangenten (0xB43) registrerad vid start", 0xB43 in u.registered, str(u.registered))
 
     # b) ny tangent upptagen → gamla lever kvar
     u.taken.add((3, 0x4D))

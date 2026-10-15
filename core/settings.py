@@ -1302,6 +1302,9 @@ class Settings(QObject):
             # Format: "Ctrl+Alt+V", "Ctrl+Shift+Space", "Alt+F1" etc.
             "push_show_hotkey": "Ctrl+Alt+V",
             "quick_add_hotkey": "Ctrl+Alt+N",
+            # Markerad text i valfritt program → uppgift (Ctrl+Alt+K)
+            "clip_task_enabled": True,
+            "clip_task_hotkey": "Ctrl+Alt+K",
             # NY v7-fix72: tray-klick lyfter fönstret i X sekunder
             "tray_lift_seconds": 5,
             # NY v7-fix90: e-postbrygga — Thunderbird-tillägg + inkorgsmapp
@@ -1369,6 +1372,8 @@ class Settings(QObject):
             # NY v7-fix69 (sträng, max 40 tecken)
             "push_show_hotkey": lambda v: _coerce_str(v, "Ctrl+Alt+V")[:40],
             "quick_add_hotkey": lambda v: _coerce_str(v, "Ctrl+Alt+N")[:40],
+            "clip_task_enabled": lambda v: _coerce_bool(v, True),
+            "clip_task_hotkey": lambda v: _coerce_str(v, "Ctrl+Alt+K")[:40],
             # NY v7-fix72 (1-60 sekunder)
             "tray_lift_seconds": lambda v: _coerce_int(v, 5, 1, 60),
             # NY v7-fix90: e-postbrygga (Thunderbird-tillägget)
@@ -2946,6 +2951,37 @@ class Settings(QObject):
             self._data["quick_add_hotkey"] = v
         self._dirty = True
         self._log.info(f"{LOG_PREFIX} quick_add_hotkey: {v}")
+        self._save_async_worker(self._data)
+        return True
+
+    @_log_call
+    def clip_task_enabled(self) -> bool:
+        """Snabbtangenten 'Lägg till från urklipp' på/av."""
+        with self._lock:
+            return bool(self._data.get("clip_task_enabled", True))
+
+    @_log_setter("clip_task_enabled")
+    def set_clip_task_enabled(self, enabled: bool) -> bool:
+        v = _coerce_bool(enabled, True)
+        with self._lock:
+            self._data["clip_task_enabled"] = v
+        self._dirty = True
+        self._save_async_worker(self._data)
+        return True
+
+    @_log_call
+    def clip_task_hotkey(self) -> str:
+        """Snabbtangent som gör markerad text/urklipp till en uppgift (default Ctrl+Alt+K)."""
+        with self._lock:
+            return str(self._data.get("clip_task_hotkey", "Ctrl+Alt+K"))[:40]
+
+    @_log_setter("clip_task_hotkey")
+    def set_clip_task_hotkey(self, combo: str) -> bool:
+        v = _coerce_str(combo, "Ctrl+Alt+K")[:40]
+        with self._lock:
+            self._data["clip_task_hotkey"] = v
+        self._dirty = True
+        self._log.info(f"{LOG_PREFIX} clip_task_hotkey: {v}")
         self._save_async_worker(self._data)
         return True
 

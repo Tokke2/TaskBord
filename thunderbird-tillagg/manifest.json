@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "TaskBord — mail till uppgift",
   "short_name": "TaskBord",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Skickar valt mail till TaskBord och skapar en uppgift (sparas i JSON). Fungerar med TaskBords e-postbrygga på localhost.",
   "author": "Rickard Längkvist",
   "homepage_url": "https://github.com/Tokke2/TaskBord",

@@ -72,6 +72,7 @@ Klart! Högerklicka på ett mail → **📋 Skicka till TaskBord (ny uppgift)**.
 | Sätt | Vad som händer |
 |---|---|
 | **Högerklicka på mail** i listan → 📋 Skicka till TaskBord | Uppgift skapas direkt (ämne = titel, avsändare = tagg) |
+| **Markera flera mail** → högerklicka → 📋 Skicka till TaskBord | En uppgift per mail (max 100), ETT sammanfattande meddelande; redan importerade hoppas över; är TaskBord avstängt köas alla |
 | **📋-knappen i meddelandefönstret** (message display action) | Popup: välj **prioritet**, **förfallodatum** (`imorgon`, `fredag`, `2026-10-20`) och **taggar** |
 | **📋-knappen i huvudfönstrets verktygsfält** | Popup med det visade mailet + fältet *Skapa uppgift direkt* |
 | **Popupens snabbuppgift** | Skapa uppgift utan mail (text + anteckning) |

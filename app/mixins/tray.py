@@ -100,6 +100,13 @@ class TrayMixin:
             )
             quick_add_action.triggered.connect(self._tray_quick_add_task)
             self._tray_menu.addAction(quick_add_action)
+            clip_action = self._QAction("📋  Ny uppgift från urklipp", self._tray_menu)
+            clip_action.setToolTip(
+                "Gör texten som ligger i urklippet till en uppgift\n"
+                "(med snabbtangenten görs det direkt från markerad text)"
+            )
+            clip_action.triggered.connect(self._clip_task_from_clipboard)
+            self._tray_menu.addAction(clip_action)
 
             # Snabbtangenten för ny uppgift: synlig och ändringsbar direkt
             # i huvudmenyn (inte bara gömd under Snabbkommandon)
@@ -348,6 +355,16 @@ class TrayMixin:
                 "medan du håller den intryckt (default: Ctrl+Alt+V)."
             )
             _ps.triggered.connect(self._change_push_hotkey_dialog)
+            _cl_on = self._clip_task_enabled()
+            _cl = _hk_menu.addAction(
+                f"📋  Lägg till från urklipp…  "
+                f"({self._get_clip_task_combo() if _cl_on else 'av'})"
+            )
+            _cl.setToolTip(
+                "Markera text i valfritt program och tryck tangenten —\n"
+                "texten blir en uppgift direkt (default: Ctrl+Alt+K)."
+            )
+            _cl.triggered.connect(self._change_clip_task_hotkey_dialog)
             plugin_action = self._QAction("📦  Installera/Uppdatera tillägg")
             plugin_action.setToolTip(
                 "Kontrollera och installera saknade Python-paket\n"

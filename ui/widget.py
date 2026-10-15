@@ -2569,6 +2569,10 @@ if _QT_AVAILABLE:
                     act.triggered.connect(
                         lambda _c, tk=dict(task): self._open_task_email(tk)
                     )
+                    act = menu.addAction("↩️ Svara på mejlet")
+                    act.triggered.connect(
+                        lambda _c, tk=dict(task): self._reply_to_task_email(tk)
+                    )
                 menu.addSeparator()
                 act = menu.addAction("✏️ Redigera titel…")
                 act.triggered.connect(lambda _c: self._prompt_rename(tid))
@@ -4249,6 +4253,20 @@ if _QT_AVAILABLE:
                     )
                     row1.addWidget(
                         mail_btn, 0, Qt.AlignmentFlag.AlignVCenter
+                    )
+                    reply_btn = QPushButton("↩", container)
+                    reply_btn.setObjectName("emailBadge")
+                    reply_btn.setFixedSize(24, 24)
+                    reply_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+                    reply_btn.setToolTip(
+                        "Svara på mejlet\n"
+                        f"{task.get('email_from') or 'Okänd avsändare'}"
+                    )
+                    reply_btn.clicked.connect(
+                        lambda _c, tk=dict(task): self._reply_to_task_email(tk)
+                    )
+                    row1.addWidget(
+                        reply_btn, 0, Qt.AlignmentFlag.AlignVCenter
                     )
                 vbox.addLayout(row1)
 
@@ -6365,6 +6383,37 @@ if _QT_AVAILABLE:
             except Exception as e:
                 logger.warning(
                     f"{LOG_PREFIX} _open_task_email misslyckades: {e}",
+                    exc_info=True,
+                )
+
+        def _reply_to_task_email(self, task: Dict[str, Any]) -> None:
+            """
+            "Svara på mejlet": öppnar ett färdigt svar (till, "Re: ämne", citerad text) i
+            standard-mailprogrammet. Svaret hamnar inte i samma TRÅD (mailto kan inte
+            bära In-Reply-To).
+            """
+            try:
+                from PySide6.QtWidgets import QMessageBox as _QMB
+                from core.email_import import find_email_file
+                from core.mail_reply import build_mailto, open_mailto, reply_info
+                data_dir = getattr(self.store, "data_dir", None)
+                info = reply_info(task, find_email_file(task, data_dir))
+                if info is None:
+                    _QMB.information(
+                        self, "Svara på mejlet",
+                        "Hittar ingen avsändaradress på den här uppgiften, så det "
+                        "går inte att skapa ett svar.",
+                    )
+                    return
+                if not open_mailto(build_mailto(info)):
+                    _QMB.warning(
+                        self, "Svara på mejlet",
+                        "Kunde inte öppna något mailprogram.\n\n"
+                        f"Mottagare: {info['to']}\nÄmne: {info['subject']}",
+                    )
+            except Exception as e:
+                logger.warning(
+                    f"{LOG_PREFIX} _reply_to_task_email misslyckades: {e}",
                     exc_info=True,
                 )
 

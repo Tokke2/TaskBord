@@ -18,6 +18,7 @@ from app.mixins.addon_update import AddonUpdateMixin
 from app.mixins.app_icon import AppIconMixin
 from app.mixins.autostart import AutostartMixin
 from app.mixins.backup_sync import BackupSyncMixin
+from app.mixins.clip_task import ClipTaskMixin
 from app.mixins.desktop_shell import DesktopShellMixin
 from app.mixins.diagnostics import DiagnosticsMixin
 from app.mixins.exports import ExportsMixin
@@ -42,6 +43,7 @@ class AppController(
     DiagnosticsMixin,
     WindowsMixin,
     HotkeysMixin,
+    ClipTaskMixin,
     RemindersMixin,
     BackupSyncMixin,
     MailBridgeMixin,

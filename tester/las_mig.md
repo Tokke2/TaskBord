@@ -4,6 +4,9 @@
 |---|---|---|
 | `../core/mail_bridge.py` (`python core/mail_bridge.py`) | Bryggans självtest: HTTP, token, dedup, extras, inkorgsmapp, JSON-sparning | Inget extra (stdlib) |
 | `smoke_main_bridge.py` | Att **main.pyw** kopplar upp bryggan rätt: start, token i `settings.json`, widget-flash, watchdog, tray-togglar, `data/inbox/*.json` → uppgift | Inget extra (körs utan Qt) |
+| `addon_e2e.py` | Startar en riktig brygga och kör `mock_test.js` mot den (inkl. flera mail på en gång) | Node 18+ |
+| `clip_capture_test.py` | Snabbtangenten ”Lägg till från urklipp” (tangentföljd, urklippsåterställning, rubrik/anteckning) mot fejkat user32 | – |
+| `mail_reply_test.py` | ↩ Svara på mejlet: mottagare, Re:-ämne, citat, mailto-länk | – |
 | `mock_test.js` | Hela kedjan **Thunderbird-tillägget → bryggan**: meny-klick, popup, snabbuppgift, taggar, dedup, offline-kö, notiser | Node 18+ (`fetch`) + en körande brygga |
 | `calendar_test.py` | **Kalenderexporten**: .ics-filen mot RFC 5545, radvikning med å ä ö, heldagsdatum, Google Calendar-länken, menykopplingen i appen | Inget extra (stdlib). Med `pip install icalendar` görs även en riktig rundtur (skriv → läs tillbaka → jämför) |
 | `google_calendar_test.py` | **Lokal Google Calendar-koppling (OAuth)**: token på disk, händelsedata, dubblettskydd, retry, felöversättning, menykoppling | Google-paketen (`pip install google-api-python-client google-auth-oauthlib`). Rör aldrig nätet |

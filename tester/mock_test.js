@@ -55,6 +55,28 @@ const MESSAGES = [
     headerMessageId: "<e2e-lunch-2@example.com>",
     folder: { name: "Inkorgen", accountId: "acc1" },
     tags: []
+  },
+  {
+    id: 103,
+    subject: "Offert till kund A",
+    author: "Bosse <bosse@example.com>",
+    recipients: ["rickard@example.com"],
+    ccList: [],
+    date: new Date("2026-10-13T08:00:00+02:00"),
+    headerMessageId: "<e2e-offert-3@example.com>",
+    folder: { name: "Inkorgen", accountId: "acc1" },
+    tags: []
+  },
+  {
+    id: 104,
+    subject: "Boka möte med revisorn",
+    author: "Cissi <cissi@example.com>",
+    recipients: ["rickard@example.com"],
+    ccList: [],
+    date: new Date("2026-10-13T08:30:00+02:00"),
+    headerMessageId: "<e2e-mote-4@example.com>",
+    folder: { name: "Inkorgen", accountId: "acc1" },
+    tags: []
   }
 ];
 
@@ -334,6 +356,65 @@ async function getTasks() {
      JSON.stringify(tasks.map((t) => t.title)));
   ok("3 uppgifter totalt (inkl. köade mailet)", tasks.length === 3,
      JSON.stringify(tasks.map((t) => t.title)));
+
+  // 11. FLERA MAIL PÅ EN GÅNG: markera 3 (varav ett redan importerat) → 2 nya uppgifter
+  //     och EN sammanfattande notis
+  const notesBefore = notifications.length;
+  await clickMenu(
+    { menuItemId: "taskbord-send",
+      selectedMessages: { messages: [MESSAGES[2], MESSAGES[3], MESSAGES[0]] } },
+    { id: 7 }
+  );
+  await wait(900);
+  tasks = await getTasks();
+  const bt = tasks.map((t) => t.title);
+  ok("flera mail: båda nya mailen blev uppgifter",
+     bt.includes("Offert till kund A") && bt.includes("Boka möte med revisorn"),
+     JSON.stringify(bt));
+  ok("flera mail: redan importerat mail dubblerades inte",
+     bt.filter((t) => t === "Faktura 2026-10 måste betalas").length === 1,
+     JSON.stringify(bt));
+  ok("flera mail: 5 uppgifter totalt", tasks.length === 5, "antal=" + tasks.length);
+  const newNotes = notifications.slice(notesBefore);
+  ok("flera mail: EN sammanfattande notis (inte tre)", newNotes.length === 1,
+     JSON.stringify(newNotes.map((n) => n.title + ": " + n.message)));
+  ok("flera mail: notisen anger 2 skapade och 1 som fanns redan",
+     newNotes[0] && /2 uppgifter skapade/.test(newNotes[0].message) &&
+     /1 fanns redan/.test(newNotes[0].message),
+     newNotes[0] && newNotes[0].message);
+  const emlTexts = fs
+    .readdirSync("/tmp/bridge_e2e/data/emails")
+    .filter((f) => f.endsWith(".eml"))
+    .map((f) => fs.readFileSync("/tmp/bridge_e2e/data/emails/" + f, "utf8"));
+  ok("flera mail: originalmailen sparades för båda nya (för 'Öppna mejlet')",
+     emlTexts.some((t) => t.includes("Offert till kund A")) &&
+     emlTexts.some((t) => t.includes("Boka möte med revisorn")),
+     "antal eml=" + emlTexts.length);
+
+  // 12. Ett enda markerat mail beter sig som förut (egen notis)
+  const before1 = notifications.length;
+  await clickMenu(
+    { menuItemId: "taskbord-send", selectedMessages: { messages: [MESSAGES[1]] } },
+    { id: 7 }
+  );
+  await wait(500);
+  ok("ett mail: vanlig notis som förut", notifications.length === before1 + 1 &&
+     /Lunch på fredag/.test(notifications[notifications.length - 1].message),
+     JSON.stringify(notifications.slice(before1)));
+
+  // 13. Flera mail när TaskBord inte körs → alla köas, en notis
+  await callBackground({ type: "save-config", config: { url: "http://127.0.0.1:9", token: TOKEN } });
+  const before2 = notifications.length;
+  await clickMenu(
+    { menuItemId: "taskbord-send", selectedMessages: { messages: [MESSAGES[2], MESSAGES[3]] } },
+    { id: 7 }
+  );
+  await wait(500);
+  q = await callBackground({ type: "queue-status" });
+  ok("flera mail offline: båda köade", q.count === 2, "count=" + q.count);
+  ok("flera mail offline: en notis som säger att de köats",
+     notifications.length === before2 + 1 && /2 köade/.test(notifications[notifications.length - 1].message),
+     JSON.stringify(notifications.slice(before2)));
 
   console.log("=".repeat(66));
   if (failures) {

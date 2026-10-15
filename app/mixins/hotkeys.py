@@ -74,6 +74,10 @@ class HotkeysMixin:
                     if hk == getattr(ctrl, "_push_hotkey_id", None):
                         ctrl._QTimer.singleShot(0, ctrl._push_show_press)
                         return True
+                    # Markerad text → uppgift (Ctrl+Alt+K)
+                    if hk == 0xB43 and getattr(ctrl, "_clip_task_registered", None):
+                        ctrl._QTimer.singleShot(0, ctrl._clip_task_press)
+                        return True
                 except Exception:
                     pass
                 return False
@@ -204,6 +208,9 @@ class HotkeysMixin:
                     f"Ändra via tray → '⌨️ Ändra Visa-över-hotkey...'"
                 )
 
+            with suppress(Exception):
+                self._install_clip_task_hotkey()
+
             if self._global_hotkey_id is not None:
                 self._log.info(
                     f"{LOG_PREFIX} Global snabbinput aktiv: {_qa_combo} "
@@ -269,7 +276,7 @@ class HotkeysMixin:
                 f"Nu: {_current if _enabled else 'avstängd'}",
                 _current,
                 DEFAULT_QUICK_ADD,
-                taken=[self._get_push_hotkey_combo()],
+                taken=[self._get_push_hotkey_combo(), self._get_clip_task_combo()],
                 allow_disable=True,
             )
             if combo is None:
@@ -582,6 +589,8 @@ class HotkeysMixin:
                     f"{LOG_PREFIX} Push-to-show-hotkey avregistrerad"
                 )
             self._push_hotkey_id = None
+        with suppress(Exception):
+            self._unregister_clip_task_hotkey()
         _pt = getattr(self, "_push_poll_timer", None)
         if _pt is not None:
             with suppress(Exception):
