@@ -192,7 +192,7 @@ VALID_GLASS_STYLES: Final[frozenset] = frozenset(g.value for g in GlassStyle)
 VALID_DENSITY_MODES: Final[frozenset] = frozenset(d.value for d in DensityMode)
 
 # NY v7-fix38: Win+D-säkert skrivbordsläge + fönstertransparens
-VALID_DESKTOP_MODES: Final[frozenset] = frozenset(("above", "behind"))  # v7-fix56: legacy BORT
+VALID_DESKTOP_MODES: Final[frozenset] = frozenset(("above", "behind", "top"))  # top = alltid överst (val i tray)
 DEFAULT_DESKTOP_MODE: Final[str] = "behind"  # v7-fix63: behind = beprövat
 DEFAULT_WINDOW_TRANSPARENCY: Final[float] = 0.85
 
@@ -2531,6 +2531,7 @@ class Settings(QObject):
         above  — widgeten ÖVER skrivbordsikonerna, barn till skrivbordet
                  (Win+D kan aldrig gömma den) + transparent glas-skal
         behind — widgeten BAKOM ikonerna (Rainmeter "On Desktop")
+        top    — widgeten ALLTID ÖVERST, ovanpå alla andra fönster
         legacy — gammalt v7-fix32-beteende (HWND_BOTTOM + blockerare)
         """
         mode = _coerce_str(mode, DEFAULT_DESKTOP_MODE, VALID_DESKTOP_MODES)

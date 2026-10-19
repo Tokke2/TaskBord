@@ -537,7 +537,7 @@ class HotkeysMixin:
                     getattr(shell, "_push_prev_mode", "normal")
                 )
                 hwnd = int(shell.winId())
-                if _prev in ("behind", "above"):
+                if _prev in ("behind", "above", "top"):
                     # FIX v7-fix70: kör HELA kedjan (behind → above →
                     # toppfönster) i stället för endast en väg —
                     # garanterar en fungerande återfästning

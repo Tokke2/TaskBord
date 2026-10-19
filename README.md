@@ -93,6 +93,15 @@ att skriva). Dialogen säger direkt om den duger (minst två av Ctrl/Alt/Shift e
 Windows-genväg, inte samma som Visa-över-tangenten), *Standard* återställer och *Stäng av* tar bort
 den. Är tangenten upptagen av ett annat program behålls den gamla. Gäller direkt, ingen omstart.
 
+## 🖥️ Skrivbordsläge – bakom ikonerna eller alltid överst
+
+Högerklicka på tray-ikonen → **Skrivbordsläge** och välj:
+
+- **Bakom ikonerna (som förut)** – widgeten ligger på skrivbordet och Win+D kan inte gömma den.
+- **Alltid överst (ovanpå alla fönster)** – widgeten ligger ovanpå alla andra fönster hela tiden och går att skriva i direkt.
+
+Valet sparas och gäller även efter omstart. Om Windows (t.ex. Win+D) minimerar widgeten i läget *Alltid överst* återställs den automatiskt inom några sekunder.
+
 ## 📋 Lägg till från urklipp
 
 Standard **Ctrl+Alt+K**: markera text i *vilket program som helst* och tryck tangenten — texten

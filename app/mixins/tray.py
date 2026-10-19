@@ -501,20 +501,22 @@ class TrayMixin:
             # NY v7-fix45: LEGACY dolt ur menyn — det är en AUTOMATISK
             # nödfallback (above→behind→legacy), inte ett användarval.
             # v7-fix56: legacy är HELT borttaget — bara above/behind finns.
+            # 'above' (över ikonerna) visade sig osynligt på din skärm och migreras
+            # automatiskt till 'behind' — därför bara två val: som förut, eller alltid överst.
             _mode_items = (
-                ("above", "Över ikonerna (transparent)"),
-                ("behind", "Bakom ikonerna (Rainmeter)"),
+                ("behind", "Bakom ikonerna (som förut)"),
+                ("top", "Alltid överst (ovanpå alla fönster)"),
             )
             for _m_val, _m_label in _mode_items:
                 act = desktop_menu.addAction(_m_label)
                 act.setCheckable(True)
                 act.setChecked(_cur_mode == _m_val)
                 act.setToolTip(
-                    "Win+D kan aldrig gömma widgeten — den lever i\n"
-                    "skrivbordslagret tillsammans med ikonerna.\n"
-                    "'Över ikonerna' = genomskinligt glas, ikonerna syns\n"
-                    "igenom widgeten. 'Bakom ikonerna' = ikonerna målas\n"
-                    "ovanpå widgeten (Rainmeter-metoden)."
+                    "'Bakom ikonerna' = som förut: widgeten ligger på\n"
+                    "skrivbordet, ikonerna målas ovanpå (Rainmeter-metoden),\n"
+                    "Win+D kan aldrig gömma den.\n"
+                    "'Alltid överst' = widgeten ligger ovanpå alla andra\n"
+                    "fönster hela tiden. Valet sparas."
                 )
                 act.triggered.connect(
                     lambda checked=False, m=_m_val: self._set_desktop_mode(m)

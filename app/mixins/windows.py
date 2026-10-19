@@ -776,7 +776,7 @@ class WindowsMixin:
                     _fs_shell0 = getattr(w, "_shell", None)
                     _layer_active = str(
                         getattr(_fs_shell0, "_desktop_layer_mode", "")
-                    ) in ("above", "behind")
+                    ) in ("above", "behind", "top")
                     if _layer_active:
                         with suppress(Exception):
                             if sys.platform == "win32":

@@ -34,6 +34,8 @@ class DesktopShellMixin:
           behind — kila ovanför WorkerW (Rainmeter "On Desktop"):
                     skrivbordsikonerna målas OVANPÅ widgeten →
                     ikonerna döljs ALDRIG. Också Win+D-säkert.
+          top    — (val i tray) ALLTID ÖVERST: vanligt HWND_TOPMOST-fönster
+                    ovanpå alla andra fönster, se _apply_top_mode().
           legacy — v7-fix32-beteende: HWND_BOTTOM + NOACTIVATE +
                     TOOLWINDOW + SC_MINIMIZE-blockerare + 30s-timer.
 
@@ -53,6 +55,7 @@ class DesktopShellMixin:
                 shell._desktop_layer_pending = True
                 return
             shell._desktop_wid = wid
+            _prev_layer = str(getattr(shell, "_desktop_layer_mode", "") or "")
 
             # 1. Extended styles: NOACTIVATE + TOOLWINDOW (alla lägen)
             GWL_EXSTYLE = -20
@@ -200,6 +203,17 @@ class DesktopShellMixin:
             # v7-fix72: lyft pågår? — applicera inte skrivbordslager
             if str(getattr(shell, "_desktop_layer_mode", "")) == "_lift":
                 return
+            # NY: ALLTID ÖVERST (val i tray → Skrivbordsläge). Vanligt toppfönster som
+            # ligger ovanpå alla andra fönster; lossas från skrivbordslagret om det satt där.
+            if mode == "top":
+                self._apply_top_mode(shell, hwnd, wid)
+                return
+            if _prev_layer == "top":
+                # kom från 'alltid överst' → släpp topmost-läget innan skrivbordslagret tar över
+                with suppress(Exception):
+                    user32.SetWindowPos(
+                        hwnd, -2, 0, 0, 0, 0, 0x0010 | 0x0001 | 0x0002,
+                    )  # HWND_NOTOPMOST | NOACTIVATE|NOSIZE|NOMOVE
             desktop_status = self._imports.get("desktop")
             if mode in ("above", "behind") and desktop_status and desktop_status.ok:
                 if mode == "above":
@@ -338,6 +352,44 @@ class DesktopShellMixin:
                 exc_info=True,
             )
 
+    def _apply_top_mode(self, shell: Any, hwnd: int, wid: str) -> None:
+        """
+        ALLTID ÖVERST: fönstret är ett vanligt toppfönster (HWND_TOPMOST) ovanför alla appar.
+
+        Lossas från skrivbordslagret (om det satt som barn i Progman), får behålla fokusförmågan
+        (WS_EX_NOACTIVATE tas bort så man kan skriva i det) och ligger kvar utanför aktivitetsfältet
+        (WS_EX_TOOLWINDOW). Win+D-skyddet (SC_MINIMIZE blockeras + återställning var 5:e sekund)
+        gäller fortfarande.
+        """
+        import ctypes
+        user32 = ctypes.windll.user32
+        with suppress(Exception):
+            if user32.GetParent(hwnd):
+                from ctypes import wintypes as _wt
+                _pre = _wt.RECT()
+                user32.GetWindowRect(hwnd, ctypes.byref(_pre))
+                user32.SetParent(hwnd, 0)
+                user32.SetWindowPos(
+                    hwnd, 0, _pre.left, _pre.top, 0, 0, 0x0004 | 0x0010 | 0x0001,
+                )  # NOZORDER | NOACTIVATE | NOSIZE — bevara skärmpositionen
+        with suppress(Exception):
+            GWL_EXSTYLE = -20
+            ex = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+            user32.SetWindowLongW(hwnd, GWL_EXSTYLE, ex & ~0x08000000)  # utan NOACTIVATE
+        user32.SetWindowPos(
+            hwnd, -1, 0, 0, 0, 0, 0x0040 | 0x0010 | 0x0001 | 0x0002,
+        )  # HWND_TOPMOST | SHOWWINDOW|NOACTIVATE|NOSIZE|NOMOVE
+        shell._parent_origin = (0, 0)
+        shell._desktop_layer_mode = "top"
+        with suppress(Exception):  # tätare bevakning (Win+D) direkt, inte först efter 30 s
+            _tm = getattr(shell, "_zorder_timer", None)
+            if _tm is not None and _tm.interval() != 5000:
+                _tm.setInterval(5000)
+        self._log.info(
+            f"{LOG_PREFIX} ═══ LÄGE: ALLTID ÖVERST ═══ ovanpå alla fönster "
+            f"(skal {wid!r} HWND={hwnd})"
+        )
+
     def _maintain_desktop_level(self, shell: Any) -> None:
         """
         NY v7-fix38: Mode-medvetet underhåll (var 30:e sekund).
@@ -408,10 +460,20 @@ class DesktopShellMixin:
             with suppress(Exception):
                 _tm = getattr(shell, "_zorder_timer", None)
                 if _tm is not None:
-                    _want = 5000 if mode == "normal" else 30000
+                    _want = 5000 if mode in ("normal", "top") else 30000
                     if _tm.interval() != _want:
                         _tm.setInterval(_want)
 
+            if mode == "top":
+                # alltid överst: se till att vi ligger kvar överst och syns
+                # (men rör inte ett fönster som användaren själv har dolt)
+                with suppress(Exception):
+                    if not shell.isVisible():
+                        return
+                    user32.SetWindowPos(
+                        hwnd, -1, 0, 0, 0, 0, 0x0040 | 0x0010 | 0x0001 | 0x0002,
+                    )  # HWND_TOPMOST | SHOWWINDOW|NOACTIVATE|NOSIZE|NOMOVE
+                return
             desktop_status = self._imports.get("desktop")
             if mode in ("above", "behind") and desktop_status and desktop_status.ok:
                 if mode == "above":
@@ -472,7 +534,7 @@ class DesktopShellMixin:
         except Exception:
             mode = "above"
         # v7-fix56: legacy är BORTTAGET — ogiltiga/legacy-värden → above
-        return mode if mode in ("above", "behind") else "above"
+        return mode if mode in ("above", "behind", "top") else "above"
 
     def _apply_shell_appearance(self, shell: Any, wid: str) -> None:
         """
@@ -620,7 +682,7 @@ class DesktopShellMixin:
         """NY v7-fix38: tray-handler — sätt skrivbordsläge live."""
         try:
             # v7-fix56: legacy borta — bara above/behind
-            mode = mode if mode in ("above", "behind") else "above"
+            mode = mode if mode in ("above", "behind", "top") else "above"
             if hasattr(self.settings, "set_desktop_mode"):
                 self.settings.set_desktop_mode(mode)
             self._reapply_desktop_shells()
