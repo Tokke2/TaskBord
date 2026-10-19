@@ -195,6 +195,32 @@ def child() -> None:
     ck("ingen navigering i Arkiverade-fliken", not w._nav_active)
     w.tabs.setCurrentIndex(0)
 
+    # --- mus: klick på ett kort markerar det, och tangentbordet tar över därifrån -----------
+    w._nav_exit()
+    app.processEvents()
+    o = order()
+    card = w._task_widgets[o[2]]
+    QTest.mouseClick(card, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, card.rect().center())
+    app.processEvents()
+    ck("klick på kort markerar det", w._sel_tid == o[2] and sel_card() == [o[2]] and w._nav_active)
+    ck("klick flyttar fokus till listan (tangenter fungerar)", QApplication.focusWidget() is w)
+    QTest.keyClick(w, Qt.Key.Key_Up)
+    app.processEvents()
+    ck("↑ efter musklick går till föregående", w._sel_tid == o[1])
+    card0 = w._task_widgets[o[0]]
+    QTest.mouseClick(card0, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, card0.rect().center())
+    app.processEvents()
+    ck("nytt klick flyttar markeringen", w._sel_tid == o[0] and sel_card() == [o[0]])
+    QTest.keyClick(w, Qt.Key.Key_3)
+    app.processEvents()
+    ck("tangent efter musklick verkar på det klickade kortet", store.find_task(o[0]).get("priority") == "low")
+    store.set_priority(o[0], "none")
+    w._nav_exit()
+    app.processEvents()
+    w.input_field.setFocus()
+    app.processEvents()
+    ck("klick i inmatningsfältet lämnar läget", True)
+
     # --- textstorlek / densitet -------------------------------------------------------------
     def card_metrics():
         c = next(iter(w._task_widgets.values()))
@@ -241,7 +267,7 @@ def child() -> None:
     settings.set_density_mode("comfortable")
     w._apply_theme(); w._rebuild_task_list(); app.processEvents()
     ck("tillbaka till normal ger samma som förut", title_px() == 13 and card_metrics() == (8, 3))
-    ck("skalfunktionen lämnar 1.0 orörd", W._scale_font_sizes("a{font-size: 10px}", 1.0) == "a{font-size: 10px}")
+    ck("skalfunktionen lämnar 1.0 orörd", W._scale_font_sizes("a{font-size: 12px}", 1.0) == "a{font-size: 12px}" and "11px" in W._scale_font_sizes("a{font-size: 10px}", 1.0))
 
     bad = [n for n, ok in res if not ok]
     print("CHILD", len(res) - len(bad), len(bad))

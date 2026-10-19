@@ -123,6 +123,12 @@ Skriver du ett vanligt tecken som inte är en kommandotangent hamnar det i inmat
 
 Högerklicka på tray-ikonen → **Textstorlek**: *Kompakt* (mindre text, tätare kort, döljer raden "Tillagd" – du ser fler uppgifter), *Normal* (som förut) eller *Stor* (större text, luftigare). Valet sparas.
 
+**Läsbarhet:** all text har minst 4,5:1 kontrast (WCAG AA) över normala bakgrunder (minst 3:1 vid lägsta transparens över extremt ljus/mörk bakgrund) och ingen text är mindre än 11 px (10 px vid Kompakt). Transparensen kan som mest sänkas till **70 %** (lägre skulle göra texten svårläst över ljusa bakgrunder); *Av* ger en helt ogenomskinlig panel. Testas av `tester/ui_readability_test.py`.
+
+**Markera med mus eller tangentbord:** klicka på ett kort för att markera det – piltangenterna, `1`–`3`, mellanslag m.fl. verkar sedan på det kortet.
+
+**Fönstrets plats efter uppdatering:** position och storlek skrivs ner till `js\settings.json` både före installationen och före omstarten (mappen `js\` rörs aldrig av uppdateringen), så fönstret kommer upp exakt där det stod.
+
 ## 📋 Lägg till från urklipp
 
 Standard **Ctrl+Alt+K**: markera text i *vilket program som helst* och tryck tangenten — texten

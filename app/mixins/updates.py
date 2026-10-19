@@ -231,6 +231,7 @@ class UpdateMixin:
         self._update_progress_open(updater.phase_text("save"), cancelable=False, maximum=0)
         with suppress(Exception):
             self.store.save()
+        self._flush_window_state("före uppdatering")
         with suppress(Exception):
             self._external_backup("före uppdatering")
         self._update_info = info
@@ -250,6 +251,31 @@ class UpdateMixin:
         threading.Thread(target=_apply, name="UpdateApply", daemon=True).start()
         self._update_timer.setInterval(100)
         self._update_timer.start()
+
+    def _flush_window_state(self, why: str) -> None:
+        """
+        Spara fönstrets position + storlek och skriv settings till disk NU.
+
+        Efter en uppdatering ska fönstret komma upp exakt där det var. js\\ (där settings.json
+        ligger) rörs aldrig av uppdateringen, men vi skriver ner läget uttryckligen före
+        installationen och före omstarten — så det inte hänger på att nedstängningen hinner.
+        """
+        try:
+            with self._widget_lock:
+                _ws = list(self._widgets.values())
+            for _w in _ws:
+                with suppress(Exception):
+                    if hasattr(_w, "_save_geometry_now"):
+                        _w._save_geometry_now()
+            ok = None
+            if self.settings is not None and hasattr(self.settings, "save"):
+                ok = self.settings.save()
+            self._log.info(
+                f"{LOG_PREFIX} fönsterläge sparat ({why}): {len(_ws)} fönster, "
+                f"settings {'OK' if ok else ok}"
+            )
+        except Exception as e:
+            self._log.warning(f"{LOG_PREFIX} _flush_window_state ({why}): {e}")
 
     def _finish_apply(self, res: Tuple[str, Any]) -> None:
         from core import updater
@@ -284,6 +310,7 @@ class UpdateMixin:
             "info", "Uppdaterad",
             f"{len(info.changed)} fil(er) uppdaterade. TaskBord startar om nu." + _addon_note,
         )
+        self._flush_window_state("före omstart")
         if updater.schedule_restart(SCRIPT_DIR, backup_root=payload):
             self.shutdown()
         else:

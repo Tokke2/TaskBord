@@ -241,18 +241,27 @@ def _density_profile(settings: Any) -> Dict[str, Any]:
     return DENSITY_PROFILES.get(mode, DENSITY_PROFILES["comfortable"])
 
 
+MIN_TEXT_PX: Final[int] = 10  # ingen text får bli mindre än så (läsbarhet)
+
+
 def _scaled_px(px: int) -> int:
     """Skala en pixelstorlek med aktuell textstorlek (inline-QSS i etiketter)."""
-    return max(8, int(px * _UI_FONT_SCALE + 0.5))
+    return max(MIN_TEXT_PX, int(max(px, 11) * _UI_FONT_SCALE + 0.5))
 
 
 def _scale_font_sizes(qss: str, factor: float) -> str:
     """Skala alla 'font-size: Npx' i en QSS-sträng (factor 1.0 = oförändrad)."""
+    # all text ska vara väl synlig: 8–10 px-text höjs till 11 px före skalning
+    qss = re.sub(
+        r"font-size:\s*(\d+)px",
+        lambda m: f"font-size: {max(int(m.group(1)), 11)}px",
+        qss,
+    )
     if abs(factor - 1.0) < 0.001:
         return qss
     return re.sub(
         r"font-size:\s*(\d+)px",
-        lambda m: f"font-size: {max(8, int(int(m.group(1)) * factor + 0.5))}px",
+        lambda m: f"font-size: {max(MIN_TEXT_PX, int(int(m.group(1)) * factor + 0.5))}px",
         qss,
     )
 
@@ -308,8 +317,8 @@ GLASS_DARK: Final[Dict[str, str]] = {
     # Text
     "fg":           "#eef1fb",
     "fg_hov":       "#ffffff",
-    "muted":        "#9aa3c2",
-    "hint":         "rgba(154, 163, 194, 0.80)",
+    "muted":        "#cfd6ec",   # läsbarhet: ≥ 4.5:1 även över ljus bakgrund (transparens)
+    "hint":         "#cfd6ec",   # opak (var halvgenomskinlig → svårläst)
     "divider":      "rgba(151, 162, 216, 0.16)",
 }
 GLASS_LIGHT: Final[Dict[str, str]] = {
@@ -329,8 +338,8 @@ GLASS_LIGHT: Final[Dict[str, str]] = {
     # Text
     "fg":           "#1c2033",
     "fg_hov":       "#0f1222",
-    "muted":        "#626b85",
-    "hint":         "rgba(98, 107, 133, 0.90)",
+    "muted":        "#2e3751",   # läsbarhet: ≥ 4.5:1 även över mörk bakgrund (transparens)
+    "hint":         "#2e3751",   # opak (var halvgenomskinlig → svårläst)
     "divider":      "rgba(28, 32, 51, 0.10)",
 }
 
@@ -601,6 +610,11 @@ def _glass_tokens(is_dark: bool) -> Dict[str, str]:
     return GLASS_DARK if is_dark else GLASS_LIGHT
 
 
+# Läsbarhet går före: panelen får aldrig bli mer genomskinlig än så, annars försvinner
+# texten mot ljus/mörk bakgrund (mätt i tester/ui_readability_test.py).
+MIN_PANEL_OPACITY: Final[float] = 0.70
+
+
 def _tokens_with_transparency(
     t: Dict[str, str], factor: float
 ) -> Dict[str, str]:
@@ -618,7 +632,17 @@ def _tokens_with_transparency(
     try:
         if factor >= 0.999:
             return t
+        # 0 (= "Av", helt opakt fönster) ska ge OPAK panel (alfa 255) — inte genomskinlig
+        factor = 1.0 if factor <= 0.0 else max(factor, MIN_PANEL_OPACITY)
         out = dict(t)
+        if factor >= 0.999:
+            for key in ("bg_top", "bg_bottom"):
+                raw = str(out.get(key, ""))
+                if raw.startswith("rgba(") and raw.endswith(")"):
+                    parts = [p.strip() for p in raw[5:-1].split(",")]
+                    if len(parts) >= 3:
+                        out[key] = f"rgba({parts[0]}, {parts[1]}, {parts[2]}, 255)"
+            return out
         for key in ("bg_top", "bg_bottom"):
             raw = str(out.get(key, ""))
             if not (raw.startswith("rgba(") and raw.endswith(")")):
@@ -3599,6 +3623,18 @@ if _QT_AVAILABLE:
                     if self._nav_active:
                         self._nav_exit()
                 if (
+                    event.type() == QEvent.Type.MouseButtonPress
+                    and isinstance(obj, QFrame)
+                    and obj.objectName().startswith("task_")
+                    and event.button() in (
+                        Qt.MouseButton.LeftButton, Qt.MouseButton.RightButton,
+                    )
+                ):
+                    _ctid = obj.property("task_id")
+                    if _ctid and not getattr(self, "_focus_mode", False):
+                        self._nav_select_by_mouse(str(_ctid))
+                    return False  # låt klicket gå vidare (flytta fönstret, knappar, meny)
+                if (
                     event.type() == QEvent.Type.KeyPress
                     and isinstance(obj, QFrame)
                     and obj.objectName().startswith("task_")
@@ -4116,7 +4152,7 @@ if _QT_AVAILABLE:
                     f = 0.85
                 if f <= 0.0:
                     return 0.0
-                return max(0.35, min(1.0, f))
+                return max(MIN_PANEL_OPACITY, min(1.0, f))
             except Exception:
                 return 0.85
 
@@ -4184,6 +4220,8 @@ if _QT_AVAILABLE:
                 container = QFrame(self)
                 container.setObjectName(f"task_{tid}")
                 container.setProperty("taskCard", True)
+                # NY: klick på kortet markerar det (mus + tangentbord fungerar ihop)
+                container.installEventFilter(self)
                 task_priority = task.get("priority", "none")
                 if task_priority not in PRIORITY_CYCLE:
                     task_priority = "none"  # Fallback
@@ -4688,6 +4726,8 @@ if _QT_AVAILABLE:
                     border-radius: 12px;
                     padding: 9px 14px;
                     font-size: 13px;
+                    color: {t['fg']};
+                    placeholder-text-color: {t['muted']};
                     selection-background-color: {accent_hex};
                     selection-color: white;
                 }}
@@ -6903,6 +6943,14 @@ if _QT_AVAILABLE:
                 with suppress(Exception):
                     tabs.widget(0).ensureWidgetVisible(card, 0, 24)
             get_throttle().notify_activity()
+
+        def _nav_select_by_mouse(self, tid: str) -> None:
+            """Klick på ett kort: markera det och gör fönstret redo för tangenter."""
+            if tid not in self._nav_tids:
+                return
+            with suppress(Exception):
+                self._activate_for_typing()  # tar bort NOACTIVATE så tangenter når fönstret
+            self._nav_select(tid)
 
         def _nav_paint(self) -> None:
             """Sätt QSS-egenskapen taskSelected på rätt kort (och bara det)."""

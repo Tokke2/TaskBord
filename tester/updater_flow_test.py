@@ -123,6 +123,7 @@ class Stub:
     def _update_progress_open(self, text, cancelable, maximum=0):
         self._update_pd = FakePD(text, maximum); self.pds.append(self._update_pd)
     def _external_backup(self, reason=""): self.saved.append(reason)
+    def _flush_window_state(self, why): self.__dict__.setdefault("flushed", []).append(why)
     def shutdown(self): self.shut.append(1)
     def _populate_tray_menu(self): pass
 
@@ -255,6 +256,7 @@ check("filer installerade", (APP / "main.pyw").read_bytes() == b"print('v2')\n" 
 check("js/ orörd", (APP / "js" / "active.json").read_text() == "{}")
 check("fråga ställdes", any(d[0] == "ask" for d in m.dialogs))
 check("klart-dialog + omstart + avstängning", any(d[1] == "Uppdaterad" for d in m.dialogs) and m.shut == [1])
+check("fönsterläget sparades före installation och före omstart", getattr(m, "flushed", []) == ["före uppdatering", "före omstart"], str(getattr(m, "flushed", None)))
 check("markering rensad efter installation", m._update_available is False)
 check("alla förloppsfönster stängda", all(not pd.vis for pd in m.pds))
 

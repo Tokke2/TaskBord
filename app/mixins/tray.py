@@ -547,8 +547,7 @@ class TrayMixin:
             _transp_items = (
                 (1.0, "100 % (opak panel)"),
                 (0.85, "85 % (default)"),
-                (0.7, "70 %"),
-                (0.55, "55 %"),
+                (0.7, "70 % (mest genomskinlig — text förblir läsbar)"),
                 (0.0, "Av (helt opak fönster)"),
             )
             for _t_val, _t_label in _transp_items:
