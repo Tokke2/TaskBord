@@ -20,6 +20,7 @@ Två saker att veta om designen:
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
@@ -127,6 +128,9 @@ def _done_style(settings: Any = None) -> str:
 
 def _open_url(url: str) -> bool:
     """Öppna en adress i webbläsaren (Qt först, annars webbbrowser)."""
+    if not isinstance(url, str) or not url.startswith(("http://", "https://")):
+        logger.warning(f"{LOG_PREFIX} ogiltig adress, öppnas inte: {url!r}")
+        return False
     if _QT_AVAILABLE:
         try:
             if QDesktopServices.openUrl(QUrl(url)):
@@ -135,9 +139,17 @@ def _open_url(url: str) -> bool:
             pass
     try:
         import webbrowser
-        return bool(webbrowser.open(url))
+        if webbrowser.open(url):
+            return True
     except Exception:
-        return False
+        pass
+    try:
+        if hasattr(os, "startfile"):
+            os.startfile(url)  # type: ignore[attr-defined]  # Windows
+            return True
+    except Exception as e:
+        logger.warning(f"{LOG_PREFIX} kunde inte öppna {url}: {e}")
+    return False
 
 
 def _spara_ansluten(settings: Any, data_dir: Any, ansluten: bool) -> None:
@@ -537,7 +549,9 @@ if _QT_AVAILABLE:
 
         def _knapp(self, text: str, fn: Callable[[], None]) -> None:
             b = QPushButton(text, self)
-            b.clicked.connect(fn)
+            # clicked(bool) skickar "checked" som första argument — det får aldrig skriva över
+            # en lambdas standardvärde (då blev adressen False och länken öppnades aldrig).
+            b.clicked.connect(lambda _checked=False, _f=fn: _f())
             self.rad_atgarder.addWidget(b)
 
         def _visa(self, rebuild: bool = True) -> None:
