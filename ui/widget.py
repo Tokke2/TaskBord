@@ -209,6 +209,54 @@ PRIORITY_SYMBOLS: Final[Dict[str, str]] = {
 PRIORITY_ORDER: Final[Tuple[str, ...]] = ("high", "medium", "low", "none")
 # Piltangenter / Enter-arbetsflöde:  ←  →  ↵  (för snabb prioritetsval)
 PRIORITY_CYCLE: Final[Tuple[str, ...]] = ("none", "high", "medium", "low")
+# NY: textstorlek/densitet (tray → Textstorlek). Använder settings.density_mode():
+#   compact     = Kompakt (tätare, mindre text, döljer "Tillagd"-raden)
+#   comfortable = Normal  (som förut)
+#   cozy        = Stor    (större text, luftigare)
+DENSITY_PROFILES: Final[Dict[str, Dict[str, Any]]] = {
+    "compact": {
+        "font": 0.95, "pad_v": 4, "gap": 1, "list_gap": 3,
+        "card_pad": "1px 4px", "card_margin": "1px 0", "show_added": False,
+    },
+    "comfortable": {
+        "font": 1.0, "pad_v": 8, "gap": 3, "list_gap": 6,
+        "card_pad": "2px 4px", "card_margin": "2px 0", "show_added": True,
+    },
+    "cozy": {
+        "font": 1.2, "pad_v": 11, "gap": 5, "list_gap": 9,
+        "card_pad": "4px 6px", "card_margin": "3px 0", "show_added": True,
+    },
+}
+_UI_FONT_SCALE: float = 1.0  # sätts av TodoWidget._apply_theme
+
+
+def _density_profile(settings: Any) -> Dict[str, Any]:
+    """Aktuell densitetsprofil ur settings (alltid giltig, annars 'comfortable')."""
+    mode = "comfortable"
+    try:
+        if settings is not None and hasattr(settings, "density_mode"):
+            mode = str(settings.density_mode())
+    except Exception:
+        mode = "comfortable"
+    return DENSITY_PROFILES.get(mode, DENSITY_PROFILES["comfortable"])
+
+
+def _scaled_px(px: int) -> int:
+    """Skala en pixelstorlek med aktuell textstorlek (inline-QSS i etiketter)."""
+    return max(8, int(px * _UI_FONT_SCALE + 0.5))
+
+
+def _scale_font_sizes(qss: str, factor: float) -> str:
+    """Skala alla 'font-size: Npx' i en QSS-sträng (factor 1.0 = oförändrad)."""
+    if abs(factor - 1.0) < 0.001:
+        return qss
+    return re.sub(
+        r"font-size:\s*(\d+)px",
+        lambda m: f"font-size: {max(8, int(int(m.group(1)) * factor + 0.5))}px",
+        qss,
+    )
+
+
 # Svag bakgrundstoning (rgba) för hela task-raden beroende på prioritet.
 PRIORITY_ROW_TINT: Final[Dict[str, str]] = {
     "none":   "rgba(107, 114, 128, 0.06)",  # Mycket svag grå
@@ -1476,7 +1524,7 @@ if _QT_AVAILABLE:
                 f"border: 1px solid rgba({base.red()}, {base.green()}, "
                 f"{base.blue()}, {edge_a}); "
                 f"padding: 2px 9px; border-radius: 9px; "
-                f"font-size: 10px; font-weight: 600; }}"
+                f"font-size: {_scaled_px(10)}px; font-weight: 600; }}"
             )
 
         def mousePressEvent(self, event: QMouseEvent) -> None:
@@ -1695,7 +1743,7 @@ if _QT_AVAILABLE:
             self.setText(text)
             # Etapp 10 (v7-fix10): tydligare datum-etikett (vikt 600 + genomskinlig bakgrund)
             self.setStyleSheet(
-                f"color: {color}; font-size: 10px; font-weight: 600; "
+                f"color: {color}; font-size: {_scaled_px(10)}px; font-weight: 600; "
                 f"border: none; background: transparent; padding: 0 2px;"
             )
 
@@ -1878,6 +1926,10 @@ if _QT_AVAILABLE:
             self._hotkey_shortcuts: List[Any] = []
             # Task widget cache
             self._task_widgets: Dict[str, QWidget] = {}
+            # NY: tangentbordsnavigering i listan (↑/↓ markerar, Space/E/P/1-3/Delete agerar)
+            self._sel_tid: Optional[str] = None
+            self._nav_tids: List[str] = []
+            self._nav_active: bool = False
             # Search index (inverterad)
             self._search_index: Dict[str, Set[str]] = {}  # token → task_ids
             # Stats
@@ -3544,6 +3596,8 @@ if _QT_AVAILABLE:
                 ):
                     with suppress(Exception):
                         self._activate_for_typing()
+                    if self._nav_active:
+                        self._nav_exit()
                 if (
                     event.type() == QEvent.Type.KeyPress
                     and isinstance(obj, QFrame)
@@ -3872,7 +3926,11 @@ if _QT_AVAILABLE:
                     self.archive_layout if archived else self.active_layout
                 )
                 self._clear_layout(layout)
+                layout.setSpacing(int(_density_profile(self.settings)["list_gap"]))
                 if not tasks:
+                    if not archived:
+                        self._nav_tids = []
+                        self._sel_tid = None
                     # v7-fix17/86: vänligare tom-text med emoji + guide
                     empty_text = (
                         "✨  Inga uppgifter ännu\n"
@@ -3899,9 +3957,12 @@ if _QT_AVAILABLE:
                 else:
                     # NY v7-fix86: "Arkiverade (N)" i fliken
                     self._update_archive_tab_count(len(tasks))
+                _new_nav: List[str] = []
                 for task in tasks:
                     widget = self._build_task_widget_cached(task, archived)
                     if widget is not None:
+                        if not archived and task.get("id"):
+                            _new_nav.append(str(task.get("id")))
                         layout.addWidget(widget)
                         # v7-fix10: show() måste komma EFTER addWidget() —
                         # addWidget() reparentar widgeten vilket döljer den
@@ -3910,6 +3971,8 @@ if _QT_AVAILABLE:
                         # annars blir listan tom vid om-rendering.
                         widget.show()
                 layout.addStretch(1)
+                if not archived:
+                    self._nav_after_render(_new_nav)
                 logger.debug(
                     f"{LOG_PREFIX} _render_tasks(archived={archived}): {len(tasks)} tasks"
                 )
@@ -4156,9 +4219,10 @@ if _QT_AVAILABLE:
                         due_state = "none"
                 container.setProperty("taskDue", due_state)
 
+                _dp = _density_profile(self.settings)
                 vbox = QVBoxLayout(container)
-                vbox.setContentsMargins(10, 8, 10, 8)
-                vbox.setSpacing(3)
+                vbox.setContentsMargins(10, int(_dp["pad_v"]), 10, int(_dp["pad_v"]))
+                vbox.setSpacing(int(_dp["gap"]))
 
                 # --- Rad 1: checkbox + prioritetsprick + titel + pin ---------
                 row1 = QHBoxLayout()
@@ -4340,7 +4404,13 @@ if _QT_AVAILABLE:
                 )
                 date_row.addWidget(date_lbl)
                 date_row.addStretch(1)
-                vbox.addLayout(date_row)
+                if archived or _dp["show_added"]:
+                    vbox.addLayout(date_row)
+                else:
+                    # kompakt: döljer "Tillagd"-raden (etiketten är barn till kortet)
+                    date_lbl.setParent(None)
+                    date_lbl.deleteLater()
+                    date_row.deleteLater()
 
                 # --- NY v7-fix41 + v8: delmoment (checklista, nästlad) ----
                 subs = [
@@ -4557,6 +4627,8 @@ if _QT_AVAILABLE:
                 )
 
                 self.setObjectName("TodoWidget")
+                _dp_qss = _density_profile(self.settings)
+                _sel_bg = _hex_rgba(accent_hex, 0.20 if is_dark else 0.14)
                 widget_qss = f"""
                 /* ============ ETAPP 10 — MODERN FROSTED GLASS (v7-fix10) ===== */
                 QWidget#TodoWidget {{
@@ -4672,8 +4744,8 @@ if _QT_AVAILABLE:
                     background-color: {t['surface']};
                     border: 1px solid {t['surface_edge']};
                     border-radius: 12px;
-                    padding: 2px 4px;
-                    margin: 2px 0;
+                    padding: {_dp_qss['card_pad']};
+                    margin: {_dp_qss['card_margin']};
                 }}
                 QFrame[taskCard="true"]:hover {{
                     background-color: {t['surface_hov']};
@@ -4694,8 +4766,17 @@ if _QT_AVAILABLE:
                     border: 1px solid rgba(251, 191, 36, 0.80);
                     border-left: 3px solid #fbbf24;
                 }}
+                /* Markerad uppgift (tangentbordsnavigering ↑/↓) */
+                QFrame[taskCard="true"][taskSelected="true"],
+                QFrame[taskCard="true"][taskSelected="true"]:hover {{
+                    background-color: {_sel_bg};
+                    border-top: 2px solid {accent_hex};
+                    border-right: 2px solid {accent_hex};
+                    border-bottom: 2px solid {accent_hex};
+                }}
                 QLabel#taskTitle {{
                     color: {t['fg']};
+                    font-size: 12px;
                     font-weight: 600;
                     border: none;
                     background: transparent;
@@ -4813,6 +4894,10 @@ if _QT_AVAILABLE:
                     if getattr(self, "_glass", None) is not None:
                         self._glass.set_theme(is_dark, accent_hex)
 
+                # NY: textstorlek (Kompakt/Normal/Stor) skalar alla font-size i widget-QSS
+                global _UI_FONT_SCALE
+                _UI_FONT_SCALE = float(_dp_qss["font"])
+                widget_qss = _scale_font_sizes(widget_qss, _UI_FONT_SCALE)
                 self.setStyleSheet(base_qss + widget_qss)
 
                 logger.info(
@@ -4892,6 +4977,9 @@ if _QT_AVAILABLE:
                     f"mods={'+'.join(_mods) or '-'} "
                     f"focus={'search' if self.search_input.hasFocus() else 'content'}"
                 )
+                if self._handle_nav_key(event):
+                    event.accept()
+                    return
                 if event.key() == Qt.Key.Key_Escape and not self.search_input.hasFocus():
                     logger.debug(f"{LOG_PREFIX} Esc → _on_close_clicked")
                     self._on_close_clicked()
@@ -6764,21 +6852,151 @@ if _QT_AVAILABLE:
             )
 
         def _navigate_tasks(self, key: int) -> None:
-            """Navigera mellan tasks (Up/Down)."""
-            if not self._task_widgets:
-                return
-            tids = list(self._task_widgets.keys())
-            current_idx = getattr(self, "_nav_idx", 0)
-            if key == Qt.Key.Key_Down:
-                current_idx = min(current_idx + 1, len(tids) - 1)
-            else:
-                current_idx = max(current_idx - 1, 0)
-            self._nav_idx = current_idx
-            target = self._task_widgets[tids[current_idx]]
-            target.setFocus()
-            logger.trace(
-                f"{LOG_PREFIX} navigate: idx={current_idx}, tid={tids[current_idx]}"
-            )
+            """
+            Tangentbordsnavigering i Aktiva-listan: ↑/↓ markerar föregående/nästa uppgift
+            (Home/End = första/sista). Fokus flyttas från textfältet till listan så att
+            Space/E/P/1–3/Delete kan användas; Esc eller klick i ett textfält lämnar läget.
+            """
+            try:
+                if getattr(self, "_focus_mode", False):
+                    return
+                tabs = getattr(self, "tabs", None)
+                if tabs is not None and tabs.currentIndex() != 0:
+                    return
+                tids = list(self._nav_tids)
+                if not tids:
+                    return
+                cur = self._sel_tid if self._sel_tid in tids else None
+                if key == Qt.Key.Key_Home:
+                    new = tids[0]
+                elif key == Qt.Key.Key_End:
+                    new = tids[-1]
+                elif key in (Qt.Key.Key_PageDown, Qt.Key.Key_PageUp):
+                    step = 5 if key == Qt.Key.Key_PageDown else -5
+                    i = 0 if cur is None else tids.index(cur) + step
+                    new = tids[max(0, min(i, len(tids) - 1))]
+                elif key == Qt.Key.Key_Down:
+                    new = tids[0] if cur is None else tids[min(tids.index(cur) + 1, len(tids) - 1)]
+                else:  # Up
+                    if cur is None:
+                        new = tids[-1]
+                    elif tids.index(cur) == 0:
+                        # högst upp + ↑ = lämna listan, tillbaka till inmatningsfältet
+                        self._nav_exit(focus_input=True)
+                        return
+                    else:
+                        new = tids[tids.index(cur) - 1]
+                self._nav_select(new)
+            except Exception as e:
+                logger.warning(f"{LOG_PREFIX} _navigate_tasks: {e}", exc_info=True)
+
+        def _nav_select(self, tid: str) -> None:
+            """Markera en uppgift, flytta fokus till listan och scrolla fram kortet."""
+            self._sel_tid = tid
+            self._nav_active = True
+            with suppress(Exception):
+                self.setFocus(Qt.FocusReason.ShortcutFocusReason)
+            self._nav_paint()
+            card = self._task_widgets.get(tid)
+            tabs = getattr(self, "tabs", None)
+            if card is not None and tabs is not None:
+                with suppress(Exception):
+                    tabs.widget(0).ensureWidgetVisible(card, 0, 24)
+            get_throttle().notify_activity()
+
+        def _nav_paint(self) -> None:
+            """Sätt QSS-egenskapen taskSelected på rätt kort (och bara det)."""
+            for _tid, _w in list(self._task_widgets.items()):
+                want = (_tid == self._sel_tid) and self._nav_active
+                try:
+                    if bool(_w.property("taskSelected")) != want:
+                        _w.setProperty("taskSelected", want)
+                        _w.style().unpolish(_w)
+                        _w.style().polish(_w)
+                except RuntimeError:
+                    pass  # kortet hann raderas
+
+        def _nav_exit(self, focus_input: bool = False) -> None:
+            """Lämna navigeringsläget (ta bort markeringen)."""
+            self._nav_active = False
+            self._sel_tid = None
+            self._nav_paint()
+            if focus_input and getattr(self, "input_field", None) is not None:
+                with suppress(Exception):
+                    self.input_field.setFocus()
+
+        def _nav_after_render(self, new_tids: List[str]) -> None:
+            """Efter varje ombyggnad: behåll markeringen, eller flytta den till grannen."""
+            old = list(self._nav_tids)
+            self._nav_tids = list(new_tids)
+            sel = self._sel_tid
+            if sel is not None and sel not in new_tids:
+                if self._nav_active and new_tids:
+                    i = old.index(sel) if sel in old else 0
+                    sel = new_tids[min(i, len(new_tids) - 1)]
+                else:
+                    sel = None
+                self._sel_tid = sel
+                if sel is None:
+                    self._nav_active = False
+            self._nav_paint()
+
+        def _handle_nav_key(self, event: QKeyEvent) -> bool:
+            """
+            Tangenter i navigeringsläget. Returnerar True om tangenten förbrukades.
+
+            Space = klar/oklar · E/F2 = redigera titel · P = fäst/lossa · Delete = ta bort
+            1/2/3 = hög/normal/låg prioritet · 0 = ingen · Home/End/PgUp/PgDn · Esc = lämna.
+            Vanlig text (övriga tecken) lämnar läget och skrivs in i inmatningsfältet.
+            """
+            if not self._nav_active or not self._sel_tid:
+                return False
+            if getattr(self, "_focus_mode", False):
+                return False
+            from PySide6.QtWidgets import QApplication, QLineEdit
+            fw = QApplication.focusWidget()
+            if isinstance(fw, QLineEdit):
+                return False
+            mods = event.modifiers()
+            if mods & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier):
+                return False
+            key = event.key()
+            tid = self._sel_tid
+            if key in (Qt.Key.Key_Up, Qt.Key.Key_Down, Qt.Key.Key_Home, Qt.Key.Key_End,
+                       Qt.Key.Key_PageUp, Qt.Key.Key_PageDown):
+                self._navigate_tasks(key)
+                return True
+            if key == Qt.Key.Key_Escape:
+                self._nav_exit(focus_input=True)
+                return True
+            get_throttle().notify_activity()
+            if key == Qt.Key.Key_Space:
+                self._on_task_toggle(tid, True)
+                return True
+            if key in (Qt.Key.Key_E, Qt.Key.Key_F2):
+                self._prompt_rename(tid)
+                return True
+            if key == Qt.Key.Key_P:
+                self._on_pin_toggle(tid)
+                return True
+            if key == Qt.Key.Key_Delete:
+                self._prompt_delete(tid)
+                return True
+            _prio = {
+                Qt.Key.Key_1: "high", Qt.Key.Key_2: "medium",
+                Qt.Key.Key_3: "low", Qt.Key.Key_0: "none",
+            }.get(key)
+            if _prio is not None:
+                self._set_task_priority(tid, _prio)
+                return True
+            txt = event.text() if hasattr(event, "text") else ""
+            if txt and txt.isprintable():
+                # började skriva → tillbaka till inmatningsfältet med tecknet
+                self._nav_exit(focus_input=True)
+                with suppress(Exception):
+                    self.input_field.insert(txt)
+                return True
+            return False
 
         # ====================================================================
         # EVENT HANDLERS (NY v6.4.1 v7 - forbattrade med svenska loggar)

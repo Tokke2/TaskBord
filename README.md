@@ -102,6 +102,27 @@ Högerklicka på tray-ikonen → **Skrivbordsläge** och välj:
 
 Valet sparas och gäller även efter omstart. Om Windows (t.ex. Win+D) minimerar widgeten i läget *Alltid överst* återställs den automatiskt inom några sekunder.
 
+## ⌨️ Styra listan med tangentbordet
+
+Tryck **↓** (eller **↑**) – även när du står i inmatningsfältet – så markeras en uppgift med en färgad ram. Därefter:
+
+| Tangent | Gör |
+|---|---|
+| ↑ / ↓ | föregående / nästa uppgift (↑ på den första går tillbaka till inmatningsfältet) |
+| Home / End, PgUp / PgDn | första / sista, 5 steg |
+| Mellanslag | markera klar |
+| E eller F2 | redigera titeln |
+| P | fäst / lossa |
+| 1 / 2 / 3 / 0 | prioritet hög / normal / låg / ingen |
+| Delete | ta bort (frågar först) |
+| Esc | lämna markeringen (nästa Esc gömmer fönstret som förut) |
+
+Skriver du ett vanligt tecken som inte är en kommandotangent hamnar det i inmatningsfältet. När en uppgift blir klar eller tas bort flyttas markeringen till nästa, så du kan bocka av en hel rad med mellanslag.
+
+## 🔠 Textstorlek (Kompakt · Normal · Stor)
+
+Högerklicka på tray-ikonen → **Textstorlek**: *Kompakt* (mindre text, tätare kort, döljer raden "Tillagd" – du ser fler uppgifter), *Normal* (som förut) eller *Stor* (större text, luftigare). Valet sparas.
+
 ## 📋 Lägg till från urklipp
 
 Standard **Ctrl+Alt+K**: markera text i *vilket program som helst* och tryck tangenten — texten

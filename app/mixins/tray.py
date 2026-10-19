@@ -522,6 +522,25 @@ class TrayMixin:
                     lambda checked=False, m=_m_val: self._set_desktop_mode(m)
                 )
 
+            # === NY: TEXTSTORLEK / DENSITET (Kompakt · Normal · Stor) ===
+            size_menu = self._tray_menu.addMenu("🔠  Textstorlek")
+            _cur_density = self._ui_density_value()
+            for _d_val, _d_label in (
+                ("compact", "Kompakt (fler uppgifter)"),
+                ("comfortable", "Normal (som förut)"),
+                ("cozy", "Stor (större text, luftigare)"),
+            ):
+                act = size_menu.addAction(_d_label)
+                act.setCheckable(True)
+                act.setChecked(_cur_density == _d_val)
+                act.setToolTip(
+                    "Kompakt: mindre text och tätare kort — ser fler uppgifter.\n"
+                    "Stor: större text och mer luft. Valet sparas."
+                )
+                act.triggered.connect(
+                    lambda checked=False, d=_d_val: self._set_ui_density(d)
+                )
+
             # === NY v7-fix38: TRANSPARENS ===
             transp_menu = self._tray_menu.addMenu("🫧  Transparens")
             _cur_transp = self._window_transparency_value()
@@ -677,6 +696,34 @@ class TrayMixin:
             # Högerklick = context-meny (Qt hanterar detta automatiskt via setContextMenu)
         except Exception as e:
             self._log.debug(f"on_tray_activated misslyckades: {e}")
+
+    def _ui_density_value(self) -> str:
+        """Aktuell textstorlek/densitet (compact | comfortable | cozy)."""
+        try:
+            return str(self.settings.density_mode())
+        except Exception:
+            return "comfortable"
+
+    def _set_ui_density(self, mode: str) -> None:
+        """Tray-handler: byt textstorlek/densitet live (tema + listan byggs om)."""
+        try:
+            if hasattr(self.settings, "set_density_mode"):
+                self.settings.set_density_mode(mode)
+            with self._widget_lock:
+                widgets = list(self._widgets.values())
+            for w in widgets:
+                if hasattr(w, "_apply_theme"):
+                    with suppress(Exception):
+                        w._apply_theme()
+                if hasattr(w, "_rebuild_task_list"):
+                    with suppress(Exception):
+                        w._rebuild_task_list()
+            self._populate_tray_menu()
+            self._log.info(f"{LOG_PREFIX} textstorlek: {mode}")
+        except Exception as e:
+            self._log.warning(
+                f"{LOG_PREFIX} _set_ui_density misslyckades: {e}", exc_info=True
+            )
 
     def _set_tray_lift_seconds(self, seconds: int) -> None:
         """NY v7-fix74: sätt lyft-tid (sparas i settings)."""
