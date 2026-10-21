@@ -28,8 +28,11 @@ felsökning.
 
 * **Allt körs lokalt.** Appen startar en tillfällig server på `127.0.0.1`
   (loopback = bara din dator) medan du loggar in, och stänger den direkt efteråt.
-* **Åtkomstbeviset sparas bara hos dig** — `js/google/token.json` med
-  filrättigheter `0600` (bara din användare kan läsa den). Filen är dessutom
+* **Åtkomstbeviset sparas bara hos dig** — när du godkänt skapar appen en lokal nyckelfil,
+  `js/google/token.json`. På Windows är den **krypterad med Windows DPAPI**: bara ditt Windows-konto
+  på just den här datorn kan använda den, så en kopia av filen (backup, delad mapp, annan dator) är
+  värdelös. På andra system gäller filrättigheterna `0600`. Går filen inte att dekryptera (annat konto/dator)
+  behandlas appen som okopplad och du loggar in på nytt. Filen är dessutom
   undantagen i `.gitignore` så att den aldrig kan råka hamna i git.
 * **Snävaste möjliga behörigheter:** `calendar.events` (skapa/ändra händelser)
   och `calendar.readonly` (läsa kalenderlistan). Appen kan inte läsa din Gmail,
@@ -48,8 +51,9 @@ Ligger filen `core/google_client.json` i appen (en OAuth-klient av typen *Datora
 skapat **en gång**) behöver användaren inte göra något hos Google. Då gäller:
 
 1. Högerklicka på en uppgift → **☁️ Skicka till Google Calendar**.
-2. Googles inloggningssida öppnas i webbläsaren → logga in → **godkänn** åtkomsten.
-3. Uppgiften skickas automatiskt. Kopplingen sparas, så nästa gång går det direkt.
+2. Saknar uppgiften datum öppnas en liten dialog där du väljer dag (sparas som uppgiftens förfallodatum).
+3. Googles inloggningssida öppnas i webbläsaren → logga in → **godkänn** åtkomsten.
+4. Uppgiften skickas automatiskt. Kopplingen sparas, så nästa gång går det direkt.
 
 Saknas filen (och användaren inte har lagt en egen `credentials.json`) öppnas den guidade
 installationen i stället (kapitel 2). En egen `credentials.json` går alltid före den medföljande.

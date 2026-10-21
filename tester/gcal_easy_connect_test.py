@@ -97,9 +97,49 @@ def child() -> None:
     ck("inloggning startas (webbläsaren öppnas) innan uppgiften skickas",
        events[:1] == [("login", True)] and events[1:] == ["service", "push"])
 
-    events.clear()
-    D.push_task_with_dialog(None, task={"id": "2", "title": "Utan datum"}, store=None, settings=FS(), data_dir=own_dir)
-    ck("uppgift utan datum: ingen inloggning", events == [] and any("Datum" in t for t, _ in shown))
+    # --- saknas datum: dialog öppnas (ingen "datum saknas"-ruta), datumet sparas och uppgiften skickas ---
+    class FakeStore:
+        def __init__(self): self.set = []
+        def set_due_date(self, tid, d): self.set.append((tid, d)); return True
+
+    pushed: list = []
+    gcal.push_task = lambda svc, cid, t, *a, **k: pushed.append(dict(t)) or events.append("push") or {"ok": False, "action": "fel", "message": "test"}
+    asked: list = []
+    real_fraga = D._fraga_datum
+    D._fraga_datum = lambda parent, titel: asked.append(titel) or "2026-12-24"
+    st = FakeStore()
+    shown.clear(); events.clear()
+    D.push_task_with_dialog(None, task={"id": "2", "title": "Utan datum"}, store=st, settings=FS(), data_dir=own_dir)
+    ck("datum saknas: datumdialogen öppnas", asked == ["Utan datum"])
+    ck("datum saknas: ingen 'Datum saknas'-ruta", not any("Datum saknas" in t for t, _ in shown))
+    ck("valt datum sparas som uppgiftens förfallodatum", st.set == [("2", "2026-12-24")])
+    ck("uppgiften skickas med det valda datumet", pushed and pushed[-1].get("due_date") == "2026-12-24")
+    ck("datum först, sedan inloggning, sedan skick", events[:1] == [("login", True)] and "push" in events)
+
+    asked.clear(); events.clear(); st.set.clear()
+    D._fraga_datum = lambda parent, titel: None  # Avbryt
+    D.push_task_with_dialog(None, task={"id": "3", "title": "Avbryt"}, store=st, settings=FS(), data_dir=own_dir)
+    ck("Avbryt i datumdialogen: ingenting skickas, ingen inloggning, inget sparas", events == [] and st.set == [])
+
+    # riktiga datumdialogen: bygger, har kalenderväljare, ger ÅÅÅÅ-MM-DD
+    from PySide6.QtCore import QTimer
+    from PySide6.QtWidgets import QApplication, QDateEdit, QPushButton
+    seen: dict = {}
+
+    def poke():
+        for w in QApplication.topLevelWidgets():
+            de = w.findChild(QDateEdit)
+            if de is not None and w.isVisible():
+                seen["popup"] = de.calendarPopup()
+                next(b for b in w.findChildren(QPushButton) if b.text().startswith("Använd")).click()
+                return
+        QTimer.singleShot(30, poke)
+
+    QTimer.singleShot(50, poke)
+    val = real_fraga(None, "X")
+    import re as _re
+    ck("riktiga datumdialogen har kalenderväljare", seen.get("popup") is True)
+    ck("riktiga datumdialogen ger ÅÅÅÅ-MM-DD", bool(val) and bool(_re.fullmatch(r"\d{4}-\d{2}-\d{2}", val)))
 
     # redan kopplad → ingen ny inloggning
     gcal.is_connected = lambda d, extra_dirs=None: True

@@ -45,6 +45,7 @@ Beroenden (valfria — appen fungerar utan dem):
 from __future__ import annotations
 
 import json
+from contextlib import suppress
 import logging
 import os
 import random
@@ -368,6 +369,103 @@ def _atomic_write_json(path: Path, data: Dict[str, Any], mode: int = 0o600) -> N
     _atomic_write_text(path, json.dumps(data, indent=2, ensure_ascii=False), mode)
 
 
+# --------------------------------------------------------------------------
+# Lokal nyckelfil: åtkomstbeviset krypteras så att bara DEN HÄR datorn + DET HÄR Windows-kontot
+# kan använda det (Windows DPAPI). Filen ligger kvar i appmappen (js/google/token.json) — men den
+# är värdelös om den kopieras till en annan dator eller läses av ett annat konto.
+# På andra system (Linux/macOS) gäller filrättigheterna 0600.
+# --------------------------------------------------------------------------
+TOKEN_PROTECT_KEY: str = "_taskbord_protected"
+TOKEN_PROTECT_SCHEME: str = "dpapi-user"
+_DPAPI_ENTROPY: bytes = b"TaskBord-Google-token-v1"
+
+
+def _dpapi_supported() -> bool:
+    return os.name == "nt"
+
+
+def _dpapi_crypt(data: bytes, encrypt: bool) -> bytes:
+    """Windows DPAPI (CryptProtectData/CryptUnprotectData), knuten till användaren + datorn."""
+    import ctypes
+    from ctypes import wintypes
+
+    class _BLOB(ctypes.Structure):
+        _fields_ = [("cbData", wintypes.DWORD), ("pbData", ctypes.POINTER(ctypes.c_char))]
+
+    crypt32 = ctypes.windll.crypt32
+    kernel32 = ctypes.windll.kernel32
+    fn = crypt32.CryptProtectData if encrypt else crypt32.CryptUnprotectData
+    fn.restype = wintypes.BOOL
+    fn.argtypes = [ctypes.POINTER(_BLOB), ctypes.c_void_p, ctypes.POINTER(_BLOB),
+                   ctypes.c_void_p, ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(_BLOB)]
+    kernel32.LocalFree.argtypes = [ctypes.c_void_p]
+    kernel32.LocalFree.restype = ctypes.c_void_p
+
+    def mk(b: bytes):
+        buf = ctypes.create_string_buffer(b, len(b))
+        return _BLOB(len(b), ctypes.cast(buf, ctypes.POINTER(ctypes.c_char))), buf
+
+    blob_in, _keep1 = mk(data)
+    blob_ent, _keep2 = mk(_DPAPI_ENTROPY)
+    blob_out = _BLOB()
+    if not fn(ctypes.byref(blob_in), None, ctypes.byref(blob_ent), None, None,
+              0x1, ctypes.byref(blob_out)):  # CRYPTPROTECT_UI_FORBIDDEN
+        raise OSError(f"DPAPI {'kryptering' if encrypt else 'dekryptering'} misslyckades "
+                      f"(fel {ctypes.GetLastError()})")
+    try:
+        return ctypes.string_at(blob_out.pbData, blob_out.cbData)
+    finally:
+        kernel32.LocalFree(ctypes.cast(blob_out.pbData, ctypes.c_void_p))
+
+
+def protect_token_info(info: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Det som ska skrivas till token.json: krypterat på Windows, annars oförändrat.
+    Misslyckas krypteringen sparas filen i klartext (0600) hellre än att inloggningen går förlorad.
+    """
+    if not _dpapi_supported():
+        return info
+    try:
+        import base64
+        blob = _dpapi_crypt(json.dumps(info, ensure_ascii=False).encode("utf-8"), True)
+        return {
+            TOKEN_PROTECT_KEY: TOKEN_PROTECT_SCHEME,
+            "info": "Krypterad Google-nyckel. Kan bara läsas av samma Windows-konto på samma dator.",
+            "data": base64.b64encode(blob).decode("ascii"),
+            "_taskbord_saved_at": info.get("_taskbord_saved_at", ""),
+        }
+    except Exception as e:
+        logger.warning(f"{LOG_PREFIX} token kunde inte krypteras ({type(e).__name__}) — sparas med "
+                       f"filrättigheter i stället")
+        return info
+
+
+def unprotect_token_info(raw: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Motsatsen till protect_token_info. None om filen är krypterad för någon annan / trasig."""
+    if not isinstance(raw, dict):
+        return None
+    if raw.get(TOKEN_PROTECT_KEY) != TOKEN_PROTECT_SCHEME:
+        return raw  # äldre/oskyddad fil
+    try:
+        import base64
+        text = _dpapi_crypt(base64.b64decode(str(raw.get("data", ""))), False).decode("utf-8")
+        info = json.loads(text)
+        return info if isinstance(info, dict) else None
+    except Exception as e:
+        logger.warning(f"{LOG_PREFIX} token kunde inte dekrypteras ({type(e).__name__}) — "
+                       f"den är knuten till ett annat konto/dator. Koppla om kontot.")
+        return None
+
+
+def is_token_protected(path: Any) -> bool:
+    """True om token-filen är krypterad (lokal nyckel)."""
+    try:
+        raw = _read_json(Path(str(path)))
+        return bool(raw and raw.get(TOKEN_PROTECT_KEY) == TOKEN_PROTECT_SCHEME)
+    except Exception:
+        return False
+
+
 def _read_json(path: Path) -> Optional[Dict[str, Any]]:
     """Läs JSON, returnera None vid fel (loggar aldrig innehållet)."""
     try:
@@ -569,9 +667,9 @@ def save_token(credentials_obj: Any, data_dir: Any) -> Path:
         )
     data["_taskbord_saved_at"] = _now_iso()
     data["_taskbord_scopes"] = list(SCOPES)
-    _atomic_write_json(path, data, mode=0o600)
+    _atomic_write_json(path, protect_token_info(data), mode=0o600)
     logger.info(
-        f"{LOG_PREFIX} token sparad lokalt: {path} "
+        f"{LOG_PREFIX} token sparad lokalt ({'krypterad' if is_token_protected(path) else 'klartext 0600'}): {path} "
         f"(refresh_token={'ja' if data.get('refresh_token') else 'nej'}, "
         f"behörigheter={len(SCOPES)})"
     )
@@ -613,7 +711,15 @@ def load_credentials(data_dir: Any, allow_refresh: bool = True) -> Optional[Any]
         _require_library()
         return None
     try:
-        creds = Credentials.from_authorized_user_file(str(token_file), list(SCOPES))
+        raw = _read_json(token_file)
+        info = unprotect_token_info(raw)
+        if info is None:
+            return None
+        creds = Credentials.from_authorized_user_info(info, list(SCOPES))
+        if _dpapi_supported() and raw is not None and raw.get(TOKEN_PROTECT_KEY) != TOKEN_PROTECT_SCHEME:
+            # Äldre klartext-token → kryptera den nu
+            with suppress(Exception):
+                _atomic_write_json(token_file, protect_token_info(info), mode=0o600)
     except Exception as e:
         logger.warning(f"{LOG_PREFIX} token kunde inte läsas: {type(e).__name__}")
         return None

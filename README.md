@@ -204,6 +204,8 @@ direkt – logga in, godkänn, och uppgiften skickas. Det kräver att appen leve
 (`core/google_client.json`, läggs dit en gång av utvecklaren – se `GOOGLE_CALENDAR.md` kapitel 1b). Utan den
 visas den guidade installationen som förut.
 
+Saknar uppgiften datum öppnas en datumväljare (valet sparas som förfallodatum) i stället för ett felmeddelande. Efter godkännandet sparas en lokal nyckelfil i `js\google\token.json`, krypterad med Windows DPAPI så att bara ditt Windows-konto på den här datorn kan använda den.
+
 Vill du ha uppgifterna i din riktiga kalender? Högerklicka i fönstret eller
 tray-ikonen → **☁️ Google Calendar (koppla konto)…**
 

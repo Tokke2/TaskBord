@@ -28,10 +28,10 @@ logger = logging.getLogger("TaskBord")
 LOG_PREFIX = "[GCAL-UI]"
 
 try:
-    from PySide6.QtCore import QTimer, Qt, QThread, QUrl, Signal
+    from PySide6.QtCore import QDate, QTimer, Qt, QThread, QUrl, Signal
     from PySide6.QtGui import QDesktopServices
     from PySide6.QtWidgets import (
-        QCheckBox, QComboBox, QDialog, QHBoxLayout, QLabel, QLineEdit,
+        QCheckBox, QComboBox, QDateEdit, QDialog, QHBoxLayout, QLabel, QLineEdit,
         QListWidget, QListWidgetItem, QMessageBox, QPlainTextEdit,
         QFileDialog, QHeaderView, QTableWidget, QTableWidgetItem, QAbstractItemView, QProgressBar, QPushButton, QVBoxLayout, QWidget,
     )
@@ -150,6 +150,44 @@ def _open_url(url: str) -> bool:
     except Exception as e:
         logger.warning(f"{LOG_PREFIX} kunde inte öppna {url}: {e}")
     return False
+
+
+def _fraga_datum(parent: Optional[QWidget], titel: str) -> Optional[str]:
+    """Fråga efter ett datum (kalenderväljare). Returnerar "ÅÅÅÅ-MM-DD" eller None vid Avbryt."""
+    if not _QT_AVAILABLE:  # pragma: no cover
+        return None
+    try:
+        dlg = QDialog(parent)
+        dlg.setWindowTitle("📅 Välj datum")
+        dlg.setModal(True)
+        lay = QVBoxLayout(dlg)
+        lay.setContentsMargins(18, 16, 18, 14)
+        lay.setSpacing(10)
+        txt = QLabel(f"“{titel}” saknar datum.\nVälj vilken dag uppgiften ska ligga på i kalendern:", dlg)
+        txt.setWordWrap(True)
+        lay.addWidget(txt)
+        de = QDateEdit(QDate.currentDate(), dlg)
+        de.setCalendarPopup(True)
+        de.setDisplayFormat("yyyy-MM-dd")
+        de.setMinimumHeight(30)
+        lay.addWidget(de)
+        rad = QHBoxLayout()
+        rad.addStretch(1)
+        avbryt = QPushButton("Avbryt", dlg)
+        ok = QPushButton("Använd datum och skicka", dlg)
+        ok.setDefault(True)
+        avbryt.clicked.connect(dlg.reject)
+        ok.clicked.connect(dlg.accept)
+        rad.addWidget(avbryt)
+        rad.addWidget(ok)
+        lay.addLayout(rad)
+        dlg.setMinimumWidth(380)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return None
+        return de.date().toString("yyyy-MM-dd")
+    except Exception as e:
+        logger.warning(f"{LOG_PREFIX} datumdialogen misslyckades: {e}")
+        return None
 
 
 def _efter_koppling(settings: Any, data_dir: Any) -> None:
@@ -1002,7 +1040,9 @@ if _QT_AVAILABLE:
             elif state == gcal.ConnectionStatus.CONNECTED:
                 rader.append(
                     f"Åtkomstbevis: <code>{Path(st['token_file']).name}</code> "
-                    f"(sparas bara lokalt, rättigheter 0600)."
+                    + ("(krypterat — kan bara läsas av ditt Windows-konto på den här datorn)."
+                       if gcal.is_token_protected(st["token_file"])
+                       else "(sparas bara lokalt, rättigheter 0600).")
                 )
             if st.get("email"):
                 rader.append(f"Konto: <b>{st['email']}</b>")
@@ -1375,13 +1415,18 @@ def push_task_with_dialog(
         return False
 
     if gcal.resolve_task_date(task) is None:
-        _visa_info(
-            parent,
-            "📅 Datum saknas",
-            "Uppgiften behöver ett förfallodatum eller ett startdatum för att "
-            "bli en kalenderhändelse.",
-        )
-        return False
+        # Datum saknas → fråga i stället för att avvisa. Datumet sparas som uppgiftens förfallodatum.
+        valt = _fraga_datum(parent, str(task.get("title", ""))[:70])
+        if not valt:
+            return False
+        task = dict(task)
+        task["due_date"] = valt
+        try:
+            tid = str(task.get("id", ""))
+            if store is not None and tid and hasattr(store, "set_due_date"):
+                store.set_due_date(tid, valt)
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} kunde inte spara datumet på uppgiften: {e}")
 
     # Enkel koppling: är kontot inte kopplat öppnas Googles inloggningssida direkt härifrån
     # (logga in + godkänn), och uppgiften skickas sedan automatiskt.
