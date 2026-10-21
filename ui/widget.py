@@ -83,7 +83,7 @@ try:
     from PySide6.QtWidgets import (
         QWidget, QFrame, QLabel, QVBoxLayout, QHBoxLayout, QLineEdit,
         QPushButton, QCheckBox, QScrollArea, QTabWidget, QSizePolicy,
-        QGraphicsDropShadowEffect, QMenu, QStackedWidget,
+        QGraphicsDropShadowEffect, QMenu, QStackedWidget, QMessageBox,
     )
     _QT_BACKEND = "PySide6"
     _QT_AVAILABLE = True
@@ -102,7 +102,7 @@ except ImportError:
         from PyQt6.QtWidgets import (
             QWidget, QFrame, QLabel, QVBoxLayout, QHBoxLayout, QLineEdit,
             QPushButton, QCheckBox, QScrollArea, QTabWidget, QSizePolicy,
-            QGraphicsDropShadowEffect, QMenu,
+            QGraphicsDropShadowEffect, QMenu, QMessageBox,
         )
         _QT_BACKEND = "PyQt6"
         _QT_AVAILABLE = True
@@ -121,7 +121,7 @@ except ImportError:
             from PyQt5.QtWidgets import (
                 QWidget, QFrame, QLabel, QVBoxLayout, QHBoxLayout, QLineEdit,
                 QPushButton, QCheckBox, QScrollArea, QTabWidget, QSizePolicy,
-                QGraphicsDropShadowEffect, QMenu,
+                QGraphicsDropShadowEffect, QMenu, QMessageBox,
             )
             _QT_BACKEND = "PyQt5"
             _QT_AVAILABLE = True
@@ -142,7 +142,7 @@ except ImportError:
             QAction = QKeySequence = QShortcut = QGuiApplication = _stub_factory("QA")  # type: ignore
             QWidget = QFrame = QLabel = QVBoxLayout = QHBoxLayout = _stub_factory("QW")  # type: ignore
             QLineEdit = QPushButton = QCheckBox = QScrollArea = QTabWidget = _stub_factory("QI")  # type: ignore
-            QSizePolicy = QGraphicsDropShadowEffect = _stub_factory("QS")  # type: ignore
+            QSizePolicy = QGraphicsDropShadowEffect = QMessageBox = _stub_factory("QS")  # type: ignore
 
 # ===========================================================================
 # MODUL-KONSTANTER
