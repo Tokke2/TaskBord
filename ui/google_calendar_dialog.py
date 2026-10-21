@@ -152,6 +152,19 @@ def _open_url(url: str) -> bool:
     return False
 
 
+def _efter_koppling(settings: Any, data_dir: Any) -> None:
+    """Kom ihåg kopplingen och vald kalender i inställningarna (efter lyckad inloggning)."""
+    _spara_ansluten(settings, data_dir, True)
+    try:
+        if settings is not None:
+            konto = gcal.load_account_info(data_dir) or {}
+            cid = konto.get("calendar_id")
+            if cid:
+                settings.set_google_calendar_id(str(cid))
+    except Exception:
+        pass
+
+
 def _spara_ansluten(settings: Any, data_dir: Any, ansluten: bool) -> None:
     """Kom ihåg i inställningarna att kontot kopplades (eller kopplades från)."""
     try:
@@ -1361,15 +1374,6 @@ def push_task_with_dialog(
         )
         return False
 
-    if not gcal.is_connected(data):
-        _visa_info(
-            parent,
-            "☁️ Google Calendar",
-            "Inget Google-konto är kopplat ännu.\n\n"
-            "Öppna ☁️ Google Calendar och klicka på “Koppla Google-konto…”.",
-        )
-        return False
-
     if gcal.resolve_task_date(task) is None:
         _visa_info(
             parent,
@@ -1379,21 +1383,56 @@ def push_task_with_dialog(
         )
         return False
 
+    # Enkel koppling: är kontot inte kopplat öppnas Googles inloggningssida direkt härifrån
+    # (logga in + godkänn), och uppgiften skickas sedan automatiskt.
+    behover_koppling = not gcal.is_connected(data)
+    if behover_koppling:
+        cred = gcal.discover_credentials_file(data)
+        kontroll = gcal.validate_credentials_file(cred) if cred else None
+        if not kontroll or not kontroll["ok"]:
+            # Ingen klient finns (varken medföljande eller egen) → guiden hjälper till.
+            _visa_info(
+                parent,
+                "☁️ Google Calendar",
+                "Kopplingen till Google är inte färdig att använda ännu.\n\n"
+                "Guiden öppnas så att du kan slutföra den.",
+            )
+            try:
+                w = GoogleSetupWizard(data, parent)
+                w.exec()
+                if w.vill_koppla:
+                    return push_task_with_dialog(parent, task, store, settings, data_dir)
+            except Exception as e:
+                logger.warning(f"{LOG_PREFIX} guiden kunde inte öppnas: {e}")
+            return False
+
     cid = _kalender_id(settings, data)
     farg = _fargkodning(settings)
     klar_stil = _done_style(settings)
     titel = str(task.get("title", ""))[:70]
 
     def jobb(logga):
+        nyss_kopplad = False
+        if behover_koppling:
+            logga("Öppnar Googles inloggningssida i webbläsaren…")
+            logga("Logga in och godkänn åtkomsten till din kalender. "
+                  "Det här fönstret väntar i upp till 5 minuter.")
+            gcal.authenticate_google_calendar(data, open_browser=True, on_url=lambda _u: None)
+            nyss_kopplad = True
+            logga("✓ Kopplat.")
         logga(f"Skickar “{titel}” till “{cid}”…")
         service = gcal.build_calendar_service(data)
         em = gcal.load_event_map(data)
         r = gcal.push_task(service, cid, task, em, color_by_priority=farg,
                            done_style=klar_stil, history=gcal.load_history(data))
+        r = dict(r)
+        r["_nyss_kopplad"] = nyss_kopplad
         logga(f"{r['action']}: {r['message']}")
         return r
 
     def klart(r: Dict[str, Any]) -> None:
+        if r.get("_nyss_kopplad"):
+            _efter_koppling(settings, data)
         if r.get("ok"):
             try:
                 box = QMessageBox(parent)

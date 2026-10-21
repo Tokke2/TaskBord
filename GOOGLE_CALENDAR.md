@@ -42,6 +42,31 @@ felsökning.
 
 ---
 
+## 1b. Enkel koppling (inget att skapa hos Google)
+
+Ligger filen `core/google_client.json` i appen (en OAuth-klient av typen *Datorapp* som utvecklaren
+skapat **en gång**) behöver användaren inte göra något hos Google. Då gäller:
+
+1. Högerklicka på en uppgift → **☁️ Skicka till Google Calendar**.
+2. Googles inloggningssida öppnas i webbläsaren → logga in → **godkänn** åtkomsten.
+3. Uppgiften skickas automatiskt. Kopplingen sparas, så nästa gång går det direkt.
+
+Saknas filen (och användaren inte har lagt en egen `credentials.json`) öppnas den guidade
+installationen i stället (kapitel 2). En egen `credentials.json` går alltid före den medföljande.
+
+**Utvecklaren gör detta en gång:** skapa projekt + aktivera Calendar API + OAuth-klient *Datorapp*
+(kapitel 2, steg 1–4), ladda ner JSON-filen och spara den som `core/google_client.json`, committa
+och släpp. Klient-id:t är enligt Google inte en hemlighet för datorappar. Två saker styr vem som kan
+logga in:
+
+* **Teststatus** (standard): bara e-postadresser under *Testanvändare* (max 100) kan godkänna, och
+  Google låter inloggningen gå ut efter 7 dagar.
+* **Publicerad**: vem som helst kan godkänna, men `calendar.events`/`calendar.readonly` är känsliga
+  behörigheter, så Google kräver granskning (integritetspolicy + kort video). Tills den är klar visas
+  varningen *"Google har inte verifierat appen"* (Avancerat → Fortsätt), för upp till 100 användare.
+
+---
+
 ## 2. Engångssteg hos Google (5 minuter)
 
 > 🧭 **Hellre en guide i appen?** Öppna ☁️ Google Calendar → **🧭 Guidad

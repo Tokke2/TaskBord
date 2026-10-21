@@ -79,6 +79,10 @@ CONNECT_TIMEOUT_SEC: int = 300
 DEFAULT_CALENDAR_ID: str = "primary"
 GOOGLE_DIRNAME: str = "google"
 CREDENTIALS_FILENAME: str = "credentials.json"
+# Medföljande OAuth-klient ("Datorapp") som utvecklaren lägger i appen en enda gång. Finns den
+# behöver användaren inte skapa något hos Google — bara logga in och godkänna. Enligt Googles
+# regler för datorappar är klient-id:t inte en hemlighet. Mappen core/ skickas med i releasen.
+BUNDLED_CLIENT_FILENAME: str = "google_client.json"
 TOKEN_FILENAME: str = "token.json"
 ACCOUNT_FILENAME: str = "account.json"
 EVENT_MAP_FILENAME: str = "event_map.json"
@@ -286,6 +290,21 @@ def discover_credentials_file(
                 return k
         except Exception:
             continue
+    # Sist: den medföljande klienten (ger "enkel koppling" utan egen Google-installation).
+    bundled = bundled_client_file()
+    if bundled is not None:
+        return bundled
+    return None
+
+
+def bundled_client_file() -> Optional[Path]:
+    """Sökvägen till appens medföljande OAuth-klient, om den finns och är giltig."""
+    try:
+        k = Path(__file__).resolve().parent / BUNDLED_CLIENT_FILENAME
+        if k.is_file() and k.stat().st_size > 0 and validate_credentials_file(k)["ok"]:
+            return k
+    except Exception:
+        pass
     return None
 
 

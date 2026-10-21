@@ -199,6 +199,11 @@ uppgift → **▶ Startdatum → 📆 Välj i kalender…** (eller snabbval). S�
 
 ## ☁️ Google Calendar (lokal koppling)
 
+**Enkel koppling:** trycker du *☁️ Skicka till Google Calendar* på en uppgift öppnas Googles inloggningssida
+direkt – logga in, godkänn, och uppgiften skickas. Det kräver att appen levereras med en OAuth-klient
+(`core/google_client.json`, läggs dit en gång av utvecklaren – se `GOOGLE_CALENDAR.md` kapitel 1b). Utan den
+visas den guidade installationen som förut.
+
 Vill du ha uppgifterna i din riktiga kalender? Högerklicka i fönstret eller
 tray-ikonen → **☁️ Google Calendar (koppla konto)…**
 
