@@ -1947,9 +1947,14 @@ def _inspect_widget_fix_status() -> Dict[str, bool]:
 
         # 2. AST-parse (ingen exekvering!)
         import ast as _ast
-        tree = _ast.parse(widget_path.read_text(encoding="utf-8"))
-        for node in _ast.walk(tree):
-            if isinstance(node, _ast.ClassDef) and node.name == "TodoWidget":
+        # ui/widget.py är en fasad: metoderna ligger i ui/widget_parts/*.py (mixins)
+        _ui = widget_path.parent
+        _trees = [_ast.parse(f.read_text(encoding="utf-8")) for f in
+                  [widget_path] + sorted((_ui / "widget_parts").glob("*.py"))]
+        for node in (n for t in _trees for n in _ast.walk(t)):
+            if isinstance(node, _ast.ClassDef) and (
+                node.name == "TodoWidget" or node.name.endswith("Mixin")
+            ):
                 for item in node.body:
                     if isinstance(
                         item, (_ast.FunctionDef, _ast.AsyncFunctionDef)

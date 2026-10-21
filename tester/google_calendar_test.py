@@ -31,7 +31,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _src import app_files, app_source  # noqa: E402
+from _src import app_files, app_source, widget_files, widget_source  # noqa: E402
 
 from core import google_calendar as gc  # noqa: E402
 
@@ -758,7 +758,7 @@ with tempfile.TemporaryDirectory() as tmpdir:
 # --- 17. Kopplingen in i appen (statisk kontroll) -------------------------
 print("\n17. Menykoppling i appen")
 main_py = app_source(ROOT)
-widget_py = (ROOT / "ui" / "widget.py").read_text(encoding="utf-8")
+widget_py = widget_source(ROOT)  # ui/widget.py är delad i fasad + delar
 dlg_py = (ROOT / "ui" / "google_calendar_dialog.py").read_text(encoding="utf-8") \
     if (ROOT / "ui" / "google_calendar_dialog.py").is_file() else ""
 settings_py = (ROOT / "core" / "settings.py").read_text(encoding="utf-8")
@@ -833,8 +833,8 @@ def _dubbletter(fil):
 
 def _antal_definitioner(fil: str, namn: str) -> int:
     """Hur många gånger ett namn definieras i en fil (alla scopes)?"""
-    trad = _ast.parse((ROOT / fil).read_text(encoding="utf-8"))
-    return sum(1 for n in _ast.walk(trad)
+    filer = widget_files(ROOT) if fil == "ui/widget.py" else [ROOT / fil]  # widget.py = fasad + delar
+    return sum(1 for f in filer for n in _ast.walk(_ast.parse(f.read_text(encoding="utf-8")))
                if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef))
                and n.name == namn)
 
@@ -863,7 +863,8 @@ for _fil, _namn in [
 # Alla dubbletter i appens filer visas (den sista vinner tyst = död kod)
 _alla = []
 for _f in ([str(_p.relative_to(ROOT)) for _p in app_files(ROOT)] +
-           ["ui/widget.py", "ui/google_calendar_dialog.py", "ui/donate.py",
+           [str(_p.relative_to(ROOT)) for _p in widget_files(ROOT)] +
+           ["ui/google_calendar_dialog.py", "ui/donate.py",
             "core/google_calendar.py", "core/settings.py", "core/store.py",
             "core/mail_bridge.py", "core/calendar_export.py"]):
     _alla.extend(_dubbletter(str(ROOT / _f)))

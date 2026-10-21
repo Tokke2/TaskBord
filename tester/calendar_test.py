@@ -21,7 +21,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _src import app_files, app_source  # noqa: E402
+from _src import app_files, app_source, widget_source  # noqa: E402
 
 from core.calendar_export import (  # noqa: E402
     build_ics,
@@ -240,7 +240,7 @@ check("utan datum → inga rader", task_to_vevent({"title": "x", "due_date": Non
 # att etiketterna finns OCH att de pekar på metoder som verkligen existerar.
 print("\n10. Menykoppling i appen")
 main_py = app_source(ROOT)
-widget_py = (ROOT / "ui" / "widget.py").read_text(encoding="utf-8")
+widget_py = widget_source(ROOT)  # ui/widget.py är delad i fasad + delar
 
 check("tray-menyn har kalenderposten", "Exportera till kalender (.ics)" in main_py)
 check(

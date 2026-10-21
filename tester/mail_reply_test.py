@@ -106,7 +106,9 @@ check("open_mailto returnerar False vid fel", mr.open_mailto("mailto:a@b.se") is
 mr.subprocess.Popen = orig_popen
 
 # --- kortet har knapp + menyval (källkontroll) ---
-w = (ROOT / "ui" / "widget.py").read_text(encoding="utf-8")
+from _src import widget_source  # noqa: E402
+
+w = widget_source(ROOT)  # ui/widget.py är delad i fasad + delar
 check("↩-knapp på kortet", 'QPushButton("↩", container)' in w)
 check("menyval 'Svara på mejlet'", "↩️ Svara på mejlet" in w)
 check("widget har _reply_to_task_email", "def _reply_to_task_email" in w)

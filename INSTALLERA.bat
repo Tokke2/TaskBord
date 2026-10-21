@@ -40,7 +40,7 @@ findstr /C:"v7-fix51" "%TARGET%\app\mixins\windows.py" >nul 2>&1
 if %errorlevel%==0 (echo   [OK] app\      = senaste ^(v7-fix51^)) else (echo   [FEL] app\      = GAMMAL eller SAKNAS!)
 findstr /C:"attach_window_above_desktop_icons" "%TARGET%\core\desktop.py" >nul 2>&1
 if %errorlevel%==0 (echo   [OK] desktop.py  = senaste ^(desktop-lager^)) else (echo   [FEL] desktop.py  = GAMMAL!)
-findstr /C:"_save_geometry_now" "%TARGET%\ui\widget.py" >nul 2>&1
+findstr /C:"_save_geometry_now" "%TARGET%\ui\widget_parts\qt_events.py" >nul 2>&1
 if %errorlevel%==0 (echo   [OK] widget.py   = senaste ^(las+geometri^)) else (echo   [FEL] widget.py   = GAMMAL!)
 findstr /C:"auto_update_plugins" "%TARGET%\core\settings.py" >nul 2>&1
 if %errorlevel%==0 (echo   [OK] settings.py = senaste ^(auto-tillagg^)) else (echo   [FEL] settings.py = GAMMAL!)

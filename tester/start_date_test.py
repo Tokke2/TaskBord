@@ -34,10 +34,10 @@ def check(name: str, cond: bool) -> None:
 
 
 def _load_nl_parser():
-    """Hämtar parse_natural_input ur ui/widget.py utan att importera Qt (libGL saknas i CI)."""
+    """Hämtar parse_natural_input ur ui/widget_base.py utan att importera Qt (libGL saknas i CI)."""
     import ast
     from typing import Any, Dict
-    src = (ROOT / "ui" / "widget.py").read_text(encoding="utf-8")
+    src = (ROOT / "ui" / "widget_base.py").read_text(encoding="utf-8")  # (delad ur ui/widget.py)
     keep = []
     for node in ast.parse(src).body:
         if (isinstance(node, ast.FunctionDef) and node.name in ("_resolve_day_expr", "parse_natural_input")) or (

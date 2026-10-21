@@ -277,6 +277,19 @@ Sedan:
 | `app/constants.py` | version, sökvägar (`SCRIPT_DIR` = appmappen), enums, undantag |
 | `app/*.py` (övriga) | loggning, plugin-system, central logg, prestanda, förkontroller, modulladdning |
 
+Själva fönstret (`TodoWidget`) låg förut i en enda fil på ~8 100 rader. `ui/widget.py` är nu en liten
+fasad — alla importer (`from widget import TodoWidget`) fungerar som förut:
+
+| Fil | Innehåll |
+| --- | --- |
+| `ui/widget.py` | `TodoWidget(mixins…, QWidget)` — signaler, `__init__` och diagnostik |
+| `ui/widget_base.py` | konstanter, teman, hjälpfunktioner, logg/felhantering, PWM, `parse_natural_input` |
+| `ui/widget_atoms.py` | `EditableLabel`, `TagChip`, `PriorityBadge`, `PriorityDot`, `DueDateLabel`, `GlassFrame` |
+| `ui/widget_parts/*.py` | metoderna, en mixin per område: `lifecycle`, `task_menu`, `task_actions`, `render`, `task_card`, `theme`, `keys_position`, `focus_timers`, `exports`, `window_ops`, `keynav`, `qt_events` |
+
+Ändra textstorleken via `set_ui_font_scale()` (i `widget_base`), inte genom att skriva till `_UI_FONT_SCALE`.
+`tester/widget_split_test.py` vaktar delningen (alla metoder kvar, inga namn saknas, ingen metod i två mixins).
+
 Regler som testerna vaktar (`tester/structure_test.py`): alla moduler går att importera, ingen metod
 finns i två mixins (annars vinner en tyst), inga odefinierade namn, sökvägar byggs från `SCRIPT_DIR`
 (aldrig från `__file__` i `app/`). `tester/app_boot_test.py` startar hela appen offscreen och läser loggen.

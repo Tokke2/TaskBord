@@ -7,7 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _src import app_files, app_source  # noqa: E402
+from _src import app_files, app_source, widget_source  # noqa: E402
 sys.path.insert(0, str(ROOT / "core"))
 
 ok = fail = 0
@@ -87,7 +87,7 @@ with tempfile.TemporaryDirectory() as d:
 main = app_source(ROOT)
 check("store.changed från annan tråd köas", "_store_changed_in_thread = True" in main)
 check("refresh använder _rebuild_task_list", 'hasattr(w, "_rebuild_task_list")' in main)
-wid = (ROOT / "ui" / "widget.py").read_text(encoding="utf-8")
+wid = widget_source(ROOT)
 check("flash återapplieras efter ombyggnad", "self._reapply_flash()" in wid)
 
 print(f"\nmail_race_test: {ok} lyckades, {fail} misslyckades")
