@@ -409,8 +409,6 @@ class UpdateMixin:
                 return
             if not self.settings.update_check_enabled():
                 return
-            if (SCRIPT_DIR / ".git").exists():     # utvecklarmapp: använd git
-                return
             if not updater.check_due(self.settings.update_last_check()):
                 return
             self._log.info(f"{LOG_PREFIX} tyst uppdateringskoll")

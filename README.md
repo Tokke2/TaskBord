@@ -61,7 +61,7 @@ Snabbstart:
 tyst i bakgrunden. Är allt aktuellt märker du ingenting. Finns en ny version får du *en*
 tray-notis (klicka på den för att uppdatera), och menyraden ändras till
 **🆕 Ny version finns — uppdatera…**. Inget installeras utan att du godkänner. Stäng av med
-tray → *Sök ny version automatiskt*. (Hoppas över i en git-mapp.)
+tray → *Sök ny version automatiskt*.
 
 **Manuellt:** tray-menyn → **🔄 Sök ny version…** hämtar GitHub-releasen *Latest* och jämför
 filerna med din installation (innehållet, inte versionsnumret — releasen kan heta v1.0.0 och
@@ -83,7 +83,7 @@ filerna med din installation (innehållet, inte versionsnumret — releasen kan 
   release installeras aldrig), rullar tillbaka om något går fel och skriver inget utanför
   appmappen. Filer du själv lagt till tas inte bort.
 * Appen startar om automatiskt. Ändras `requirements.txt` ska du köra `FORSTA_START.bat`.
-* Kör du från en git-mapp (`.git`) används `git pull` i stället.
+* Uppdateringen hämtas alltid från den senaste **releasen** på GitHub – aldrig från `main` och aldrig via `git pull` – även om mappen är en git-mapp (`.git` lämnas orörd; filerna syns då som ändrade i git).
 
 ## 🖥️ Windows · macOS · Linux
 

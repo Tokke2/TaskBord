@@ -14,7 +14,8 @@ Säkerhet / regler:
   * Ersatta filer sparas i ``data/backups/app-update/<tid>/`` (kan återställas), och
     om något går fel under skrivningen rullas redan ersatta filer tillbaka.
   * Filer som finns lokalt men inte i releasen tas INTE bort.
-  * En git-mapp (``.git``) uppdateras inte — använd git där.
+  * Källan är alltid den senaste RELEASEN (aldrig main eller git pull) — också i en git-mapp,
+    där ``.git`` lämnas orörd (filerna syns då som ändrade i git).
 
 Allt utom ``schedule_restart`` är ren Python utan Qt och testas i
 ``tester/updater_test.py``.
@@ -296,11 +297,8 @@ def check_for_update(
 ) -> UpdateInfo:
     """Hämta senaste releasen och räkna ut vad som skiljer. Skriver inget till disk."""
     app_dir = Path(app_dir)
-    if (app_dir / ".git").exists():
-        raise UpdateError(
-            "Den här mappen är en git-mapp. Uppdatera med git (git pull) i stället, "
-            "så skrivs inget över av misstag."
-        )
+    # Uppdateringen hämtas ALLTID från den senaste GitHub-releasen (aldrig från main/git pull) —
+    # även i en git-mapp. .git rörs inte (PROTECTED_TOP).
     _p: ProgressCb = progress or (lambda *_a: None)
     _p("release", 0, 0)
     meta = fetch_latest_release(http_get)
@@ -347,8 +345,6 @@ def apply_update(app_dir: Path, info: UpdateInfo,
     Vid fel rullas allt tillbaka och UpdateError kastas.
     """
     app_dir = Path(app_dir)
-    if (app_dir / ".git").exists():
-        raise UpdateError("Git-mapp — uppdatera med git.")
     if not info.changed:
         raise UpdateError("Inget att uppdatera.")
     stamp = time.strftime("%Y%m%d-%H%M%S")

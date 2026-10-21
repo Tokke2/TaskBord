@@ -127,14 +127,22 @@ with tempfile.TemporaryDirectory() as d:
         check("zip-slip nekas", True)
     check("inget skrevs utanför", not (Path(d).parent / "evil.py").exists())
 
-# git-mapp uppdateras inte
+# git-mapp: uppdateras från RELEASEN (inte main/git pull); .git rörs inte
 with tempfile.TemporaryDirectory() as d:
-    (Path(d) / ".git").mkdir()
+    gd = Path(d)
+    (gd / ".git").mkdir()
+    (gd / ".git" / "HEAD").write_text("ref: refs/heads/main\n")
+    (gd / "main.pyw").write_bytes(b"print('gammal')\n")
     try:
-        updater.check_for_update(Path(d), fake_http(make_zip(REL)))
-        check("git-mapp nekas", False)
+        gi = updater.check_for_update(gd, fake_http(make_zip(REL)))
+        check("git-mapp: söker i releasen", bool(gi.changed))
+        updater.apply_update(gd, gi)
+        check("git-mapp: release-filerna installeras", (gd / "main.pyw").read_bytes() != b"print('gammal')\n")
+        check("git-mapp: .git orörd", (gd / ".git" / "HEAD").read_text() == "ref: refs/heads/main\n"
+              and sorted(p.name for p in (gd / ".git").iterdir()) == ["HEAD"])
     except UpdateError as e:
-        check("git-mapp nekas", "git" in str(e).lower())
+        check("git-mapp uppdateras från release", False)
+        print("   ", e)
 
 # bara GitHub över https
 for bad_url in ("http://api.github.com/x", "https://evil.example.com/x", "file:///etc/passwd"):

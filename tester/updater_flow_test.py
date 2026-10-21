@@ -231,11 +231,11 @@ check("aktuell: ingen notis", not s4._tray.msgs)
 check("aktuell: markering rensas", s4._update_available is False and s4._update_action_text().startswith("🔄"))
 (APP / "main.pyw").write_bytes(b"print('v1')\n")
 
-# 8. git-mapp -> ingen automatisk koll
+# 8. git-mapp -> automatisk koll görs ändå (mot releasen, inte main)
 (APP / ".git").mkdir()
 s5 = Stub()
 s5._auto_update_check()
-check("git-mapp: ingen automatisk koll", not hasattr(s5, "_update_busy") or not s5._update_busy)
+check("git-mapp: automatisk koll mot releasen görs", getattr(s5, "_update_busy", False) is True)
 (APP / ".git").rmdir()
 
 # 9. manuell uppdatering: förlopp i båda faserna + installation + omstart
