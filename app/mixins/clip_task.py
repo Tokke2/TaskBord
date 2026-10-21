@@ -97,7 +97,7 @@ class ClipTaskMixin:
                 f"Nu: {current if enabled else 'avstängd'}",
                 current,
                 _cc.DEFAULT_CLIP_TASK,
-                taken=[self._get_quick_add_hotkey_combo(), self._get_push_hotkey_combo()],
+                taken=[self._get_quick_add_hotkey_combo(), self._get_push_hotkey_combo(), self._get_top_toggle_combo()],
                 allow_disable=True,
             )
             if combo is None:

@@ -27,6 +27,7 @@ from app.mixins.mail_bridge_ctl import MailBridgeMixin
 from app.mixins.maintenance import MaintenanceMixin
 from app.mixins.plugin_updates import PluginUpdateMixin
 from app.mixins.reminders import RemindersMixin
+from app.mixins.top_toggle import TopToggleMixin
 from app.mixins.tray import TrayMixin
 from app.mixins.updates import UpdateMixin
 from app.mixins.windows import WindowsMixin
@@ -44,6 +45,7 @@ class AppController(
     WindowsMixin,
     HotkeysMixin,
     ClipTaskMixin,
+    TopToggleMixin,
     RemindersMixin,
     BackupSyncMixin,
     MailBridgeMixin,

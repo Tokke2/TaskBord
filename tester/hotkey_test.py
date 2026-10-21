@@ -202,9 +202,10 @@ class Box:
 
 
 from app.mixins.clip_task import ClipTaskMixin  # noqa: E402
+from app.mixins.top_toggle import TopToggleMixin  # noqa: E402
 
 
-class Ctl(hk.HotkeysMixin, ClipTaskMixin):
+class Ctl(hk.HotkeysMixin, ClipTaskMixin, TopToggleMixin):
     def __init__(self, settings):
         self.settings = settings
         self._log = FakeLog()

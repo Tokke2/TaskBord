@@ -366,6 +366,16 @@ class TrayMixin:
                 "texten blir en uppgift direkt (default: Ctrl+Alt+K)."
             )
             _cl.triggered.connect(self._change_clip_task_hotkey_dialog)
+            _tt_on = self._top_toggle_enabled()
+            _tt = _hk_menu.addAction(
+                f"📌  Alltid överst på/av…  "
+                f"({self._get_top_toggle_combo() if _tt_on else 'av'})"
+            )
+            _tt.setToolTip(
+                "Snabbtangent som lägger TaskBord över alla andra appar\n"
+                "(tryck igen för att lägga tillbaka det). Default: Ctrl+Alt+T."
+            )
+            _tt.triggered.connect(self._change_top_toggle_hotkey_dialog)
             plugin_action = self._QAction("📦  Installera/Uppdatera tillägg")
             plugin_action.setToolTip(
                 "Kontrollera och installera saknade Python-paket\n"

@@ -1305,6 +1305,10 @@ class Settings(QObject):
             # Markerad text i valfritt program → uppgift (Ctrl+Alt+K)
             "clip_task_enabled": True,
             "clip_task_hotkey": "Ctrl+Alt+K",
+            # Global tangent som slår "Alltid överst" på/av (Ctrl+Alt+T) + läget att gå tillbaka till
+            "top_toggle_enabled": True,
+            "top_toggle_hotkey": "Ctrl+Alt+T",
+            "top_toggle_prev_mode": "behind",
             # NY v7-fix72: tray-klick lyfter fönstret i X sekunder
             "tray_lift_seconds": 5,
             # NY v7-fix90: e-postbrygga — Thunderbird-tillägg + inkorgsmapp
@@ -1374,6 +1378,9 @@ class Settings(QObject):
             "quick_add_hotkey": lambda v: _coerce_str(v, "Ctrl+Alt+N")[:40],
             "clip_task_enabled": lambda v: _coerce_bool(v, True),
             "clip_task_hotkey": lambda v: _coerce_str(v, "Ctrl+Alt+K")[:40],
+            "top_toggle_enabled": lambda v: _coerce_bool(v, True),
+            "top_toggle_hotkey": lambda v: _coerce_str(v, "Ctrl+Alt+T")[:40],
+            "top_toggle_prev_mode": lambda v: (str(v) if str(v) in ("above", "behind") else "behind"),
             # NY v7-fix72 (1-60 sekunder)
             "tray_lift_seconds": lambda v: _coerce_int(v, 5, 1, 60),
             # NY v7-fix90: e-postbrygga (Thunderbird-tillägget)
@@ -2966,6 +2973,53 @@ class Settings(QObject):
             self._data["quick_add_hotkey"] = v
         self._dirty = True
         self._log.info(f"{LOG_PREFIX} quick_add_hotkey: {v}")
+        self._save_async_worker(self._data)
+        return True
+
+    @_log_call
+    def top_toggle_enabled(self) -> bool:
+        """Snabbtangenten 'Alltid överst' på/av."""
+        with self._lock:
+            return bool(self._data.get("top_toggle_enabled", True))
+
+    @_log_setter("top_toggle_enabled")
+    def set_top_toggle_enabled(self, enabled: bool) -> bool:
+        v = _coerce_bool(enabled, True)
+        with self._lock:
+            self._data["top_toggle_enabled"] = v
+        self._dirty = True
+        self._save_async_worker(self._data)
+        return True
+
+    @_log_call
+    def top_toggle_hotkey(self) -> str:
+        """Snabbtangent som slår Alltid överst på/av (default Ctrl+Alt+T)."""
+        with self._lock:
+            return str(self._data.get("top_toggle_hotkey", "Ctrl+Alt+T"))[:40]
+
+    @_log_setter("top_toggle_hotkey")
+    def set_top_toggle_hotkey(self, combo: str) -> bool:
+        v = _coerce_str(combo, "Ctrl+Alt+T")[:40]
+        with self._lock:
+            self._data["top_toggle_hotkey"] = v
+        self._dirty = True
+        self._log.info(f"{LOG_PREFIX} top_toggle_hotkey: {v}")
+        self._save_async_worker(self._data)
+        return True
+
+    @_log_call
+    def top_toggle_prev_mode(self) -> str:
+        """Läget som återställs när 'Alltid överst' slås av (above|behind)."""
+        with self._lock:
+            v = str(self._data.get("top_toggle_prev_mode", "behind"))
+        return v if v in ("above", "behind") else "behind"
+
+    @_log_setter("top_toggle_prev_mode")
+    def set_top_toggle_prev_mode(self, mode: str) -> bool:
+        v = str(mode) if str(mode) in ("above", "behind") else "behind"
+        with self._lock:
+            self._data["top_toggle_prev_mode"] = v
+        self._dirty = True
         self._save_async_worker(self._data)
         return True
 

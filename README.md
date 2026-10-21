@@ -155,6 +155,14 @@ Högerklicka på tray-ikonen → **Textstorlek**: *Kompakt* (mindre text, tätar
 
 **Fönstrets plats efter uppdatering:** position och storlek skrivs ner till `js\settings.json` både före installationen och före omstarten (mappen `js\` rörs aldrig av uppdateringen), så fönstret kommer upp exakt där det stod.
 
+## 📌 Alltid överst – snabbtangent
+
+Standard **Ctrl+Alt+T**: lägger TaskBord **över alla andra appar** (läget *Alltid överst*). Tryck igen så går
+fönstret tillbaka till det läge du hade förut (Bakom ikonerna / På skrivbordet). Fungerar var som helst i Windows,
+även när en annan app är aktiv. Ändra eller stäng av: tray → **⌨️ Snabbkommandon → 📌 Alltid överst på/av…**.
+(Vill du bara titta en stund: håll **Ctrl+Alt+V** – då visas fönstret så länge du håller tangenten.)
+På macOS/Linux finns inga globala tangenter – välj *Alltid överst* i tray-menyn.
+
 ## 📋 Lägg till från urklipp
 
 Standard **Ctrl+Alt+K**: markera text i *vilket program som helst* och tryck tangenten — texten
