@@ -50,7 +50,7 @@ MAX_UNPACKED_BYTES = 120 * 1024 * 1024
 MAX_FILES = 3000
 
 # Översta mappar/filer som ALDRIG uppdateras eller rörs
-PROTECTED_TOP = frozenset({"js", "data", ".git", "__pycache__"})
+PROTECTED_TOP = frozenset({"js", "data", ".git", "__pycache__", ".venv", "venv"})
 SKIP_SUFFIXES = (".pyc", ".pyo")
 RESTART_DELAY_SEC = 6
 

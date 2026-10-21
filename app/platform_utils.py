@@ -42,6 +42,16 @@ def _is_windows() -> bool:
     return sys.platform == "win32"
 
 
+def install_script_name() -> str:
+    """Skriptet som installerar paket/startar appen: FORSTA_START.bat (Windows) eller ./starta.sh."""
+    return "FORSTA_START.bat" if sys.platform == "win32" else "./starta.sh"
+
+
+def xpi_script_hint() -> str:
+    """Hur man bygger Thunderbird-tillägget (.xpi) på det här systemet."""
+    return "SKAPA_XPI.bat" if sys.platform == "win32" else "python3 skapa_xpi.py"
+
+
 def _find_pythonw_exe() -> Optional[str]:
     """Hittar pythonw.exe bredvid python.exe (för double-click-start)."""
     if sys.executable.lower().endswith("pythonw.exe"):

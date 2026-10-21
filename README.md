@@ -85,6 +85,32 @@ filerna med din installation (innehållet, inte versionsnumret — releasen kan 
 * Appen startar om automatiskt. Ändras `requirements.txt` ska du köra `FORSTA_START.bat`.
 * Kör du från en git-mapp (`.git`) används `git pull` i stället.
 
+## 🖥️ Windows · macOS · Linux
+
+Appen körs på alla tre. Installation/start på **macOS och Linux** (Python 3.10+):
+
+```bash
+./starta.sh              # första gången: skapar .venv i appmappen, installerar paket, startar
+./starta.sh --forgrund   # starta i terminalen (visar fel direkt)
+```
+
+På macOS kan du också dubbelklicka på `STARTA_TASKBORD.command`. Allt installeras i `.venv` i appmappen
+(inget i systemets Python, inget utanför mappen). Uppdateringen via "Sök ny version" rör aldrig `.venv`, och
+kör du `./starta.sh` igen installeras nya paket bara om kraven ändrats. Debian/Ubuntu: `sudo apt install python3-venv`
+(och vid Qt-fel `libxcb-cursor0`).
+
+| Funktion | Windows | macOS | Linux |
+|---|---|---|---|
+| Uppgifter, backup, mail-brygga, kalender, uppdatering | ✅ | ✅ | ✅ |
+| Start med datorn | Registret/Startup | LaunchAgent | `~/.config/autostart` |
+| Skrivbordsläge "Alltid överst" / "Bakom ikonerna" | Win32 (på skrivbordet) | Qt-flaggor (överst; "bakom" ignoreras av macOS) | Qt-flaggor (X11 fullt, Wayland beroende på skrivbord) |
+| Globala snabbtangenter (Ctrl+Alt+…) | ✅ | ❌ (använd tray-menyn) | ❌ (använd tray-menyn) |
+| Google-nyckel (`token.json`) | krypterad (DPAPI) | filrättighet 0600 | filrättighet 0600 |
+| Systemtema | register | Qt | Qt |
+
+Testas av `tester/multios_test.py`. Jag har provat skripten och logiken på Linux; Windows är den plattform appen
+utvecklats på, macOS är inte provat på riktig maskin.
+
 ## ⌨️ Snabbtangent för ny uppgift
 
 Standard **Ctrl+Alt+N** öppnar rutan för ny uppgift var som helst i Windows. Ändra den:

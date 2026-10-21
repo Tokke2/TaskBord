@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from app.constants import APP_VERSION_DISPLAY, AppMode, LOG_PREFIX, SCRIPT_DIR
+from app.platform_utils import xpi_script_hint
 
 
 class MailBridgeMixin:
@@ -445,7 +446,7 @@ class MailBridgeMixin:
             "   • Klicka kugghjulet ⚙️ → 'Installera tillägg från fil…'\n"
             f"   • Välj filen TaskBord-Thunderbird.xpi (finns i\n"
             f"     {folder})\n"
-            "     – saknas .xpi: kör SKAPA_XPI.bat i appmappen en gång\n\n"
+            f"     – saknas .xpi: kör {xpi_script_hint()} i appmappen en gång\n\n"
             "3. Öppna tilläggets inställningar (Tillägg och teman →\n"
             "   TaskBord → Inställningar), klistra in JSON och spara.\n\n"
             "4. Använd: högerklicka på ett mail →\n"

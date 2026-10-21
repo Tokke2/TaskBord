@@ -1022,7 +1022,7 @@ if _QT_AVAILABLE:
                 rader.append(
                     "Google-paketen saknas. Kör i en kommandotolk:<br>"
                     f"<code>{gcal.install_hint()}</code><br>"
-                    "(Första gången via <b>FORSTA_START.bat</b> installeras de "
+                    f"(Första gången via <b>{gcal._install_script()}</b> installeras de "
                     "automatiskt.)"
                 )
             elif not st["has_credentials"]:

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import sys
 import time
 from contextlib import suppress
 from typing import Any
@@ -381,8 +382,10 @@ class TrayMixin:
             autostart_action.setCheckable(True)
             autostart_action.setChecked(autostart_on)
             autostart_action.setToolTip(
-                "När aktiverad: appen startar automatiskt vid inloggning i Windows "
-                "(via HKCU\\...\\Run, pythonw.exe — ingen konsol)"
+                "När aktiverad: appen startar automatiskt vid inloggning "
+                + ("i Windows (via HKCU\\...\\Run, pythonw.exe — ingen konsol)"
+                   if sys.platform == "win32" else
+                   "(macOS: LaunchAgent, Linux: ~/.config/autostart)")
             )
             autostart_action.triggered.connect(self._toggle_autostart)
             self._tray_menu.addAction(autostart_action)

@@ -204,7 +204,7 @@ def _require_library() -> None:
         raise GoogleCalendarError(
             "Google-paketen är inte installerade.\n\n"
             f"Kör i en kommandotolk:\n    pip install {' '.join(saknas)}\n\n"
-            "…eller starta appen med FORSTA_START.bat som installerar dem "
+            f"…eller starta appen med {_install_script()} som installerar dem "
             "automatiskt.",
             technical=f"missing: {', '.join(saknas)}",
         )
@@ -378,6 +378,10 @@ def _atomic_write_json(path: Path, data: Dict[str, Any], mode: int = 0o600) -> N
 TOKEN_PROTECT_KEY: str = "_taskbord_protected"
 TOKEN_PROTECT_SCHEME: str = "dpapi-user"
 _DPAPI_ENTROPY: bytes = b"TaskBord-Google-token-v1"
+
+
+def _install_script() -> str:
+    return "FORSTA_START.bat" if os.name == "nt" else "./starta.sh"
 
 
 def _dpapi_supported() -> bool:
@@ -604,7 +608,7 @@ def setup_steps(data_dir: Any, extra_dirs: Optional[List[Any]] = None) -> List[D
          "text": ("Appen behöver två små paket för att prata med Google.\n"
                   + ("✅ De är redan installerade." if is_google_library_available()
                      else f"Kör i en kommandotolk:\n    {install_hint()}\n"
-                          "(eller starta via FORSTA_START.bat).")),
+                          f"(eller starta via {_install_script()}).")),
          "url": "", "done": is_google_library_available()},
         {"key": "project", "title": "Skapa ett projekt hos Google",
          "text": "Gratis och tar en minut. Namnet spelar ingen roll, t.ex. “TaskBord”.",

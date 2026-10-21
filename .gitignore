@@ -13,3 +13,6 @@ client_secret*.json
 # Loggar och körningsdata (skapas lokalt, ska inte i git)
 *.log
 /ui/debug/data/
+
+# Lokal Python-miljö (starta.sh)
+.venv/

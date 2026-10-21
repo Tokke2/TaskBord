@@ -1665,6 +1665,20 @@ class Settings(QObject):
                         self._log.debug(
                             f"{LOG_PREFIX} Kunde inte läsa systemtema: {e}"
                         )
+                else:
+                    # macOS/Linux: fråga Qt (6.5+) vad systemet använder
+                    try:
+                        from PySide6.QtCore import Qt as _Qt
+                        from PySide6.QtGui import QGuiApplication
+                        _app = QGuiApplication.instance()
+                        if _app is not None:
+                            _cs = _app.styleHints().colorScheme()
+                            if _cs == _Qt.ColorScheme.Light:
+                                return "light"
+                            if _cs == _Qt.ColorScheme.Dark:
+                                return "dark"
+                    except Exception:
+                        pass
                 resolved = "dark"  # Default fallback
                 self._log.debug(f"{LOG_PREFIX} Default-tema: {resolved}")
                 return resolved

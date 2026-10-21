@@ -9,6 +9,7 @@ from contextlib import suppress
 from typing import Any, Tuple
 
 from app.constants import AppMode, LOG_PREFIX, SCRIPT_DIR
+from app.platform_utils import install_script_name
 
 
 class UpdateMixin:
@@ -211,7 +212,7 @@ class UpdateMixin:
         extra = ""
         if info.requirements_changed:
             extra = ("\n\n⚠️ requirements.txt har ändrats. Efter uppdateringen: kör "
-                     "FORSTA_START.bat (installerar nya paket). Appen startar inte om "
+                     f"{install_script_name()} (installerar nya paket). Appen startar inte om "
                      "automatiskt.")
         if updater.fingerprint(info) == self._update_failed_fp():
             extra += ("\n\n⚠️ Just den här uppdateringen fick TaskBord att inte starta förra gången och "
@@ -297,7 +298,7 @@ class UpdateMixin:
         if info.requirements_changed:
             self._update_dialog(
                 "info", "Uppdaterad",
-                "Uppdateringen är installerad.\n\nKör FORSTA_START.bat för att installera "
+                "Uppdateringen är installerad.\n\nKör " + install_script_name() + " för att installera "
                 "nya paket och starta om TaskBord.",
             )
             return

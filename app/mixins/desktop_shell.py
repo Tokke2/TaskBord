@@ -42,6 +42,10 @@ class DesktopShellMixin:
         Fallback-kedja: above → behind → legacy (inga gamla
         funktioner tas bort — REGEL: behåll gamla + lägg till nya).
         """
+        import ctypes as _ct_probe
+        if sys.platform != "win32" and not hasattr(_ct_probe, "windll"):
+            self._apply_portable_level(shell, wid)
+            return
         try:
             import ctypes
             from ctypes import wintypes
@@ -351,6 +355,37 @@ class DesktopShellMixin:
                 f"{LOG_PREFIX} _apply_desktop_shell misslyckades: {e}",
                 exc_info=True,
             )
+
+    def _apply_portable_level(self, shell: Any, wid: str) -> None:
+        """
+        macOS/Linux: fönsternivå via Qt-flaggor (Win32-lagren finns bara på Windows).
+
+          top            → alltid överst (WindowStaysOnTopHint)
+          behind/above   → längst bak (WindowStaysOnBottomHint; fungerar på X11 och de flesta
+                           Linux-skrivbord — macOS och vissa Wayland-miljöer ignorerar det)
+
+        Fönstret tas inte med i aktivitetsfältet (Qt.Tool) och behåller tangentbordsfokus.
+        """
+        try:
+            from PySide6.QtCore import Qt as _Qt
+
+            mode = self._desktop_mode()
+            want_top = mode == "top"
+            T = _Qt.WindowType
+            flags = shell.windowFlags()
+            new = flags | T.Tool
+            new = (new | T.WindowStaysOnTopHint) & ~T.WindowStaysOnBottomHint if want_top \
+                else (new | T.WindowStaysOnBottomHint) & ~T.WindowStaysOnTopHint
+            shell._desktop_layer_mode = "top" if want_top else "behind"
+            shell._desktop_wid = wid
+            if new != flags:
+                was_visible = shell.isVisible()
+                shell.setWindowFlags(new)
+                if was_visible:
+                    shell.show()  # flaggor kräver ny show()
+            self._log.info(f"{LOG_PREFIX} portabelt fönsterläge ({sys.platform}): {mode} (Qt-flaggor)")
+        except Exception as e:
+            self._log.warning(f"{LOG_PREFIX} _apply_portable_level misslyckades: {e}")
 
     def _apply_top_mode(self, shell: Any, hwnd: int, wid: str) -> None:
         """

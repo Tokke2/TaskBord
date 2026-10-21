@@ -669,6 +669,8 @@ def run() -> int:
                 f"  {sys.executable} -m pip install -r requirements.txt\n\n"
                 "Nar det ar klart, starta appen igen."
             )
+            if sys.platform != "win32":
+                msg += "\n\nPa macOS/Linux ar det enklast att starta med ./starta.sh (skapar en lokal .venv)."
             from PySide6.QtWidgets import QApplication, QMessageBox
             app = QApplication.instance() or QApplication(sys.argv)
             QMessageBox.critical(None, "Bootstrap misslyckades", msg)
@@ -676,7 +678,8 @@ def run() -> int:
             try:
                 print(
                     "[BOOT] Bootstrap misslyckades — installera manuellt:\n"
-                    f"  {sys.executable} -m pip install -r requirements.txt",
+                    f"  {sys.executable} -m pip install -r requirements.txt"
+                    + ("\n  (macOS/Linux: enklast med ./starta.sh)" if sys.platform != "win32" else ""),
                     file=sys.stderr,
                 )
             except Exception:

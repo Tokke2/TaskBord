@@ -256,7 +256,7 @@ check("filer installerade", (APP / "main.pyw").read_bytes() == b"print('v2')\n" 
 check("js/ orörd", (APP / "js" / "active.json").read_text() == "{}")
 check("fråga ställdes", any(d[0] == "ask" for d in m.dialogs))
 check("klart-dialog + omstart + avstängning", any(d[1] == "Uppdaterad" for d in m.dialogs) and m.shut == [1])
-check("fönsterläget sparades före installation och före omstart", getattr(m, "flushed", []) == ["före uppdatering", "före omstart"], str(getattr(m, "flushed", None)))
+check("fönsterläget sparades före installation och före omstart", getattr(m, "flushed", []) == ["före uppdatering", "före omstart"])
 check("markering rensad efter installation", m._update_available is False)
 check("alla förloppsfönster stängda", all(not pd.vis for pd in m.pds))
 
