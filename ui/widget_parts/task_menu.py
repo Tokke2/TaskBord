@@ -527,8 +527,10 @@ class TaskMenuMixin:
             logger.warning(f"{LOG_PREFIX} _prompt_subtasks: {e}")
 
     def _prompt_rename(self, task_id: str) -> None:
-        """NY v7-fix41: byt namn på uppgift."""
+        """NY v7-fix41: byt namn på uppgift (på plats på kortet; dialog om kortet inte syns)."""
         try:
+            if self._start_inline_title_edit(task_id):
+                return
             from PySide6.QtWidgets import QInputDialog
             task = None
             if hasattr(self.store, "find_task"):

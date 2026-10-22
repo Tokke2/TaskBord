@@ -148,6 +148,7 @@ if _QT_AVAILABLE:
             self._sel_tid: Optional[str] = None
             self._nav_tids: List[str] = []
             self._nav_active: bool = False
+            self._inline_edit: Any = None  # pågående titelredigering på plats (InlineTitleEdit)
             # Search index (inverterad)
             self._search_index: Dict[str, Set[str]] = {}  # token → task_ids
             # Stats

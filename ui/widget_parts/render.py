@@ -58,6 +58,16 @@ class RenderMixin:
                         self._on_input_submit()
                         event.accept()
                         return True
+            # NY: dubbelklick på en titel → redigera den på plats (samma som F2)
+            if (
+                event.type() == QEvent.Type.MouseButtonDblClick
+                and isinstance(obj, QLabel)
+                and obj.objectName() == "taskTitle"
+                and event.button() == Qt.MouseButton.LeftButton
+            ):
+                _dtid = obj.property("task_id")
+                if _dtid and self._start_inline_title_edit(str(_dtid)):
+                    return True
             # NY v7-fix73: textfältsfokus → gör fönstret skrivbart
             if (
                 event.type() == QEvent.Type.FocusIn

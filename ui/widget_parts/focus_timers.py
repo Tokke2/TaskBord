@@ -82,11 +82,21 @@ class FocusTimersMixin:
         v.addLayout(nav_row)
         try:
             QShortcut(QKeySequence("F3"), self, activated=self._toggle_focus_mode)
-            QShortcut(QKeySequence("Esc"), self, activated=self._exit_focus_mode)
-            QShortcut(QKeySequence("Right"), self, activated=self._focus_next)
-            QShortcut(QKeySequence("Left"), self, activated=self._focus_prev)
-            QShortcut(QKeySequence("Return"), self, activated=self._focus_complete)
-            QShortcut(QKeySequence("Space"), self, activated=self._focus_complete)
+            # Fokusläges-tangenterna är PÅ BARA i fokusläget. Tidigare var de alltid på och
+            # stal Esc/Enter/Mellanslag/←/→ i hela fönstret (ett QShortcut konsumerar tangenten
+            # även när hanteraren inte gör något) → mellanslag-för-klar, ←/→-prioritet,
+            # Esc i listan och Enter i titelredigeringen nådde aldrig sin hanterare.
+            self._focus_shortcuts = []
+            for _seq, _fn in (
+                ("Esc", self._exit_focus_mode),
+                ("Right", self._focus_next),
+                ("Left", self._focus_prev),
+                ("Return", self._focus_complete),
+                ("Space", self._focus_complete),
+            ):
+                _sc = QShortcut(QKeySequence(_seq), self, activated=_fn)
+                _sc.setEnabled(bool(getattr(self, "_focus_mode", False)))
+                self._focus_shortcuts.append(_sc)
         except Exception as e:
             logger.warning(f"{LOG_PREFIX} Fokus-shortcuts misslyckades: {e}")
         return view
@@ -149,9 +159,17 @@ class FocusTimersMixin:
         if task.get("pinned"):
             self._focus_title_label.setText("⭐  " + task.get("title", ""))
 
+    def _set_focus_shortcuts_enabled(self, on: bool) -> None:
+        """Slå fokusläges-tangenterna (Esc/Enter/Mellanslag/←/→) på bara när fokusläget är på."""
+        for _sc in getattr(self, "_focus_shortcuts", []):
+            with suppress(Exception):
+                _sc.setEnabled(bool(on))
+
     def _enter_focus_mode(self) -> None:
         """NY v6.4.1: Gå in i Focus Mode."""
+        self._cancel_inline_edit()
         self._focus_mode = True
+        self._set_focus_shortcuts_enabled(True)
         self._focus_index = 0
         if hasattr(self, "content_stack"):
             self.content_stack.setCurrentIndex(1)
@@ -163,6 +181,7 @@ class FocusTimersMixin:
         if not self._focus_mode:
             return
         self._focus_mode = False
+        self._set_focus_shortcuts_enabled(False)
         if hasattr(self, "content_stack"):
             self.content_stack.setCurrentIndex(0)
         logger.info(f"{LOG_PREFIX} Focus Mode avslutat")
@@ -292,6 +311,7 @@ class FocusTimersMixin:
                 "add_task": ("_on_input_submit", self._on_input_submit),
                 "toggle_visible": ("_on_close_clicked", self._on_close_clicked),
                 "open_search": ("_focus_search", self._focus_search),
+                "edit_task": ("_edit_selected_title", self._edit_selected_title),
                 "next_task": (
                     "_navigate_tasks(ned)",
                     lambda: self._navigate_tasks(Qt.Key.Key_Down),

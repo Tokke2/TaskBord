@@ -88,6 +88,94 @@ class TaskActionsMixin:
             )
 
     @_log_event("task:title_edited")
+    # ------------------------------------------------------------------
+    # Redigera titeln på plats (dubbelklick / F2 / E / menyn "Byt namn")
+    # ------------------------------------------------------------------
+    def _start_inline_title_edit(self, task_id: str) -> bool:
+        """Lägg en textruta över kortets titel. Returnerar False om kortet inte syns (då tar dialogen över)."""
+        try:
+            if getattr(self, "_focus_mode", False):
+                return False
+            card = self._task_widgets.get(task_id)
+            if card is None:
+                return False
+            lbl = card.findChild(QLabel, "taskTitle")
+            if lbl is None or not lbl.isVisible():
+                return False
+            self._cancel_inline_edit()
+            task = self.store.find_task(task_id) if hasattr(self.store, "find_task") else None
+            title = str((task or {}).get("title") or lbl.text())
+            parent = lbl.parentWidget() or card
+            ed = InlineTitleEdit(title, parent)
+            _f = lbl.font()
+            _f.setStrikeOut(False)
+            ed.setFont(_f)
+            h = max(lbl.height(), ed.sizeHint().height())
+            ed.setGeometry(lbl.x(), lbl.y() + (lbl.height() - h) // 2, max(lbl.width(), 80), h)
+            ed.committed.connect(lambda text, t=task_id, e=ed: self._inline_title_committed(t, text, e))
+            ed.cancelled.connect(lambda t=task_id, e=ed: self._inline_title_cancelled(t, e))
+            self._inline_edit = ed
+            with suppress(Exception):
+                self._activate_for_typing()  # NOACTIVATE av så tangenter når rutan
+            ed.show()
+            ed.raise_()
+            ed.setFocus(Qt.FocusReason.ShortcutFocusReason)
+            ed.selectAll()
+            get_throttle().notify_activity()
+            logger.info(f"{LOG_PREFIX} redigerar titel på plats: {task_id!r}")
+            return True
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} _start_inline_title_edit: {_describe_widget_error(e)}")
+            self._inline_edit = None
+            return False
+
+    def _cancel_inline_edit(self) -> None:
+        """Stäng en pågående titelredigering utan att spara (t.ex. innan en ny startar)."""
+        ed = getattr(self, "_inline_edit", None)
+        self._inline_edit = None
+        if ed is not None:
+            with suppress(Exception):
+                ed._done = True
+                ed.hide()
+                ed.deleteLater()
+
+    def _finish_inline_edit(self, ed: Any) -> None:
+        if getattr(self, "_inline_edit", None) is ed:
+            self._inline_edit = None
+        with suppress(Exception):
+            ed.hide()
+            ed.deleteLater()
+
+    def _inline_title_committed(self, task_id: str, text: str, ed: Any) -> None:
+        """Enter eller klick utanför: spara titeln (tom titel eller oförändrad = ingen ändring)."""
+        by_enter = bool(getattr(ed, "by_enter", False))
+        self._finish_inline_edit(ed)
+        try:
+            task = self.store.find_task(task_id) if hasattr(self.store, "find_task") else None
+            old = str((task or {}).get("title") or "")
+            if text and text != old:
+                self._store_call("update_task_title", task_id, text, _what="namn")
+                logger.info(f"{LOG_PREFIX} titel ändrad på plats: {task_id!r}")
+            if by_enter and task_id in getattr(self, "_nav_tids", ()):
+                self._nav_select(task_id)  # fortsätt med tangentbordet där du var
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} _inline_title_committed: {_describe_widget_error(e)}")
+
+    def _inline_title_cancelled(self, task_id: str, ed: Any) -> None:
+        self._finish_inline_edit(ed)
+        with suppress(Exception):
+            if task_id in getattr(self, "_nav_tids", ()):
+                self._nav_select(task_id)
+
+    def _edit_selected_title(self) -> None:
+        """F2 (snabbtangent 'edit_task'): redigera den markerade uppgiftens titel på plats."""
+        tid = getattr(self, "_sel_tid", None)
+        if not tid:
+            logger.debug(f"{LOG_PREFIX} F2: ingen uppgift markerad")
+            return
+        if not self._start_inline_title_edit(tid):
+            self._prompt_rename(tid)
+
     def _on_title_edited(self, task_id: str, new_text: str) -> None:
         """
         NY v6.4.1 v7: Uppdatera titel (med validering + felhantering).

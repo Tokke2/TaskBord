@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ui/widget_atoms.py — små UI-klasser till TodoWidget (delad ur ui/widget.py):
-EditableLabel, TagChip, PriorityBadge, PriorityDot, DueDateLabel, GlassFrame.
+EditableLabel, InlineTitleEdit, TagChip, PriorityBadge, PriorityDot, DueDateLabel, GlassFrame.
 """
 from __future__ import annotations
 
@@ -98,6 +98,71 @@ else:
         def __init__(self, *args, **kwargs): pass
         editing_finished = None
         editing_started = None
+
+
+# ===========================================================================
+# INLINE TITEL-EDITOR (dubbelklick / F2 på ett kort)
+# ===========================================================================
+
+if _QT_AVAILABLE:
+    class InlineTitleEdit(QLineEdit):
+        """
+        Redigerar en uppgiftstitel PÅ PLATS (läggs ovanpå titeln på kortet).
+
+        Enter sparar, Esc avbryter, klick utanför sparar. ``committed`` skickas högst en gång
+        (``by_enter`` säger om det var Enter) och ``cancelled`` skickas vid Esc.
+        Alltid mörk text på ljus botten → läsbar i både mörkt och ljust tema.
+        """
+
+        committed = Signal(str)
+        cancelled = Signal()
+
+        def __init__(self, text: str = "", parent: Optional[QWidget] = None) -> None:
+            super().__init__(text, parent)
+            self._done = False
+            self.by_enter = False
+            self.setObjectName("inlineTitleEdit")
+            self.setMaxLength(500)
+            self.setToolTip("Enter = spara · Esc = avbryt")
+            self.setStyleSheet(
+                "QLineEdit#inlineTitleEdit { background: #ffffff; color: #111827; "
+                "border: 2px solid #818cf8; border-radius: 6px; padding: 2px 6px; "
+                "selection-background-color: #c7d2fe; selection-color: #111827; }"
+            )
+            self.returnPressed.connect(self._on_return)
+            self.editingFinished.connect(self._commit)
+
+        def _on_return(self) -> None:
+            self.by_enter = True
+            self._commit()
+
+        def _commit(self) -> None:
+            if self._done:
+                return
+            self._done = True
+            self.committed.emit(self.text().strip())
+
+        def event(self, e: QEvent) -> bool:
+            # Enter/Esc får inte stjälas av fönstrets kortkommandon — rutan tar dem själv
+            if e.type() == QEvent.Type.ShortcutOverride and e.key() in (
+                Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Escape,
+            ):
+                e.accept()
+                return True
+            return super().event(e)
+
+        def keyPressEvent(self, event: QKeyEvent) -> None:
+            if event.key() == Qt.Key.Key_Escape:
+                if not self._done:
+                    self._done = True
+                    self.cancelled.emit()
+                event.accept()
+                return
+            super().keyPressEvent(event)
+
+else:
+    class InlineTitleEdit:  # type: ignore[no-redef]
+        def __init__(self, *args, **kwargs): pass
 
 
 # ===========================================================================
@@ -468,6 +533,6 @@ if _QT_AVAILABLE:
 
 
 __all__ = [
-    _n for _n in ("EditableLabel", "TagChip", "PriorityBadge", "PriorityDot", "DueDateLabel", "GlassFrame")
+    _n for _n in ("EditableLabel", "InlineTitleEdit", "TagChip", "PriorityBadge", "PriorityDot", "DueDateLabel", "GlassFrame")
     if _n in globals()
 ]

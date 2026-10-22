@@ -137,11 +137,13 @@ Tryck **↓** (eller **↑**) – även när du står i inmatningsfältet – s�
 | ↑ / ↓ | föregående / nästa uppgift (↑ på den första går tillbaka till inmatningsfältet) |
 | Home / End, PgUp / PgDn | första / sista, 5 steg |
 | Mellanslag | markera klar |
-| E eller F2 | redigera titeln |
+| E eller F2 | ändra titeln direkt på kortet (Enter sparar, Esc avbryter) |
 | P | fäst / lossa |
 | 1 / 2 / 3 / 0 | prioritet hög / normal / låg / ingen |
 | Delete | ta bort (frågar först) |
 | Esc | lämna markeringen (nästa Esc gömmer fönstret som förut) |
+
+**Med musen:** dubbelklicka på en titel (eller högerklicka → *Byt namn*) så blir titeln en textruta på kortet. Enter eller klick utanför sparar, Esc avbryter. F2 fungerar även från musmarkeringen.
 
 Skriver du ett vanligt tecken som inte är en kommandotangent hamnar det i inmatningsfältet. När en uppgift blir klar eller tas bort flyttas markeringen till nästa, så du kan bocka av en hel rad med mellanslag.
 

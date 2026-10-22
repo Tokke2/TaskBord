@@ -106,7 +106,9 @@ class TaskCardMixin:
             title_label = QLabel(task.get("title", ""), container)
             title_label.setObjectName("taskTitle")
             title_label.setWordWrap(True)
-            title_label.setToolTip(task.get("title", ""))
+            title_label.setToolTip(task.get("title", "") + "\n(dubbelklicka eller tryck F2 för att ändra)")
+            title_label.setProperty("task_id", tid)
+            title_label.installEventFilter(self)  # dubbelklick → redigera titeln på plats
             if is_done:
                 # Genomstruken klar-titel (QSS saknar text-decoration)
                 _f = title_label.font()
