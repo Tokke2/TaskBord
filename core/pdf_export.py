@@ -19,6 +19,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 
+PDF_TITLE = "Ledgebord — checklista"
+
+
 def _html_escape(s: Any) -> str:
     return (
         str(s or "")
@@ -103,36 +106,43 @@ def render_checklist_html(
     n_done = sum(1 for t in sorted_tasks if t.get("done"))
     pct = int(round(100 * n_done / n_total)) if n_total else 0
 
+    # Ritas utan emoji i rubriker/prio (typsnittet på en annan dator kan sakna dem → rutor i PDF:en)
     css = (
         "<style>"
         "body { font-family: 'Segoe UI', Helvetica, Arial, sans-serif; "
-        "color: #1a1a2e; }"
-        "h1 { color: #4f46e5; margin: 0 0 4px 0; font-size: 26px; }"
-        ".meta { color: #64748b; font-size: 11px; margin-bottom: 8px; }"
-        ".section { margin-top: 14px; font-size: 14px; font-weight: 600; "
-        "color: #4f46e5; border-bottom: 1px solid #e0e7ff; "
+        "color: #1e293b; font-size: 14px; }"
+        "h1 { color: #3730a3; margin: 0; font-size: 30px; }"
+        ".sub { color: #475569; font-size: 13px; margin: 2px 0 10px 0; }"
+        ".section { margin-top: 20px; font-size: 16px; font-weight: 600; "
         "padding-bottom: 3px; }"
-        "table { border-collapse: collapse; width: 100%; margin-top: 4px; }"
-        "td { padding: 7px 4px; vertical-align: top; }"
-        "tr.pin td.title { background: #fffbeb; font-weight: 600; }"
-        "tr.done td.title { color: #94a3b8; text-decoration: line-through; }"
-        ".box { font-size: 16px; color: #475569; width: 24px; }"
-        ".prio { font-size: 13px; width: 28px; }"
-        ".tags { color: #6366f1; font-size: 10px; margin-left: 6px; }"
-        ".date { font-size: 10px; margin-left: 8px; white-space: nowrap; }"
-        ".sublist { margin: 0; padding-left: 16px; "
-        "font-size: 11px; color: #475569; }"
-        ".pbar { margin-top: 4px; }"
-        "td.pfill { background: #4f46e5; font-size: 2px; }"
-        "td.pempty { background: #e2e8f0; font-size: 2px; }"
-        ".footer { color: #94a3b8; font-size: 9px; "
-        "text-align: center; margin-top: 16px; }"
+        "table.list { border-collapse: collapse; width: 100%; margin-top: 4px; }"
+        "td { vertical-align: top; }"
+        "td.title { padding: 8px 4px 8px 6px; font-size: 14px; "
+        "border-bottom: 1px solid #e2e8f0; }"
+        "td.box { padding: 8px 4px; font-size: 17px; color: #334155; width: 22px; "
+        "border-bottom: 1px solid #e2e8f0; }"
+        "td.bar { width: 5px; }"
+        "tr.pin td.title, tr.pin td.box { background: #fffbeb; }"
+        "tr.done td.title { color: #64748b; text-decoration: line-through; }"
+        "td.subbox { padding: 2px 4px 2px 0; font-size: 13px; color: #475569; width: 22px; }"
+        "td.subt { padding: 2px 4px; font-size: 13px; color: #475569; }"
+        "tr.subdone td.subt { color: #64748b; text-decoration: line-through; }"
+        ".tags { color: #4338ca; font-size: 12px; }"
+        ".date { font-size: 12px; font-weight: 600; }"
+        "td.pfill { background: #4f46e5; font-size: 9px; }"
+        "td.pempty { background: #e2e8f0; font-size: 9px; }"
+        ".footer { color: #64748b; font-size: 11px; margin-top: 22px; }"
         "</style>"
     )
 
+    prio_color = {"high": "#dc2626", "medium": "#d97706", "low": "#16a34a", "none": "#94a3b8"}
     sections: Dict[str, List[tuple]] = {
-        "📌 Pin": [], "🔴 Hög": [], "🟡 Medium": [],
-        "🟢 Låg": [], "⚪ Ingen": [],
+        "Fästa": [], "Hög prioritet": [], "Medel": [],
+        "Låg prioritet": [], "Utan prioritet": [],
+    }
+    sec_color = {
+        "Fästa": "#b45309", "Hög prioritet": "#b91c1c", "Medel": "#b45309",
+        "Låg prioritet": "#15803d", "Utan prioritet": "#475569",
     }
     for t in sorted_tasks:
         p = str(t.get("priority", "none")).lower()
@@ -144,81 +154,84 @@ def render_checklist_html(
         subs = t.get("subtasks", []) or []
         entry = (t, title, tags, due, done, subs, p)
         if pinned:
-            sections["📌 Pin"].append(entry)
+            sections["Fästa"].append(entry)
         elif p == "high":
-            sections["🔴 Hög"].append(entry)
+            sections["Hög prioritet"].append(entry)
         elif p == "medium":
-            sections["🟡 Medium"].append(entry)
+            sections["Medel"].append(entry)
         elif p == "low":
-            sections["🟢 Låg"].append(entry)
+            sections["Låg prioritet"].append(entry)
         else:
-            sections["⚪ Ingen"].append(entry)
+            sections["Utan prioritet"].append(entry)
+
+    def _sub_html(items: Any, depth: int = 1) -> List[str]:
+        out: List[str] = []
+        for s in items or []:
+            if not isinstance(s, dict):
+                continue
+            sdone = bool(s.get("done"))
+            indent = (depth - 1) * 16
+            out.append(
+                f"<tr class='{'subdone' if sdone else ''}'><td width='6'></td>"
+                f"<td class='subbox' width='26' align='right'>{'☑' if sdone else '☐'}</td>"
+                f"<td class='subt' width='100%' style='padding-left:{6 + indent}px'>"
+                f"{_html_escape(s.get('title', ''))}</td></tr>"
+            )
+            out.extend(_sub_html(s.get("children") or [], depth + 1))
+        return out
 
     rows: List[str] = []
     for sec_name, items in sections.items():
         if not items:
             continue
         rows.append(
-            f'<div class="section">{_html_escape(sec_name)} '
-            f"<span style=\"font-weight:400;color:#64748b;font-size:11px\">"
+            f'<div class="section" style="color:{sec_color[sec_name]}">'
+            f"{_html_escape(sec_name)} "
+            f"<span style=\"font-weight:400;color:#475569;font-size:13px\">"
             f"({len(items)})</span></div>"
         )
-        rows.append("<table>")
+        rows.append("<table class='list' width='100%' cellspacing='0' cellpadding='0'>")
         for t, title, tags, due, done, subs, p in items:
-            badge, _ = _prio_meta(p)
             box = "☑" if done else "☐"
             tr_class = "done" if done else ("pin" if t.get("pinned") else "")
-            tag_str = ""
+            extra = ""
             if tags:
-                tag_str = (
-                    " <span class='tags'>▪ "
-                    + ", ".join(_html_escape(x) for x in tags)
+                extra += (
+                    " &nbsp;<span class='tags'>#"
+                    + " #".join(_html_escape(x) for x in tags)
                     + "</span>"
                 )
-            date_str = ""
             if due:
-                # FIX v7-fix81: vänligt datum + färg (försenade = röda)
+                # vänligt datum + färg (försenade = röda)
                 label, color = _due_label(due)
-                date_str = (
-                    f"<span class='date' style='color:{color};"
-                    f"font-weight:600'>📅 {_html_escape(label)}</span>"
+                extra += (
+                    f" &nbsp;<span class='date' style='color:{color}'>"
+                    f"{_html_escape(label)}</span>"
                 )
+            bar = prio_color.get(p, "#94a3b8")
             rows.append(
                 f"<tr class='{tr_class}'>"
-                f"<td class='box'>{box}</td>"
-                f"<td class='prio'>{badge}</td>"
-                f"<td class='title'>{title}{tag_str}{date_str}</td>"
+                f"<td class='bar' width='6' bgcolor='{bar}'>&nbsp;</td>"
+                f"<td class='box' width='26' align='right'>{box}</td>"
+                f"<td class='title' width='100%'>{title}{extra}</td>"
                 f"</tr>"
             )
-            # NY v8: delmoment + underdelmoment (rekursivt, indrag per nivå)
-            def _sub_html(items: Any, depth: int = 1) -> List[str]:
-                out: List[str] = []
-                for s in items or []:
-                    if not isinstance(s, dict):
-                        continue
-                    # FIX v7-fix81: ☑ när delmomentet är klart
-                    sub_box = "☑" if s.get("done") else "☐"
-                    indent = (depth - 1) * 14
-                    out.append(
-                        "<tr><td></td><td></td>"
-                        f"<td class='sublist' style='padding-left:{indent}px'>"
-                        f"{sub_box} {_html_escape(s.get('title', ''))}</td></tr>"
-                    )
-                    out.extend(_sub_html(s.get("children") or [], depth + 1))
-                return out
-
             rows.extend(_sub_html(subs))
         rows.append("</table>")
 
-    # FIX v7-fix81: progress-bar (tabell-baserad, Qt rich text-safe)
+    # progress-bar (tabell-baserad, Qt rich text-safe)
     bar = ""
     if n_total:
+        if 0 < pct < 100:
+            cells = (f"<td class='pfill' width='{pct}%'>&nbsp;</td>"
+                     f"<td class='pempty' width='{100 - pct}%'>&nbsp;</td>")
+        elif pct >= 100:
+            cells = "<td class='pfill' width='100%'>&nbsp;</td>"
+        else:
+            cells = "<td class='pempty' width='100%'>&nbsp;</td>"
         bar = (
             "<table class='pbar' width='100%' cellspacing='0' "
-            "cellpadding='0'><tr>"
-            f"<td class='pfill' width='{pct}%'>&nbsp;</td>"
-            f"<td class='pempty' width='{100 - pct}%'>&nbsp;</td>"
-            "</tr></table>"
+            f"cellpadding='0'><tr>{cells}</tr></table><div style='font-size:2px'>&nbsp;</div>"
         )
 
     snoozed_note = (
@@ -227,8 +240,8 @@ def render_checklist_html(
 
     return (
         "<html><head>" + css + "</head><body>"
-        f"<h1>📋 {_html_escape(app_name)} — Checklista</h1>"
-        f"<div class='meta'>Skapad {now} • "
+        f"<h1>{_html_escape(app_name)} — Checklista</h1>"
+        f"<div class='sub'>Skapad {now} • "
         f"{n_total} uppgifter ({n_done} klara • "
         f"{n_total - n_done} kvar • {pct}% klart){snoozed_note}</div>"
         + bar
@@ -245,17 +258,19 @@ def save_pdf(
     page_size_id: str = "A4",
 ) -> bool:
     """
-    Spara HTML till PDF via QPrinter + QTextDocument (PySide6 inbyggt).
+    Spara HTML till PDF (vektor) via QPdfWriter + QTextDocument (PySide6 inbyggt).
     Returnerar True vid success.
 
-    FIX v7-fix81: QPrinter.PageSizeId finns INTE i Qt6/PySide6 6.11 —
-    gamla koden kastade tyst AttributeError → save_pdf returnerade
-    ALLTID False (PDF-exporten har aldrig fungerat!). Qt6-rätt sätt:
-    QPageSize(QPageSize.PageSizeId.A4) via pr.setPageSize(QPageSize).
+    FIX (2026-10-22): texten blev pyttliten (0,1–1,4 pt) i uppe i hörnet på sidan.
+    Orsak: QPrinter(HighResolution) = 1200 dpi → sidans storlek räknades i 1200-dpi-pixlar
+    medan QTextDocument lägger ut text/CSS-px med 96 dpi. Nu används ett och samma dpi (96)
+    för både dokumentets layout och sidan, så px i CSS:en blir verkliga storlekar
+    (1 px = 0,75 pt) och sidan fylls med marginaler på 15 mm. PDF:en är vektorbaserad, så
+    texten är skarp ändå.
     """
     try:
-        from PySide6.QtPrintSupport import QPrinter
-        from PySide6.QtGui import QTextDocument, QPageSize
+        from PySide6.QtCore import QMarginsF, QSizeF
+        from PySide6.QtGui import QPageLayout, QPageSize, QPdfWriter, QTextDocument
     except ImportError:
         return False
     try:
@@ -264,22 +279,28 @@ def save_pdf(
             Path(str(out_path)).parent.mkdir(parents=True, exist_ok=True)
         except Exception:
             pass
-        pr = QPrinter(QPrinter.PrinterMode.HighResolution)
-        pr.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
-        pr.setOutputFileName(out_path)
-        # FIX v7-fix81: Qt6-API — QPageSize i stället för borttagen
-        # QPrinter.PageSizeId
         size_id = (
             getattr(QPageSize.PageSizeId, page_size_id, None)
             or QPageSize.PageSizeId.A4
         )
-        pr.setPageSize(QPageSize(size_id))
+        dpi = 96
+        w = QPdfWriter(str(out_path))
+        w.setResolution(dpi)
+        w.setPageLayout(QPageLayout(
+            QPageSize(size_id), QPageLayout.Orientation.Portrait,
+            QMarginsF(15, 15, 15, 15), QPageLayout.Unit.Millimeter,
+        ))
+        try:
+            w.setTitle(PDF_TITLE)
+            w.setCreator("Ledgebord")
+        except Exception:
+            pass
         doc = QTextDocument()
+        doc.setDocumentMargin(0)
         doc.setHtml(html)
-        doc.setPageSize(
-            pr.pageRect(QPrinter.Unit.DevicePixel).size()
-        )
-        doc.print_(pr)
-        return True
+        rect = w.pageLayout().paintRectPixels(dpi)
+        doc.setPageSize(QSizeF(rect.width(), rect.height()))
+        doc.print_(w)
+        return Path(str(out_path)).is_file() and Path(str(out_path)).stat().st_size > 0
     except Exception:
         return False
