@@ -221,12 +221,12 @@ class ExportsMixin:
                 return
             html = render_checklist_html(
                 tasks,
-                app_name=getattr(self, "DEFAULT_TITLE", "TaskBord"),
+                app_name=getattr(self, "DEFAULT_TITLE", "Ledgebord"),
             )
             # Fil-dialog (default: samma mapp som js/-data, annars hem)
             from PySide6.QtWidgets import QFileDialog
             ts = datetime.now().strftime("%Y%m%d_%H%M")
-            default_name = f"TaskBord_checklista_{ts}.pdf"
+            default_name = f"Ledgebord_checklista_{ts}.pdf"
             default_dir = os.path.expanduser("~")
             with suppress(Exception):
                 _sp = getattr(self.store, "file_path", None) or getattr(
@@ -320,14 +320,14 @@ class ExportsMixin:
             fname, _ = QFileDialog.getSaveFileName(
                 self,
                 "Spara kalenderfil (.ics)",
-                os.path.join(default_dir, f"TaskBord_kalender_{ts}.ics"),
+                os.path.join(default_dir, f"Ledgebord_kalender_{ts}.ics"),
                 "Kalenderfil (*.ics)",
             )
             if not fname:
                 return  # avbruten av användaren
             if not str(fname).lower().endswith(".ics"):
                 fname = str(fname) + ".ics"
-            antal = write_ics(valda, str(fname), calendar_name="TaskBord")
+            antal = write_ics(valda, str(fname), calendar_name="Ledgebord")
             hoppade = len(tasks or []) - antal
             logger.info(
                 f"{LOG_PREFIX} Kalenderexport: {antal} händelser → {fname} "
@@ -436,7 +436,7 @@ class ExportsMixin:
                 return
             if not str(fname).lower().endswith(".ics"):
                 fname = str(fname) + ".ics"
-            write_ics([task], str(fname), calendar_name="TaskBord")
+            write_ics([task], str(fname), calendar_name="Ledgebord")
             from PySide6.QtWidgets import QMessageBox
             QMessageBox.information(
                 self,
@@ -650,7 +650,7 @@ class ExportsMixin:
                     "Outlook-mailet måste sparas som fil först:\n\n"
                     "1. Dra mailet till skrivbordet/en mapp\n"
                     "   (det blir en .msg-fil)\n"
-                    "2. Dra .msg-filen till TaskBord\n\n"
+                    "2. Dra .msg-filen till Ledgebord\n\n"
                     "Tips: du kan också använda 📧-knappen nedan\n"
                     "eller spara mailet som .eml i Thunderbird.",
                 )

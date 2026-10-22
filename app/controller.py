@@ -139,6 +139,7 @@ class AppController(
             raise StartupError("QApplication kan inte skapas (QtWidgets saknas)")
 
         QApplicationCls = QtWidgets.instance["QApplication"]
+        self._set_app_user_model_id()  # egen identitet i aktivitetsfältet (inte Pythons) — före första fönstret
         self._app = QApplicationCls(sys.argv)
         self._app.setQuitOnLastWindowClosed(False)
         self._app.setApplicationName(self._config.app_name)
@@ -229,7 +230,7 @@ class AppController(
                 pass
             _start_panel = (
                 "=" * 58 + "\n"
-                "TaskBord v6.4.1 v7 — startpanel (v7-fix22)\n"
+                "Ledgebord v6.4.1 v7 — startpanel (v7-fix22)\n"
                 f"  PySide6:        {_ver_txt}\n"
                 f"  DPI-medvetenhet: {_dpi_txt}\n"
                 "  Ikon: uppskjuten tills efter första fönstret\n"

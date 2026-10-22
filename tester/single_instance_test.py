@@ -1,4 +1,4 @@
-"""Test: en körande TaskBord upptäcks (även äldre kopior) och ingen andra brygga/instans startas."""
+"""Test: en körande Ledgebord upptäcks (även äldre kopior) och ingen andra brygga/instans startas."""
 import socket
 import sys
 import tempfile
@@ -41,7 +41,7 @@ with tempfile.TemporaryDirectory() as d1, tempfile.TemporaryDirectory() as d2:
     s1 = TaskStore(data_dir_override=d1)
     b1 = MailBridgeServer(s1, Path(d1), port=port, version="t")
     check("första bryggan startar", b1.start())
-    check("körande TaskBord upptäcks", probe_taskbord(port) is True)
+    check("körande Ledgebord upptäcks", probe_taskbord(port) is True)
     check("find_running hittar porten", find_running_taskbord(port, 3) == port)
 
     # en andra instans (annan datamapp) får INTE starta en andra brygga på nästa port
@@ -51,7 +51,7 @@ with tempfile.TemporaryDirectory() as d1, tempfile.TemporaryDirectory() as d2:
     check("ingen brygga på nästa port", probe_taskbord(port + 1) is False)
     b1.stop()
 
-# en annan tjänst (inte TaskBord) på porten räknas inte
+# en annan tjänst (inte Ledgebord) på porten räknas inte
 import http.server  # noqa: E402
 import threading  # noqa: E402
 
@@ -70,11 +70,11 @@ p2 = free_port()
 srv = http.server.HTTPServer(("127.0.0.1", p2), H)
 t = threading.Thread(target=srv.serve_forever, daemon=True)
 t.start()
-check("annan tjänst är inte TaskBord", probe_taskbord(p2) is False)
+check("annan tjänst är inte Ledgebord", probe_taskbord(p2) is False)
 srv.shutdown()
 
 main = app_source(ROOT)
-check("main.pyw avbryter om TaskBord redan kör", "find_running_taskbord(8765, 12)" in main and "startar ingen ny instans" in main)
+check("main.pyw avbryter om Ledgebord redan kör", "find_running_taskbord(8765, 12)" in main and "startar ingen ny instans" in main)
 
 check("bryggan startar alltid vid appstart", "_init_mail_bridge(at_startup=True)" in main and "_http_on = _watch_on = True" in main)
 check("brygg-omstart om porten var upptagen", "_retry_mail_bridge_start" in main)

@@ -15,14 +15,14 @@ import urllib.parse
 import urllib.request
 from typing import List, Optional
 
-logger = logging.getLogger("TaskBord")
+logger = logging.getLogger("Ledgebord")
 LOG_PREFIX = "[LINKS]"
 
 MAX_URL_LEN = 2000
 MAX_TITLE_LEN = 200
 MAX_READ_BYTES = 256 * 1024
 FETCH_TIMEOUT = 6.0
-USER_AGENT = "Mozilla/5.0 (compatible; TaskBord link preview)"
+USER_AGENT = "Mozilla/5.0 (compatible; Ledgebord link preview)"
 
 _URL_RE = re.compile(r"(?i)\b(?:https?://|www\.)[^\s<>\"'`]+")
 _TRAIL = ".,;:!?)]}»”’'\""

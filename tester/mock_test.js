@@ -1,10 +1,10 @@
 /* ===========================================================================
- * mock_test.js — E2E-test av TaskBord-tillägget UTAN Thunderbird.
+ * mock_test.js — E2E-test av Ledgebord-tillägget UTAN Thunderbird.
  *
  * Kör:  node tester/mock_test.js [url] [token]
  *
  * Testet härmar Thunderbirds WebExtension-API (messenger.*), laddar den
- * RIKTIGA background.js och pratar med en RIKTIG TaskBord-brygga (Python).
+ * RIKTIGA background.js och pratar med en RIKTIG Ledgebord-brygga (Python).
  * Verifierar: meny-klick, popup, snabbuppgift, offline-kö, dublett, token.
  * ===========================================================================
  */
@@ -220,7 +220,7 @@ async function getTasks() {
 
 (async function main() {
   console.log("=".repeat(66));
-  console.log("E2E-test: TaskBord-tillägget (mockad Thunderbird) → " + BASE);
+  console.log("E2E-test: Ledgebord-tillägget (mockad Thunderbird) → " + BASE);
   console.log("=".repeat(66));
   await wait(300);
 
@@ -251,7 +251,7 @@ async function getTasks() {
   ok("titeln kommer från mailämnet",
      tasks[0] && tasks[0].title === "Faktura 2026-10 måste betalas",
      tasks[0] && tasks[0].title);
-  ok("Thunderbird-tagg → TaskBord-tagg (system-taggar bort)",
+  ok("Thunderbird-tagg → Ledgebord-tagg (system-taggar bort)",
      tasks[0] && tasks[0].tags.includes("jobb") &&
      !tasks[0].tags.some((t) => t.startsWith("$")),
      JSON.stringify(tasks[0] && tasks[0].tags));
@@ -305,7 +305,7 @@ async function getTasks() {
 
   tasks = await getTasks();
   const titles = tasks.map((t) => t.title);
-  ok("2 uppgifter i TaskBord nu (mail + snabbuppgift)", tasks.length === 2,
+  ok("2 uppgifter i Ledgebord nu (mail + snabbuppgift)", tasks.length === 2,
      JSON.stringify(titles));
   const ring = tasks.find((t) => t.title === "Ring Anna klockan 14");
   ok("snabbuppgiftens prioritet/datum/tagg sparades",
@@ -327,7 +327,7 @@ async function getTasks() {
   ok("fel token ger tydligt fel (ingen tystnad)",
      res && !res.ok && /token/i.test(res.error || ""), JSON.stringify(res));
 
-  // 9. OFFLINE: TaskBord körs inte → kön tar över
+  // 9. OFFLINE: Ledgebord körs inte → kön tar över
   await callBackground({
     type: "save-config",
     config: { url: "http://127.0.0.1:9", token: TOKEN }
@@ -402,7 +402,7 @@ async function getTasks() {
      /Lunch på fredag/.test(notifications[notifications.length - 1].message),
      JSON.stringify(notifications.slice(before1)));
 
-  // 13. Flera mail när TaskBord inte körs → alla köas, en notis
+  // 13. Flera mail när Ledgebord inte körs → alla köas, en notis
   await callBackground({ type: "save-config", config: { url: "http://127.0.0.1:9", token: TOKEN } });
   const before2 = notifications.length;
   await clickMenu(
@@ -422,7 +422,7 @@ async function getTasks() {
     process.exit(1);
   }
   console.log("✓ ALLA E2E-TESTER PASSERADE (" + tasks.length +
-              " uppgifter i TaskBord, " + notifications.length + " notiser)");
+              " uppgifter i Ledgebord, " + notifications.length + " notiser)");
   console.log("=".repeat(66));
   process.exit(0);
 })().catch((e) => {

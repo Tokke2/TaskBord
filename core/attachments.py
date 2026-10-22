@@ -16,7 +16,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
-logger = logging.getLogger("TaskBord")
+logger = logging.getLogger("Ledgebord")
 LOG_PREFIX = "[ATTACH]"
 
 ATTACH_DIRNAME = "attachments"

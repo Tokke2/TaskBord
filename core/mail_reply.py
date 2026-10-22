@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 from urllib.parse import quote
 
-logger = logging.getLogger("TaskBord")
+logger = logging.getLogger("Ledgebord")
 
 QUOTE_MAX_CHARS = 1200
 MAILTO_MAX_CHARS = 1900   # Windows ShellExecute klarar ~2000 tecken

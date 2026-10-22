@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-widget.py — TaskBord: TodoWidget (huvudfönstret). Fasad för den uppdelade widget-koden.
+widget.py — Ledgebord: TodoWidget (huvudfönstret). Fasad för den uppdelade widget-koden.
 
 Filen var förut ~8 100 rader. Nu ligger koden så här (alla importvägar fungerar som förut:
 `from widget import TodoWidget`, `from ui.widget import TodoWidget`, `import widget as W`):
@@ -84,7 +84,7 @@ if _QT_AVAILABLE:
         top_toggle_requested = Signal()  # högerklicksmenyn: "📌 Alltid överst" (appen växlar läget)
 
         # === KLASS-KONSTANTER ===
-        DEFAULT_TITLE: ClassVar[str] = "TaskBord"
+        DEFAULT_TITLE: ClassVar[str] = "Ledgebord"
 
         # === __SLOTS__ (Qt-objekt kan inte ha __slots__, använd attribut) ===
 

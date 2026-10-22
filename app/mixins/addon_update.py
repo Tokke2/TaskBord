@@ -81,11 +81,11 @@ class AddonUpdateMixin:
                 st = addon_watch.evaluate(SCRIPT_DIR, self.settings.addon_xpi_seen())
             ver = f" (version {st.version})" if getattr(st, "version", "") else ""
             text = (
-                f"Thunderbird-tillägget{ver} har uppdaterats tillsammans med TaskBord.\n\n"
+                f"Thunderbird-tillägget{ver} har uppdaterats tillsammans med Ledgebord.\n\n"
                 "Thunderbird byter inte ut det själv — installera den nya filen:\n\n"
                 "1. Klicka ”Visa filen” nedan (mappen öppnas med filen markerad).\n"
                 "2. I Thunderbird: Verktyg → Tillägg och teman → kugghjulet ⚙ →\n"
-                "   ”Installera tillägg från fil…” → välj TaskBord-Thunderbird.xpi.\n"
+                "   ”Installera tillägg från fil…” → välj Ledgebord-Thunderbird.xpi.\n"
                 "3. Din token och dina inställningar i tillägget behålls normalt.\n\n"
                 f"Fil: {st.path}"
             )
@@ -118,7 +118,7 @@ class AddonUpdateMixin:
             return None
         act = self._QAction("🆕  Nytt Thunderbird-tillägg — installera om…", self._tray_menu)
         act.setToolTip(
-            "TaskBord-Thunderbird.xpi har ändrats.\n"
+            "Ledgebord-Thunderbird.xpi har ändrats.\n"
             "Öppnar mappen med filen och visar hur du installerar den."
         )
         act.triggered.connect(self._addon_update_dialog)

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""TaskBord-appens startkod (delad ur main.pyw).
+"""Ledgebord-appens startkod (delad ur main.pyw).
 
 main.pyw är bara en liten startfil; själva logiken ligger här:
   constants / jsonutil / platform_utils / errors / formatting / logging_setup / subsystems /

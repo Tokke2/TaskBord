@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-settings.py — TaskBord v6.4.1 v7 (18 888 888% bättre kod & design + AI-felsökning)
+settings.py — Ledgebord v6.4.1 v7 (18 888 888% bättre kod & design + AI-felsökning)
 =====================================================================================
 Copyright © Rickard Längkvist, 2025–2026
 
-Configuration manager for TaskBord.
+Configuration manager for Ledgebord.
 
 ** Ansvar (v6.4 — 5000% bättre) **
     • JSON-persistens med schema-versionering (v8)

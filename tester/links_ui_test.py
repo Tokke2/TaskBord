@@ -280,7 +280,7 @@ def child() -> None:
 
     class Ctl(ClipTaskMixin):
         _tray = None
-        _log = logging.getLogger("TaskBord")
+        _log = logging.getLogger("Ledgebord")
 
         def __init__(self):
             self.store, self.settings = store, settings

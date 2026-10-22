@@ -12,7 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
-logger = logging.getLogger("TaskBord")
+logger = logging.getLogger("Ledgebord")
 LOG_PREFIX = "[BACKUP-UI]"
 
 from core import tasks_backup as tb  # noqa: E402

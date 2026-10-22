@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Håller koll på Thunderbird-tillägget (TaskBord-Thunderbird.xpi) i appmappen.
+Håller koll på Thunderbird-tillägget (Ledgebord-Thunderbird.xpi) i appmappen.
 
 Thunderbird installerar INTE om tillägget av sig självt när filen byts ut vid en
 appuppdatering — användaren måste installera den nya .xpi:n från fil. Den här modulen
@@ -22,10 +22,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-logger = logging.getLogger("TaskBord")
+logger = logging.getLogger("Ledgebord")
 LOG_PREFIX = "[ADDON]"
 
-XPI_NAME = "TaskBord-Thunderbird.xpi"
+XPI_NAME = "Ledgebord-Thunderbird.xpi"
 FP_LEN = 40  # tecken av sha256 som sparas i settings (≤ 64)
 
 

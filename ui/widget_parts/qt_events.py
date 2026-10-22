@@ -531,7 +531,7 @@ class QtEventsMixin:
             from PySide6.QtWidgets import QWidget as _QW
             probe = _QW()
             probe.setObjectName("DTPProbe")
-            probe.setWindowTitle("TaskBord-probe")
+            probe.setWindowTitle("Ledgebord-probe")
             probe.resize(200, 100)
             probe.show()
             _ok = False

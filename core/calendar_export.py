@@ -35,8 +35,8 @@ from urllib.parse import quote, urlencode
 # Konstanter
 # --------------------------------------------------------------------------
 ICAL_LINE_LIMIT = 75  # RFC 5545: rader får vara max 75 oktetter
-PRODID = "-//TaskBord//Kalenderexport//SV"
-CALENDAR_NAME_DEFAULT = "TaskBord"
+PRODID = "-//Ledgebord//Kalenderexport//SV"
+CALENDAR_NAME_DEFAULT = "Ledgebord"
 GOOGLE_TEMPLATE_URL = "https://calendar.google.com/calendar/render"
 
 # RFC 5545 PRIORITY: 1 = högst, 9 = lägst, 0 = odefinierad
@@ -192,7 +192,7 @@ def _description(task: Dict[str, Any], inkl_datum: bool = True) -> str:
         rader.append("")
 
     if task.get("done"):
-        rader.append("✅ Klar i TaskBord")
+        rader.append("✅ Klar i Ledgebord")
         rader.append("")
 
     subs = _subtask_lines(task.get("subtasks") or [])
@@ -220,7 +220,7 @@ def _description(task: Dict[str, Any], inkl_datum: bool = True) -> str:
         rader.append("")
 
     if inkl_datum:
-        rader.append("Skapad i TaskBord")
+        rader.append("Skapad i Ledgebord")
     return "\n".join(rader).strip()
 
 

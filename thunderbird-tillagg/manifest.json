@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "TaskBord — mail till uppgift",
-  "short_name": "TaskBord",
-  "version": "1.1.0",
-  "description": "Skickar valt mail till TaskBord och skapar en uppgift (sparas i JSON). Fungerar med TaskBords e-postbrygga på localhost.",
+  "name": "Ledgebord — mail till uppgift",
+  "short_name": "Ledgebord",
+  "version": "1.2.0",
+  "description": "Skickar valt mail till Ledgebord och skapar en uppgift (sparas i JSON). Fungerar med Ledgebords e-postbrygga på localhost.",
   "author": "Rickard Längkvist",
   "homepage_url": "https://github.com/Tokke2/TaskBord",
   "browser_specific_settings": {
@@ -36,7 +36,7 @@
     ]
   },
   "action": {
-    "default_title": "TaskBord — skicka mail som uppgift",
+    "default_title": "Ledgebord — skicka mail som uppgift",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon-16.png",
@@ -45,7 +45,7 @@
     }
   },
   "message_display_action": {
-    "default_title": "TaskBord — skapa uppgift av mailet",
+    "default_title": "Ledgebord — skapa uppgift av mailet",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon-16.png",

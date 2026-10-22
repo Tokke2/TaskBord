@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-email_import.py — TaskBord v7-fix35 → v7-fix85 (50 000 000 % bättre).
+email_import.py — Ledgebord v7-fix35 → v7-fix85 (50 000 000 % bättre).
 
 Rickard 2026-09-30: "kunna importera uppgift från mail, importera
 outlook/thunderbird fil för att konvertera till uppgift, samt spara
@@ -663,7 +663,7 @@ def find_email_file(
     Hitta originalmailets fil för en uppgift (eller None).
 
     Det sparade ``email_path`` är en ABSOLUT sökväg. Flyttas appmappen
-    (D:\\Program\\todo → D:\\Program\\TaskBord) pekar den fel, och knappen
+    (D:\\Program\\todo → D:\\Program\\Ledgebord) pekar den fel, och knappen
     verkade då död. Därför letar vi också i datamappens ``emails\\`` på
     samma filnamn och på ``<uppgifts-id>.eml/.msg``.
     """

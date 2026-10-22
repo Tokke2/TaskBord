@@ -104,7 +104,7 @@ def _pyside_version() -> str:
 
 def info_text(app_dir: Path, extra: Optional[Dict[str, Any]] = None) -> str:
     lines = [
-        "TaskBord felrapport",
+        "Ledgebord felrapport",
         f"Skapad:       {time.strftime('%Y-%m-%d %H:%M:%S')}",
         f"Python:       {sys.version.split()[0]} ({platform.architecture()[0]})",
         f"System:       {platform.platform()}",
@@ -113,7 +113,7 @@ def info_text(app_dir: Path, extra: Optional[Dict[str, Any]] = None) -> str:
     ]
     for k, v in (extra or {}).items():
         lines.append(f"{k + ':':<13} {v}")
-    xpi = Path(app_dir) / "TaskBord-Thunderbird.xpi"
+    xpi = Path(app_dir) / "Ledgebord-Thunderbird.xpi"
     if xpi.is_file():
         lines.append(f"xpi sha256:   {hashlib.sha256(xpi.read_bytes()).hexdigest()[:16]}")
     return "\n".join(lines) + "\n"
@@ -139,11 +139,11 @@ def create_report(app_dir: Path, settings_file: Optional[Path] = None,
     out_dir = data / REPORT_DIR_NAME
     out_dir.mkdir(parents=True, exist_ok=True)
     stamp = time.strftime("%Y%m%d-%H%M%S", time.localtime(now))
-    out = out_dir / f"taskbord-felrapport-{stamp}.zip"
+    out = out_dir / f"ledgebord-felrapport-{stamp}.zip"
     n = 1
     while out.exists():
         n += 1
-        out = out_dir / f"taskbord-felrapport-{stamp}-{n}.zip"
+        out = out_dir / f"ledgebord-felrapport-{stamp}-{n}.zip"
     settings_text = ""
     sf = Path(settings_file) if settings_file else app_dir / "js" / "settings.json"
     try:
@@ -161,7 +161,8 @@ def create_report(app_dir: Path, settings_file: Optional[Path] = None,
         if wl.is_file():
             z.writestr("update_watchdog.log", redact_text(tail_lines(wl, 500)))
     # behåll bara de senaste rapporterna
-    old = sorted(out_dir.glob("taskbord-felrapport-*.zip"))
+    old = sorted(list(out_dir.glob("taskbord-felrapport-*.zip")) + list(out_dir.glob("ledgebord-felrapport-*.zip")),
+                 key=lambda p: p.stat().st_mtime)
     for p in old[:-KEEP_REPORTS]:
         try:
             p.unlink()

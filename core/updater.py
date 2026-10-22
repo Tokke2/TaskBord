@@ -1,5 +1,5 @@
 """
-updater.py — TaskBord: "🔄 Sök ny version" (uppdatering inifrån appen).
+updater.py — Ledgebord: "🔄 Sök ny version" (uppdatering inifrån appen).
 
 Hämtar GitHub-releasen märkt *Latest* och jämför FILINNEHÅLL (sha256) med den
 installerade mappen. Versionsnumret behöver alltså inte ändras — releasen får
@@ -44,7 +44,7 @@ LOG_PREFIX = "[UPDATE]"
 GITHUB_REPO = "Tokke2/TaskBord"
 LATEST_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 ALLOWED_HOSTS = frozenset({"api.github.com", "codeload.github.com", "github.com"})
-USER_AGENT = "TaskBord-updater"
+USER_AGENT = "Ledgebord-updater"
 
 MAX_ZIP_BYTES = 40 * 1024 * 1024
 MAX_UNPACKED_BYTES = 120 * 1024 * 1024

@@ -8,7 +8,7 @@ from contextlib import suppress
 from pathlib import Path
 from typing import Any, Optional, Union
 
-from app.constants import DATA_DIR, IconState, LOG_PREFIX
+from app.constants import APP_USER_MODEL_ID, DATA_DIR, IconState, LOG_PREFIX, SCRIPT_DIR
 
 
 class AppIconMixin:
@@ -27,10 +27,12 @@ class AppIconMixin:
         if ico_path is None or not ico_path.is_file():
             return False
         try:
-            if self._QIcon is not None:
-                icon = self._QIcon(str(ico_path))
-                if icon.isNull() or icon.pixmap(32, 32).isNull():
-                    return False
+            _qicon = getattr(self, "_QIcon", None)
+            if _qicon is None:
+                from PySide6.QtGui import QIcon as _qicon  # tidigt anrop: Qt-klasserna är inte hämtade än
+            icon = _qicon(str(ico_path))
+            if icon.isNull() or icon.pixmap(32, 32).isNull():
+                return False
         except Exception:
             return False
         if sys.platform == "win32":
@@ -57,152 +59,45 @@ class AppIconMixin:
 
     def _ensure_app_icon_file(self) -> Optional[Path]:
         """
-        FIX 2026-09-23: Skapa data/app.ico om den saknas (PNG-in-ICO, 16–64px).
-        Returnerar sökväg till .ico (används av QApplication + Win32 WM_SETICON).
+        Ledgebords ikon (``icon/ledgebord.ico`` i appmappen). Används överallt: fönster, tray,
+        aktivitetsfält och Aktivitetshanteraren (WM_SETICON) samt genvägar.
 
-        FIX v7-fix19: befintlig OCH genererad ikon valideras nu — en korrupt
-        .ico är huvudmisstänkt för CreateWindowEx-stormen ('Felaktig parameter').
+        Saknas filen eller går den inte att läsa ritas samma ikon om (core/icon_art.py, ren
+        stdlib) till ``data/ledgebord.ico`` — aldrig en Python-ikon. En korrupt .ico kan ge
+        'Felaktig parameter' vid CreateWindowEx, därför valideras filen innan den används.
         """
-        ico_path = DATA_DIR / "app.ico"
         try:
-            # FIX v7-fix54: vår EGEN genererade ikon (markör .ico.ok finns)
-            # används direkt — den validerar ej i Qt men FUNGERAR i
-            # tray/Win32 (bevisat i loggen). Bryter .broken-loopen.
-            _ok_marker = ico_path.with_suffix(".ico.ok")
-            if (
-                ico_path.is_file()
-                and ico_path.stat().st_size > 1000
-                and _ok_marker.is_file()
-            ):
-                return ico_path
-            if ico_path.is_file() and ico_path.stat().st_size > 0:
-                # FIX v7-fix19: validera — korrupt .ico → ogiltig HICON →
-                # CreateWindowEx 'Felaktig parameter' vid varje försök!
-                if self._validate_app_icon(ico_path):
-                    return ico_path
-                broken = ico_path.with_suffix(".ico.broken")
-                with suppress(Exception):
-                    ico_path.replace(broken)
-                self._log.warning(
-                    f"{LOG_PREFIX} app.ico OGILTIG — flyttad till "
-                    f"{broken.name}, genererar ny ikon"
-                )
-            elif ico_path.is_file():
-                with suppress(Exception):
-                    ico_path.unlink()  # tom fil — ta bort
-            # FIX v7-fix40: attributen kan saknas vid tidigt anrop
-            # (före _init_qt_application) — hämta säkert + cacha
-            _QPix = getattr(self, "_QPixmap", None)
-            _QPaint = getattr(self, "_QPainter", None)
-            _QCol = getattr(self, "_QColor", None)
-            _QPen = getattr(self, "_QPen", None)
-            if (_QPix is None or _QPaint is None or _QCol is None
-                    or _QPen is None):
-                try:
-                    from PySide6.QtGui import (
-                        QColor as _QColImp, QPainter as _QPaintImp,
-                        QPen as _QPenImp, QPixmap as _QPixImp,
-                    )
-                    _QPix, _QPaint, _QCol, _QPen = (
-                        _QPixImp, _QPaintImp, _QColImp, _QPenImp
-                    )
-                    self._QPixmap, self._QPainter = _QPix, _QPaint
-                    self._QColor, self._QPen = _QCol, _QPen
-                except Exception as _imp_err:
-                    self._log.debug(
-                        f"{LOG_PREFIX} _ensure_app_icon_file: Qt-klasser "
-                        f"ej tillgängliga ännu: {_imp_err}"
-                    )
-                    return None
+            bundled = SCRIPT_DIR / "icon" / "ledgebord.ico"
+            if bundled.is_file() and bundled.stat().st_size > 500 and self._validate_app_icon(bundled):
+                return bundled
+            generated = DATA_DIR / "ledgebord.ico"
+            if generated.is_file() and generated.stat().st_size > 500 and self._validate_app_icon(generated):
+                return generated
+            from core import icon_art
             DATA_DIR.mkdir(parents=True, exist_ok=True)
-            # FIX v7-fix52: den manuella PNG-i-ICO-bygget validerade EJ
-            # (QIcon/LoadImageW vägrar vissa PNG-poster) och filen
-            # genererades om vid VARJE start. Nu: Qt-native ICO-sparning
-            # (BMP-baserad, alltid giltig) — samma cirkel+check-design.
-            with suppress(Exception):
-                ico_path.unlink(missing_ok=True)
-            # NY v7-fix67: TaskBord-ikonen — ett litet "skrivbords-
-            # kort" (rundad indigo-kvadrat) med en tydlig vit bock +
-            # ljus top-kant (glaskänsla). Används överallt: fönster,
-            # tray, aktivitetshanteraren (WM_SETICON).
-            pm = self._QPixmap(64, 64)
-            if pm.isNull():
-                return None
-            pm.fill(self._QColor(0, 0, 0, 0))
-            p = self._QPainter(pm)
-            if not p.isActive():
-                return None
-            p.setRenderHint(self._QPainter.RenderHint.Antialiasing)
-            try:
-                from PySide6.QtGui import QRadialGradient as _QRG
-                from PySide6.QtCore import QPointF as _QPF
-                _grad = _QRG(_QPF(32, 18), 44.0)
-                _grad.setColorAt(0.0, self._QColor("#8b93f9"))
-                _grad.setColorAt(1.0, self._QColor("#4f46e5"))
-                p.setBrush(_grad)
-            except Exception:
-                p.setBrush(self._QColor("#6366f1"))
-            p.setPen(self._QPen(self._QColor("#3730a3"), 2))
-            p.drawRoundedRect(3, 3, 58, 58, 14, 14)
-            # Ljus överkant (glaskant)
-            p.setPen(self._QPen(self._QColor(255, 255, 255, 90), 2))
-            p.drawLine(12, 6, 52, 6)
-            # Stor vit bock
-            pen = self._QPen(self._QColor("#ffffff"))
-            pen.setWidthF(6.5)
-            try:
-                from PySide6.QtCore import Qt as _QtEnum
-                pen.setCapStyle(_QtEnum.PenCapStyle.RoundCap)
-                pen.setJoinStyle(_QtEnum.PenJoinStyle.RoundJoin)
-            except Exception:
-                pass
-            p.setPen(pen)
-            p.drawLine(18, 33, 28, 44)
-            p.drawLine(28, 44, 47, 22)
-            # Liten "pinne" uppe (påminnelse)
-            p.setPen(self._QPen(self._QColor("#fbbf24"), 4))
-            p.drawLine(32, 3, 32, 10)
-            p.end()
-            # Skala ner till 32 för ICO (skarp)
-            # FIX v7-fix71: self._Qt finns ej vid tidigt anrop —
-            # lokal import
-            try:
-                from PySide6.QtCore import Qt as _QtIco
-                pm = pm.scaled(
-                    32, 32,
-                    _QtIco.AspectRatioMode.KeepAspectRatio,
-                    _QtIco.TransformationMode.SmoothTransformation,
-                )
-            except Exception:
-                pass  # behåll 64x64 — Qt ICO-writer hanterar det
-            if not pm.save(str(ico_path), "ICO"):
-                self._log.warning(
-                    f"{LOG_PREFIX} Kunde ej spara app.ico (Qt ICO-writer)"
-                )
-                return None
-            # FIX v7-fix54: markera som vår egen + acceptera direkt
-            # (Qt-valideringen failar på Qt-skrivna ICO:er på vissa
-            # maskiner, men ikonen fungerar i tray/Win32)
-            with suppress(Exception):
-                _ok_marker.write_text("ok", encoding="utf-8")
-            self._log.info(
-                f"{LOG_PREFIX} Skapade app-ico (Qt-native): {ico_path} "
-                f"({ico_path.stat().st_size}B) — accepteras utan validering"
-            )
-            return ico_path
-            # FIX v7-fix19: validera ÄVEN den genererade filen
-            if not self._validate_app_icon(ico_path):
-                with suppress(Exception):
-                    ico_path.unlink()
-                self._log.warning(
-                    f"{LOG_PREFIX} genererad app.ico validerar EJ — "
-                    f"kör utan ikon (bättre än CreateWindowEx-storm!)"
-                )
-                return None
-            return ico_path
+            generated.write_bytes(icon_art.build_ico((16, 24, 32, 48, 64)))
+            self._log.info(f"{LOG_PREFIX} ritade om appikonen: {generated} ({generated.stat().st_size}B)")
+            if self._validate_app_icon(generated):
+                return generated
+            self._log.warning(f"{LOG_PREFIX} den ritade ikonen validerar inte — kör utan ikon")
         except Exception as e:
             self._log.warning(f"{LOG_PREFIX} _ensure_app_icon_file: {e}")
-            return None
+        return None
+
+    @staticmethod
+    def _set_app_user_model_id() -> None:
+        """
+        Windows: ge processen ett EGET AppUserModelID innan något fönster skapas.
+
+        Utan det grupperar Windows pythonw.exe-processen under Pythons identitet och visar
+        Python-ikonen i aktivitetsfältet/startmenyn. Med det används Ledgebords fönsterikon
+        (och genvägens ikon) i stället.
+        """
+        if sys.platform != "win32":
+            return
+        with suppress(Exception):
+            import ctypes
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_USER_MODEL_ID)
 
     def apply_win32_process_icon(self, hwnd: int) -> None:
         """
@@ -217,11 +112,14 @@ class AppIconMixin:
             user32 = ctypes.windll.user32
             hinst = ctypes.windll.kernel32.GetModuleHandleW(None)
             # IMAGE_ICON=1, LR_LOADFROMFILE=0x10, LR_DEFAULTSIZE=0x40
+            # SM_CXICON=11, SM_CXSMICON=49 — rätt storlek för skärmens DPI (skarp ikon i aktivitetsfältet)
+            _big = max(48, int(user32.GetSystemMetrics(11)) or 32)
+            _small = int(user32.GetSystemMetrics(49)) or 16
             hicon_big = user32.LoadImageW(
-                hinst, str(self._app_icon_path), 1, 0, 0, 0x10 | 0x40
+                hinst, str(self._app_icon_path), 1, _big, _big, 0x10
             )
             hicon_small = user32.LoadImageW(
-                hinst, str(self._app_icon_path), 1, 16, 16, 0x10
+                hinst, str(self._app_icon_path), 1, _small, _small, 0x10
             )
             if not hicon_big and not hicon_small:
                 self._log.debug("LoadImageW gav 0 HICON")

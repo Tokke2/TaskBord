@@ -32,7 +32,7 @@ app = tmp / "app"
 (app / "core").mkdir()
 (app / "main.pyw").write_text("print(1)\n", encoding="utf-8")
 (app / "core" / "x.py").write_text("A=1\n", encoding="utf-8")
-(app / "TaskBord-Thunderbird.xpi").write_bytes(b"PK")
+(app / "Ledgebord-Thunderbird.xpi").write_bytes(b"PK")
 (app / "js" / "active.json").write_text(json.dumps({"tasks": [{"title": "HEMLIG UPPGIFT om lönen"}]}), encoding="utf-8")
 (app / "js" / "google" / "token.json").write_text("GOOGLE-REFRESH-TOKEN-xyz", encoding="utf-8")
 (app / "js" / "settings.json").write_text(json.dumps({
@@ -69,7 +69,7 @@ check("inställningar: hemligheter ***, resten kvar",
       and st["theme"] == "dark" and st["mail_bridge_port"] == 8765 and st["nested"]["ok"] == 1, str(st))
 check("tom hemlig inställning lämnas (visar att den INTE är satt)", st["update_notified"] == "")
 check("loggen kortas till de sista raderna", "rad 4999" in logtxt and "rad 0\n" not in logtxt and len(logtxt.splitlines()) <= br.LOG_TAIL_LINES)
-check("filtabell har fingeravtryck för programfiler", "main.pyw" in files and "core/x.py" in files and "TaskBord-Thunderbird.xpi" in files)
+check("filtabell har fingeravtryck för programfiler", "main.pyw" in files and "core/x.py" in files and "Ledgebord-Thunderbird.xpi" in files)
 check("info har release, Python och xpi", "6.4.1 v7" in info and "Python:" in info and "xpi sha256" in info)
 
 # tom mapp / saknad logg och settings kraschar inte

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-store.py — TaskBord v6.4.1 v7 (18 888 888% bättre: snabbhet + minne + kod + AI-felsökning)
+store.py — Ledgebord v6.4.1 v7 (18 888 888% bättre: snabbhet + minne + kod + AI-felsökning)
 ================================================================================================
 Copyright © Rickard Längkvist, 2025–2026
 
@@ -1345,7 +1345,7 @@ class TaskStore(QObject):
         self._active_mtime: float = 0.0
         self._archive_mtime: float = 0.0
         self._mtime_cache_time: float = 0.0
-        # FIX v8: skydd mot att en ANNAN process (t.ex. en andra TaskBord-instans)
+        # FIX v8: skydd mot att en ANNAN process (t.ex. en andra Ledgebord-instans)
         # skriver samma filer — se _merge_external()
         self._known_ids: Set[str] = set()
         self._disk_sig: Optional[Tuple[Any, ...]] = None
@@ -1675,7 +1675,7 @@ class TaskStore(QObject):
             self._pinned_ids.add(tid)
 
     # ------------------------------------------------------------------
-    # FIX v8: flera processer mot samma filer (t.ex. två TaskBord-fönster)
+    # FIX v8: flera processer mot samma filer (t.ex. två Ledgebord-fönster)
     # ------------------------------------------------------------------
     def _disk_signature(self) -> Tuple[Any, ...]:
         sig: List[Any] = []

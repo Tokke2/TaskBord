@@ -278,7 +278,7 @@ class HotkeysMixin:
                 "⌨️ Snabbtangent för ny uppgift",
                 "Klicka i rutan och TRYCK den kombination du vill ha.\n"
                 "Den öppnar rutan för ny uppgift var som helst i Windows,"
-                " även när TaskBord är dolt.\n\n"
+                " även när Ledgebord är dolt.\n\n"
                 f"Nu: {_current if _enabled else 'avstängd'}",
                 _current,
                 DEFAULT_QUICK_ADD,

@@ -24,7 +24,7 @@ import os
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-logger = logging.getLogger("TaskBord")
+logger = logging.getLogger("Ledgebord")
 LOG_PREFIX = "[GCAL-UI]"
 
 try:
@@ -776,7 +776,7 @@ if _QT_AVAILABLE:
                 self._fyll()
 
     class GoogleCalendarDialog(QDialog):
-        """Koppla Google Calendar till TaskBord — lokalt, utan mellanhänder."""
+        """Koppla Google Calendar till Ledgebord — lokalt, utan mellanhänder."""
 
         def __init__(
             self,
@@ -790,7 +790,7 @@ if _QT_AVAILABLE:
             self.settings = settings
             self.data_dir = _resolve_data_dir(store, settings, data_dir)
 
-            self.setWindowTitle("TaskBord — Google Calendar (lokal koppling)")
+            self.setWindowTitle("Ledgebord — Google Calendar (lokal koppling)")
             self.setModal(True)
             self.setMinimumWidth(560)
 
@@ -805,7 +805,7 @@ if _QT_AVAILABLE:
             forklaring = QLabel(
                 "Kopplingen sker <b>helt lokalt</b>: inloggningen öppnas i din "
                 "webbläsare och svaret kommer tillbaka till en tillfällig server "
-                "på <code>127.0.0.1</code>. TaskBord skickar ingenting till "
+                "på <code>127.0.0.1</code>. Ledgebord skickar ingenting till "
                 "någon molntjänst och åtkomstbeviset sparas bara i din egen "
                 "mapp (<code>google/token.json</code>).",
                 self,
@@ -834,7 +834,7 @@ if _QT_AVAILABLE:
             self.btn_koppla.setCursor(Qt.CursorShape.PointingHandCursor)
             self.btn_koppla.setToolTip(
                 "Öppnar webbläsaren där du loggar in hos Google och godkänner.\n"
-                "Inget lösenord skrivs in i TaskBord."
+                "Inget lösenord skrivs in i Ledgebord."
             )
             self.btn_koppla.clicked.connect(self._on_koppla)
             rad1.addWidget(self.btn_koppla)
@@ -1118,7 +1118,7 @@ if _QT_AVAILABLE:
                 _visa_info(
                     self,
                     "☁️ Google Calendar",
-                    "Klart! TaskBord är nu kopplat till Google Calendar"
+                    "Klart! Ledgebord är nu kopplat till Google Calendar"
                     + (f" som {email}." if email else ".")
                     + "\n\nNu kan du skicka uppgifter med ☁️ i uppgiftsmenyn, "
                       "eller via knappen ovan.",

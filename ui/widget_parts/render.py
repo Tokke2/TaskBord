@@ -542,7 +542,7 @@ class RenderMixin:
         NY v7-fix86:
           - snoozade visas ('· N 💤') när > 0
           - tunn progress-bar under headern (% klara, accent-färg)
-          - fönstertiteln får antal kvar ("TaskBord — 3 kvar") — syns
+          - fönstertiteln får antal kvar ("Ledgebord — 3 kvar") — syns
             när fönstret lyfts/flyter
         """
         chip = getattr(self, "stats_chip", None)

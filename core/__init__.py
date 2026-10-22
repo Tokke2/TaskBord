@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-core — UI-oberoende kärnlogik för TaskBord v6.4.1.
+core — UI-oberoende kärnlogik för Ledgebord v6.4.1.
 
 Innehåller:
   - settings.py   (app-inställningar, schema v8+)

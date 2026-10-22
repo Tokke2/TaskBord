@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-ui — Användargränssnitt for TaskBord v6.4.1 v7.
+ui — Användargränssnitt for Ledgebord v6.4.1 v7.
 
 Innehåller:
   - widget.py     (fasad: TodoWidget + GlassFrame + PriorityDot — koden ligger i widget_base.py,

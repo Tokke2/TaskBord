@@ -142,5 +142,5 @@ def validate_global_combo(
         return False, f"{combo} används av Windows — välj en annan."
     for other in taken:
         if other and normalize_combo(other).lower() == combo.lower():
-            return False, f"{combo} används redan av en annan snabbtangent i TaskBord."
+            return False, f"{combo} används redan av en annan snabbtangent i Ledgebord."
     return True, ""

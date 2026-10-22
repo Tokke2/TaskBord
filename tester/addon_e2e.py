@@ -1,6 +1,6 @@
 """
 addon_e2e.py — kör tester/mock_test.js (Thunderbird-tillägget mot en MOCKAD Thunderbird) mot en
-RIKTIG TaskBord-brygga som startas här. Kräver Node 18+. Hoppas över (exit 0) om node saknas.
+RIKTIG Ledgebord-brygga som startas här. Kräver Node 18+. Hoppas över (exit 0) om node saknas.
 """
 from __future__ import annotations
 

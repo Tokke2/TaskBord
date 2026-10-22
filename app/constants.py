@@ -22,7 +22,9 @@ T_co = TypeVar("T_co", covariant=True)
 # ===========================================================================
 # CONSTANTS — versionsinfo
 # ===========================================================================
-APP_NAME: Final[str] = "TaskBord"
+APP_NAME: Final[str] = "Ledgebord"
+# Windows AppUserModelID: egen identitet i aktivitetsfältet (annars Pythons ikon/gruppering)
+APP_USER_MODEL_ID: Final[str] = "Ledgebord.Desktop.App"
 
 
 APP_VERSION: Final[str] = "6.4.1-v7"
@@ -169,7 +171,7 @@ class IconState(Enum):
 # ===========================================================================
 
 class DesktopTodoError(Exception):
-    """Basklass for alla TaskBord-fel."""
+    """Basklass for alla Ledgebord-fel."""
 
     def __init__(
         self,

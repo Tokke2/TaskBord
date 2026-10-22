@@ -1,7 +1,7 @@
 "use strict";
 
-/* TaskBord — popup.js
- * Visar det mail som är öppet/markerat och skickar det till TaskBord.
+/* Ledgebord — popup.js
+ * Visar det mail som är öppet/markerat och skickar det till Ledgebord.
  * Kan även skapa en helt fristående uppgift.
  */
 
@@ -48,7 +48,7 @@ async function findDisplayedMessage() {
       return await api.messageDisplay.getDisplayedMessage(currentTabId);
     }
   } catch (e) {
-    console.warn("[TaskBord] popup: kunde inte läsa visat mail:", e);
+    console.warn("[Ledgebord] popup: kunde inte läsa visat mail:", e);
   }
   return null;
 }
@@ -59,7 +59,7 @@ async function checkService() {
   const dot = el("dot");
   const text = el("serviceText");
   dot.textContent = "⚪";
-  text.textContent = "Kontrollerar TaskBord…";
+  text.textContent = "Kontrollerar Ledgebord…";
   const res = await send({ type: "test-connection" });
   if (res && res.ok) {
     dot.textContent = "🟢";
@@ -68,8 +68,8 @@ async function checkService() {
     dot.textContent = res && res.level === "bad-token" ? "🟡" : "🔴";
     text.textContent =
       res && res.level === "bad-token"
-        ? "TaskBord körs — men token stämmer inte (⚙️)"
-        : "Ingen kontakt med TaskBord (⚙️ för inställningar)";
+        ? "Ledgebord körs — men token stämmer inte (⚙️)"
+        : "Ingen kontakt med Ledgebord (⚙️ för inställningar)";
   }
   await refreshQueue();
 }
@@ -79,7 +79,7 @@ async function refreshQueue() {
   const box = el("queue");
   if (res && res.count > 0) {
     box.textContent =
-      "📥 " + res.count + " köat/ade mail — skickas när TaskBord svarar.";
+      "📥 " + res.count + " köat/ade mail — skickas när Ledgebord svarar.";
     const sent = await send({ type: "flush-queue" });
     if (sent && sent.sent > 0) {
       await refreshQueue();
@@ -93,7 +93,7 @@ async function refreshQueue() {
 
 el("sendMail").addEventListener("click", async () => {
   el("sendMail").disabled = true;
-  setStatus("Skickar mailet till TaskBord…");
+  setStatus("Skickar mailet till Ledgebord…");
   try {
     const res = await send({
       type: "send-displayed",
@@ -142,7 +142,7 @@ function handleResult(res, quick) {
   }
   if (res.queued) {
     setStatus(
-      "📥 TaskBord körs inte just nu — mailet ligger i kön och skickas " +
+      "📥 Ledgebord körs inte just nu — mailet ligger i kön och skickas " +
       "automatiskt när appen startar.",
       "warn"
     );

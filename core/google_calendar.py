@@ -524,7 +524,7 @@ def validate_credentials_file(path: Any) -> Dict[str, Any]:
 
     if raw.get("type") == "service_account":
         problems.append(
-            "Det här är en nyckel för ett tjänstekonto. TaskBord behöver en "
+            "Det här är en nyckel för ett tjänstekonto. Ledgebord behöver en "
             "OAuth-klient av typen “Datorapp” (Desktop app)."
         )
         return res
@@ -611,7 +611,7 @@ def setup_steps(data_dir: Any, extra_dirs: Optional[List[Any]] = None) -> List[D
                           f"(eller starta via {_install_script()}).")),
          "url": "", "done": is_google_library_available()},
         {"key": "project", "title": "Skapa ett projekt hos Google",
-         "text": "Gratis och tar en minut. Namnet spelar ingen roll, t.ex. “TaskBord”.",
+         "text": "Gratis och tar en minut. Namnet spelar ingen roll, t.ex. “Ledgebord”.",
          "url": GOOGLE_CLOUD_PROJECT_URL, "done": None},
         {"key": "api", "title": "Aktivera Google Calendar API",
          "text": "Öppna sidan och klicka på knappen “Aktivera”.",
@@ -626,7 +626,7 @@ def setup_steps(data_dir: Any, extra_dirs: Optional[List[Any]] = None) -> List[D
                   "Programtyp: “Datorapp” (Desktop app) — viktigt!\n"
                   "Klicka sedan “Ladda ner JSON”."),
          "url": GOOGLE_CONSOLE_CREDENTIALS_URL, "done": None},
-        {"key": "file", "title": "Lägg filen i TaskBord",
+        {"key": "file", "title": "Lägg filen i Ledgebord",
          "text": fil_text, "url": "",
          "done": bool(check and check["ok"])},
         {"key": "login", "title": "Logga in",
@@ -923,10 +923,10 @@ def authenticate_google_calendar(
             port=port or 0,
             open_browser=open_browser,
             authorization_prompt_message=(
-                "Öppna den här adressen i webbläsaren för att koppla TaskBord:\n{url}\n"
+                "Öppna den här adressen i webbläsaren för att koppla Ledgebord:\n{url}\n"
             ),
             success_message=(
-                "TaskBord är kopplat! Du kan stänga den här fliken och gå "
+                "Ledgebord är kopplat! Du kan stänga den här fliken och gå "
                 "tillbaka till appen."
             ),
             access_type="offline",   # ger refresh-token (långlivad)
@@ -1179,7 +1179,7 @@ def build_event_body(
         if färg:
             body["colorId"] = färg
 
-    # Heldagshändelser från TaskBord ska aldrig bokas som "upptagen"
+    # Heldagshändelser från Ledgebord ska aldrig bokas som "upptagen"
     # (gäller både aktiva och klara uppgifter).
     body["transparency"] = "transparent"
     if task.get("done"):
@@ -1211,7 +1211,7 @@ def _task_description(task: Dict[str, Any]) -> str:
     if tags:
         rader.append("Taggar: " + ", ".join(tags))
     if task.get("done"):
-        rader.append("✅ Klar i TaskBord")
+        rader.append("✅ Klar i Ledgebord")
     return "\n".join(rader)
 
 

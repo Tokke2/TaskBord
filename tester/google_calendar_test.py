@@ -335,7 +335,7 @@ with tempfile.TemporaryDirectory() as tmpdir:
     check("port 0 → operativsystemet väljer en ledig port", kwargs.get("port") == 0,
           str(kwargs.get("port")))
     check("användaren får ett begripligt meddelande i webbläsaren",
-          "TaskBord" in str(kwargs.get("success_message", "")))
+          "Ledgebord" in str(kwargs.get("success_message", "")))
 
     # --- 5. Token-filen ----------------------------------------------------
     print("\n5. Token på disk (lokalt, låsta rättigheter)")
@@ -882,7 +882,7 @@ for _f in ("core/google_calendar.py", "ui/google_calendar_dialog.py"):
 
 # --- 18. Hela kedjan: appens butik + inställningar + Google (utan nätverk) --
 # Det här är så nära "på riktigt" testet kommer utan webbläsare och nät:
-# en uppgift skapas i TaskBords RIKTIGA butik, inställningarna läses från en
+# en uppgift skapas i Ledgebords RIKTIGA butik, inställningarna läses från en
 # RIKTIG settings.json, och händelsen som skulle skickats till Google
 # granskas fält för fält.
 print("\n18. Hela kedjan (TaskStore + Settings + Google)")

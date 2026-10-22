@@ -100,7 +100,7 @@ class AppConfig:
 def parse_args(argv: List[str]) -> Tuple[AppConfig, AppMode]:
     """Parsa CLI-argument och returnera config + mode."""
     parser = argparse.ArgumentParser(
-        prog="TaskBord",
+        prog="Ledgebord",
         description=APP_DESCRIPTION,
         add_help=False,
     )

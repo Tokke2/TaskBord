@@ -355,7 +355,7 @@ class MailBridgeMixin:
             if svc is None:
                 if self._QMessageBox is not None:
                     self._QMessageBox.warning(
-                        None, "TaskBord", "E-postbryggan kunde inte startas."
+                        None, "Ledgebord", "E-postbryggan kunde inte startas."
                     )
                 return
             text = self._mail_bridge_config_json()
@@ -378,7 +378,7 @@ class MailBridgeMixin:
                 f" — {status['inbox']}\n\n"
                 f"{'✅ Inställningarna ligger på urklipp.' if copied else '⚠️ Kunde inte kopiera — markera texten manuellt.'}\n\n"
                 f"Klistra in i Thunderbird:\n"
-                f"  Tilläggen → TaskBord → Inställningar →\n"
+                f"  Tilläggen → Ledgebord → Inställningar →\n"
                 f"  fältet 'Klistra in JSON' → Läs in och spara."
             )
             self._log.info(
@@ -387,7 +387,7 @@ class MailBridgeMixin:
             )
             if self._QMessageBox is not None:
                 box = self._QMessageBox()
-                box.setWindowTitle("📧 TaskBord — inställningar för Thunderbird")
+                box.setWindowTitle("📧 Ledgebord — inställningar för Thunderbird")
                 box.setIcon(self._QMessageBox.Icon.Information)
                 box.setText(info)
                 box.setDetailedText(text)
@@ -439,18 +439,18 @@ class MailBridgeMixin:
             getattr(self, "_SCRIPT_DIR", SCRIPT_DIR)
         ) / "thunderbird-tillagg"
         text = (
-            "Så kopplar du Thunderbird mot TaskBord:\n\n"
-            "1. Öppna TaskBord-menyn (tray-ikonen) → 📧 E-post & Thunderbird\n"
+            "Så kopplar du Thunderbird mot Ledgebord:\n\n"
+            "1. Öppna Ledgebord-menyn (tray-ikonen) → 📧 E-post & Thunderbird\n"
             "   → '📋 Kopiera inställningar' (adress + token ligger nu på urklipp)\n\n"
             "2. I Thunderbird: Verktyg → Tillägg och teman\n"
             "   • Klicka kugghjulet ⚙️ → 'Installera tillägg från fil…'\n"
-            f"   • Välj filen TaskBord-Thunderbird.xpi (finns i\n"
+            f"   • Välj filen Ledgebord-Thunderbird.xpi (finns i\n"
             f"     {folder})\n"
             f"     – saknas .xpi: kör {xpi_script_hint()} i appmappen en gång\n\n"
             "3. Öppna tilläggets inställningar (Tillägg och teman →\n"
-            "   TaskBord → Inställningar), klistra in JSON och spara.\n\n"
+            "   Ledgebord → Inställningar), klistra in JSON och spara.\n\n"
             "4. Använd: högerklicka på ett mail →\n"
-            "   '📋 Skicka till TaskBord (ny uppgift)'\n\n"
+            "   '📋 Skicka till Ledgebord (ny uppgift)'\n\n"
             "Uppgiften dyker upp i widgeten och sparas i data/active.json\n"
             "(finns kvar efter omstart)."
         )

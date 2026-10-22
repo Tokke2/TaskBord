@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-utils.py — TaskBord v6.4.1 v7 (18 888 888% bättre: snabbhet + minne + kod + AI-felsökning)
+utils.py — Ledgebord v6.4.1 v7 (18 888 888% bättre: snabbhet + minne + kod + AI-felsökning)
 ================================================================================================
 Copyright © Rickard Längkvist, 2025–2026
 
@@ -125,7 +125,9 @@ except ImportError:
 # MODUL-KONSTANTER
 # ===========================================================================
 LOG_PREFIX: Final[str] = "[UTILS]"
-APP_NAME: Final[str] = "TaskBord"
+APP_NAME: Final[str] = "Ledgebord"
+# Appens tidigare namn: används för reservmappen för data så att befintlig data hittas även efter namnbytet
+_LEGACY_DIR_NAME: Final[str] = "TaskBord"
 APP_VERSION: Final[str] = "6.4.1"
 SCRIPT_DIR: Final[Path] = Path(__file__).resolve().parent
 DEFAULT_DATA_DIR_NAME: Final[str] = "data"
@@ -774,11 +776,11 @@ def data_dir() -> str:
             )
         # 2. Fallback: userdata
         if IS_WINDOWS:
-            fallback = Path(os.environ.get("APPDATA", str(Path.home()))) / APP_NAME
+            fallback = Path(os.environ.get("APPDATA", str(Path.home()))) / _LEGACY_DIR_NAME
         elif IS_MACOS:
-            fallback = Path.home() / "Library" / "Application Support" / APP_NAME
+            fallback = Path.home() / "Library" / "Application Support" / _LEGACY_DIR_NAME
         else:
-            fallback = Path(os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local" / "share"))) / APP_NAME
+            fallback = Path(os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local" / "share"))) / _LEGACY_DIR_NAME
         try:
             fallback.mkdir(parents=True, exist_ok=True)
             _DATA_DIR_CACHE = fallback

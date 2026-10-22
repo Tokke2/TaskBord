@@ -1,4 +1,4 @@
-# ☁️ TaskBord + Google Calendar — koppla kontot lokalt (OAuth)
+# ☁️ Ledgebord + Google Calendar — koppla kontot lokalt (OAuth)
 
 **Svar på frågan:** *Ja — appen kan koppla upp sig mot Google Calendar direkt,
 och hela inloggningen sker lokalt på din dator.* Ingen server hos mig, inget
@@ -15,7 +15,7 @@ felsökning.
 ```
    DIN DATOR                                                GOOGLE
 ┌───────────────────────────────┐                    ┌──────────────────┐
-│ TaskBord                      │  1. öppnar         │  Inloggning +    │
+│ Ledgebord                      │  1. öppnar         │  Inloggning +    │
 │  ☁️ Koppla Google-konto       │ ────────────────►  │  godkänn skärm   │
 │                               │    webbläsare      │                  │
 │  Tillfällig server på         │  2. skickar svar   │                  │
@@ -38,7 +38,7 @@ felsökning.
   och `calendar.readonly` (läsa kalenderlistan). Appen kan inte läsa din Gmail,
   inte röra andra Google-tjänster och inte ta bort kalendrar.
 * **Koppla från när du vill:** menyvalet *🗑 Koppla från* raderar beviset från
-  datorn. Uppgifterna i TaskBord påverkas inte, och händelserna som redan
+  datorn. Uppgifterna i Ledgebord påverkas inte, och händelserna som redan
   skickats ligger kvar i kalendern.
 * **Du kan återkalla åtkomsten hos Google** när som helst:
   <https://myaccount.google.com/permissions>
@@ -83,21 +83,21 @@ Det här görs en gång. Google kräver att *du* skaffar en egen nyckel till dit
 eget konto — det är därför ingen kan "låna" någon annans.
 
 1. **Skapa ett projekt** (gratis): <https://console.cloud.google.com/projectcreate>
-   Namnet spelar ingen roll, t.ex. `TaskBord`.
+   Namnet spelar ingen roll, t.ex. `Ledgebord`.
 2. **Aktivera Google Calendar API:**
    <https://console.cloud.google.com/apis/library/calendar-json.googleapis.com>
    Klicka **Aktivera**.
 3. **Godkännandeskärmen** (OAuth consent screen):
    <https://console.cloud.google.com/apis/credentials/consent>
    * Välj **Extern** (External) → **Skapa**.
-   * Fyll i appnamn (`TaskBord`) och din e-post.
+   * Fyll i appnamn (`Ledgebord`) och din e-post.
    * Under **Testanvändare** (Test users): lägg till **din egen Gmail-adress**.
      (Utan detta får du felet *403 – access_denied*.)
 4. **Skapa nyckel:** <https://console.cloud.google.com/apis/credentials>
    * **Skapa inloggningsuppgifter** → **OAuth-klient-ID**
    * Programmtyp: **Datorapp** (Desktop app) — viktigt!
    * **Skapa** → **Ladda ner JSON**.
-5. **Lägg filen i TaskBord-mappen:**
+5. **Lägg filen i Ledgebord-mappen:**
    ```
    js\google\credentials.json
    ```
@@ -111,14 +111,14 @@ eget konto — det är därför ingen kan "låna" någon annans.
 
 ## 3. Koppla i appen (2 klick)
 
-1. Högerklicka på TaskBord-fönstret (eller tray-ikonen) → **☁️ Google Calendar
+1. Högerklicka på Ledgebord-fönstret (eller tray-ikonen) → **☁️ Google Calendar
    (koppla konto)…**
    Statusraden ska säga *Inte ansluten* och hitta din `credentials.json`.
 2. Klicka **🔑 Koppla Google-konto…**
 
 Sedan:
 * Webbläsaren öppnas → välj ditt konto → **Tillåt**.
-* Fliken visar *"TaskBord är kopplat!"* → stäng den.
+* Fliken visar *"Ledgebord är kopplat!"* → stäng den.
 * Statusraden i appen blir **✅ Ansluten — din@adress**.
 
 Klart. Nu kan du skicka uppgifter.
@@ -207,7 +207,7 @@ så flerkonto kan läggas till utan att ändra hur tokens sparas — säg till o
 vill ha en kontoväxlare.
 
 Vill du i stället ha en **riktig tvåvägssynk** (händelser som ändras i Google
-ska komma tillbaka till TaskBord) krävs mer: `calendar.readonly` för alla
+ska komma tillbaka till Ledgebord) krävs mer: `calendar.readonly` för alla
 händelser, ett tillstånd per händelse, konfliktregler och en synk som körs
 regelbundet. Det är ett större bygge — men grunden (OAuth, service, mappning)
 är redan på plats.

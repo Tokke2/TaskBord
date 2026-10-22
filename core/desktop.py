@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-desktop.py — TaskBord v6.4.1 v7 (18 888 888% bättre kod & design + AI-felsökning)
+desktop.py — Ledgebord v6.4.1 v7 (18 888 888% bättre kod & design + AI-felsökning)
 ====================================================================================
 Copyright Rickard Längkvist, 2025–2026
 
@@ -772,9 +772,10 @@ E_FAIL = 0x80004005
 
 # Autostart (multi-OS)
 AUTOSTART_KEY: str = r"Software\Microsoft\Windows\CurrentVersion\Run"
-AUTOSTART_VALUE_NAME: str = "TaskBord"
+AUTOSTART_VALUE_NAME: str = "Ledgebord"
+LEGACY_AUTOSTART_NAMES: Tuple[str, ...] = ("TaskBord",)  # namnet före bytet till Ledgebord
 WINDOWS_STARTUP_SUBPATH: str = r"Microsoft\Windows\Start Menu\Programs\Startup"
-SCHTASKS_NAME: str = "TaskBord"
+SCHTASKS_NAME: str = "Ledgebord"
 XDG_AUTOSTART_DIR: str = ".config/autostart"
 LINUX_DESKTOP_FILE: str = "desktop-todo-py.desktop"
 MACOS_LAUNCH_AGENTS_DIR: str = "Library/LaunchAgents"
@@ -1485,7 +1486,7 @@ def _validate_hwnd(hwnd: Any) -> bool:
 
 _REGION_CACHE: Dict[int, Any] = {}
 _WINDOW_CLASS_REGISTERED: Optional[str] = None
-WINDOW_CLASS_NAME: str = "TaskBordMain"
+WINDOW_CLASS_NAME: str = "LedgebordMain"
 
 
 def _clear_region_cache(hwnd: int) -> None:
@@ -3986,7 +3987,7 @@ def stop_flash_window(hwnd: int) -> bool:
     return flash_window(hwnd, count=0, flags=FLASHW_STOP)
 
 
-def message_box(text: str, title: str = "TaskBord",
+def message_box(text: str, title: str = "Ledgebord",
                 flags: int = 0x00000040) -> int:
     if not IS_WINDOWS or user32 is None:
         return 0
@@ -4429,6 +4430,9 @@ def disable_autostart_windows() -> bool:
                 winreg.HKEY_CURRENT_USER, AUTOSTART_KEY, 0, winreg.KEY_SET_VALUE
             )
         try:
+            for _legacy in LEGACY_AUTOSTART_NAMES:
+                with suppress(OSError):
+                    winreg.DeleteValue(key, _legacy)
             winreg.DeleteValue(key, AUTOSTART_VALUE_NAME)
             return True
         except FileNotFoundError:
@@ -4447,11 +4451,12 @@ def disable_autostart_startup() -> bool:
     if not appdata:
         return False
     startup_dir = os.path.join(appdata, *WINDOWS_STARTUP_SUBPATH.split("\\"))
-    for ext in (".bat", ".lnk", ".cmd", ".vbs"):
-        p = os.path.join(startup_dir, f"{AUTOSTART_VALUE_NAME}{ext}")
-        with suppress(OSError):
-            if os.path.exists(p):
-                os.remove(p)
+    for _name in (AUTOSTART_VALUE_NAME,) + tuple(LEGACY_AUTOSTART_NAMES):
+        for ext in (".bat", ".lnk", ".cmd", ".vbs"):
+            p = os.path.join(startup_dir, f"{_name}{ext}")
+            with suppress(OSError):
+                if os.path.exists(p):
+                    os.remove(p)
     return True
 
 
@@ -4603,7 +4608,7 @@ def enable_autostart_linux(
     )
     content = f"""[Desktop Entry]
 Type=Application
-Name=TaskBord
+Name=Ledgebord
 GenericName=Desktop Todo
 Comment=Desktop todo widget (autostart)
 Exec={cmd}
@@ -5138,7 +5143,7 @@ def get_foreground_window_info() -> Dict[str, Any]:
           - title: str
           - class_name: str
           - pid: int
-          - is_ours: bool (class_name matchar TaskBordMain)
+          - is_ours: bool (class_name matchar LedgebordMain)
     """
     if not IS_WINDOWS or user32 is None:
         return {
@@ -5385,7 +5390,7 @@ __all__ = [
 if __name__ == "__main__":
     import json as _json
     print("=" * 60)
-    print(f"TaskBord desktop.py v6.4.0 — självtest ({sys.platform})")
+    print(f"Ledgebord desktop.py v6.4.0 — självtest ({sys.platform})")
     print("=" * 60)
     print(dump_system_info())
     print()

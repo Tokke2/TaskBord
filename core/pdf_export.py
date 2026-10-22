@@ -1,5 +1,5 @@
 """
-pdf_export.py — NY v6.4.1 v7 (2026-09-25): Snygg PDF-checklista för TaskBord.
+pdf_export.py — NY v6.4.1 v7 (2026-09-25): Snygg PDF-checklista för Ledgebord.
 Genererar HTML som renderas via QPrinter → PDF (ingen extern dep).
 
 FIX v7-fix81 (Rickard 2026-10-07: "exportera aktiva till en pdf som en
@@ -77,7 +77,7 @@ def _due_label(due: Any) -> Tuple[str, str]:
 
 def render_checklist_html(
     tasks: List[Dict[str, Any]],
-    app_name: str = "TaskBord",
+    app_name: str = "Ledgebord",
     app_version: str = "6.4.1 v7",
 ) -> str:
     """

@@ -127,7 +127,7 @@ class TopToggleMixin:
             enabled = self._top_toggle_enabled()
             combo = ask_hotkey(
                 "📌 Snabbtangent: Alltid överst",
-                "Tryck kombinationen för att lägga TaskBord över ALLA andra appar — tryck igen för\n"
+                "Tryck kombinationen för att lägga Ledgebord över ALLA andra appar — tryck igen för\n"
                 "att lägga tillbaka det på skrivbordet. Fungerar var som helst i Windows.\n\n"
                 f"Nu: {current if enabled else 'avstängd'}",
                 current,

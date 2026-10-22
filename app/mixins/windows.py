@@ -135,7 +135,7 @@ class WindowsMixin:
                         _QW = self._get_qt_class("QWidget")
                         if _QW is not None:
                             _shell = _QW()
-                            _shell.setWindowTitle("TaskBord")
+                            _shell.setWindowTitle("Ledgebord")
                             # v7-fix61: ikonläge — tillåt ikon-storlek
                             _shell.setMinimumSize(150, 200)
                             # NY v7-fix46: positionera SKALET från config!
@@ -229,6 +229,11 @@ class WindowsMixin:
                             self._apply_desktop_shell(_shell_ref, wid)
                             with suppress(Exception):
                                 w._start_edge_dock()  # återuppta dockning vid skärmkant
+                            with suppress(Exception):
+                                # ikonen på SJÄLVA topp-fönstret (skalet) — aktivitetsfält, Alt+Tab, Aktivitetshanteraren
+                                if self._app_icon is not None:
+                                    _shell_ref.setWindowIcon(self._app_icon)
+                                    self.apply_win32_process_icon(int(_shell_ref.winId()))
                             # NY v7-fix38: auto-fallback om det genomskinliga
                             # skalet inte kunde skapas (CreateWindowEx-fel)
                             self._schedule_shell_native_check(_shell_ref, wid)
@@ -625,7 +630,7 @@ class WindowsMixin:
 
     def _on_second_instance(self, message: str = "SHOW") -> None:
         """
-        NY v7-fix87: en andra instans av TaskBord startade → visa oss.
+        NY v7-fix87: en andra instans av Ledgebord startade → visa oss.
 
         Kedja: användaren startar appen igen → det hårda låset stoppar
         den nya processen → den signalar "SHOW" via instans-kanalen →
@@ -646,7 +651,7 @@ class WindowsMixin:
                 with suppress(Exception):
                     self._tray.showMessage(
                         APP_NAME,
-                        "TaskBord var redan igång — fönstret visas nu",
+                        "Ledgebord var redan igång — fönstret visas nu",
                         self._QSystemTrayIcon.MessageIcon.Information,
                         3000,
                     )

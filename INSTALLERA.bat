@@ -1,8 +1,8 @@
 @echo off
 chcp 65001 >nul
-title TaskBord - Installation
+title Ledgebord - Installation
 echo ==================================================
-echo   TaskBord v7 - INSTALLERA / UPPDATERA
+echo   Ledgebord v7 - INSTALLERA / UPPDATERA
 echo   Kalla: %~dp0
 echo   Mal:   D:\Program\todo
 echo ==================================================
@@ -32,7 +32,8 @@ copy /Y "%~dp0SKAPA_XPI.bat"    "%TARGET%\"      >nul
 copy /Y "%~dp0skapa_xpi.py"     "%TARGET%\"      >nul
 copy /Y "%~dp0THUNDERBIRD.md"   "%TARGET%\"      >nul
 xcopy /Y /E /I "%~dp0thunderbird-tillagg" "%TARGET%\thunderbird-tillagg\" >nul
-if exist "%~dp0TaskBord-Thunderbird.xpi" copy /Y "%~dp0TaskBord-Thunderbird.xpi" "%TARGET%\" >nul
+xcopy /Y /E /I "%~dp0icon" "%TARGET%\icon\" >nul
+if exist "%~dp0Ledgebord-Thunderbird.xpi" copy /Y "%~dp0Ledgebord-Thunderbird.xpi" "%TARGET%\" >nul
 
 echo.
 echo Kontrollerar versioner:
@@ -46,11 +47,12 @@ findstr /C:"auto_update_plugins" "%TARGET%\core\settings.py" >nul 2>&1
 if %errorlevel%==0 (echo   [OK] settings.py = senaste ^(auto-tillagg^)) else (echo   [FEL] settings.py = GAMMAL!)
 findstr /C:"MailBridgeService" "%TARGET%\core\mail_bridge.py" >nul 2>&1
 if %errorlevel%==0 (echo   [OK] mail_bridge.py = senaste ^(Thunderbird^)) else (echo   [FEL] mail_bridge.py = SAKNAS!)
-if exist "%TARGET%\TaskBord-Thunderbird.xpi" (echo   [OK] TaskBord-Thunderbird.xpi finns) else (echo   [--] xpi saknas - kor SKAPA_XPI.bat i appmappen)
+if exist "%TARGET%\Ledgebord-Thunderbird.xpi" (echo   [OK] Ledgebord-Thunderbird.xpi finns) else (echo   [--] xpi saknas - kor SKAPA_XPI.bat i appmappen)
 
 echo.
-echo Skapar skrivbordsgenvag "TaskBord" med egen ikon ...
-powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $lnk = $ws.CreateShortcut([Environment]::GetFolderPath('Desktop') + '\\TaskBord.lnk'); $lnk.TargetPath = 'pythonw.exe'; $lnk.Arguments = '"%TARGET%\\main.pyw"'; $lnk.WorkingDirectory = '%TARGET%'; $lnk.IconLocation = '%TARGET%\\data\\app.ico'; $lnk.Save()"
+echo Skapar skrivbordsgenvag "Ledgebord" med egen ikon ...
+powershell -NoProfile -Command "Remove-Item ([Environment]::GetFolderPath('Desktop') + '\\TaskBord.lnk') -ErrorAction SilentlyContinue"
+powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $lnk = $ws.CreateShortcut([Environment]::GetFolderPath('Desktop') + '\\Ledgebord.lnk'); $lnk.TargetPath = 'pythonw.exe'; $lnk.Arguments = '"%TARGET%\\main.pyw"'; $lnk.WorkingDirectory = '%TARGET%'; $lnk.IconLocation = '%TARGET%\\icon\\ledgebord.ico'; $lnk.Save()"
 
 echo Startar appen fran %TARGET% ...
 start "" pythonw.exe "%TARGET%\main.pyw"

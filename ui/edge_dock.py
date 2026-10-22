@@ -18,7 +18,7 @@ from typing import Any, Callable, List, Optional, Tuple
 
 from core import edge_dock as geo
 
-logger = logging.getLogger("TaskBord")
+logger = logging.getLogger("Ledgebord")
 LOG_PREFIX = "[EDGEDOCK]"
 
 try:

@@ -91,7 +91,7 @@ class AutostartMixin:
         Tidigare skrevs tre citattecken (start \"\"\") eller så citerades hela kommandot som
         EN fil → "Det går inte att hitta filen …pythonw.exe …main.pyw" vid inloggning.
         """
-        return f'@echo off\r\nrem TaskBord (v8)\r\nchcp 65001 >nul\r\nstart "" {cmd}\r\n'
+        return f'@echo off\r\nrem Ledgebord (v8)\r\nchcp 65001 >nul\r\nstart "" {cmd}\r\n'
 
     def _autostart_repair_startup_bat(self) -> None:
         """FIX v8: reparerar en gammal, trasig Startup-.bat (skriver bara om om den redan finns)."""
@@ -149,10 +149,10 @@ class AutostartMixin:
         if not any(results.values()):
             try:
                 import subprocess as _sp
-                _sp.run(["schtasks", "/create", "/tn", "TaskBord_Auto",
+                _sp.run(["schtasks", "/create", "/tn", "Ledgebord_Auto",
                          "/tr", cmd, "/sc", "onlogon", "/f"],
                         capture_output=True, timeout=15)
-                chk = _sp.run(["schtasks", "/query", "/tn", "TaskBord_Auto"],
+                chk = _sp.run(["schtasks", "/query", "/tn", "Ledgebord_Auto"],
                               capture_output=True, timeout=10)
                 results["schtasks"] = chk.returncode == 0
             except Exception:
@@ -169,6 +169,8 @@ class AutostartMixin:
                     removed += 1
             except Exception:
                 pass
+            with suppress(Exception):
+                removed += self._autostart_remove_legacy()
             return removed
         try:
             import winreg
@@ -191,11 +193,97 @@ class AutostartMixin:
             pass
         try:
             import subprocess as _sp
-            _sp.run(["schtasks", "/delete", "/tn", "TaskBord_Auto", "/f"],
+            _sp.run(["schtasks", "/delete", "/tn", "Ledgebord_Auto", "/f"],
                     capture_output=True, timeout=10)
         except Exception:
             pass
+        with suppress(Exception):
+            removed += self._autostart_remove_legacy()
         return removed
+
+    # Namn appen hade innan den hette Ledgebord — gamla autostart-poster städas bort (se nedan)
+    _LEGACY_AUTOSTART_NAMES = ("TaskBord",)
+
+    @staticmethod
+    def _startup_dir() -> Path:
+        return Path(os.environ.get("APPDATA", ""), "Microsoft", "Windows", "Start Menu", "Programs", "Startup")
+
+    def _autostart_legacy_present(self) -> bool:
+        """Finns en autostart-post under det gamla namnet (registret / Startup-mappen / XDG / launchd)?"""
+        try:
+            if sys.platform == "win32":
+                import winreg
+                kp = r"Software\Microsoft\Windows\CurrentVersion\Run"
+                for name in self._LEGACY_AUTOSTART_NAMES:
+                    with suppress(OSError):
+                        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, kp, 0, winreg.KEY_READ) as k:
+                            winreg.QueryValueEx(k, name)
+                            return True
+                    for ext in (".bat", ".lnk", ".cmd", ".vbs"):
+                        if (self._startup_dir() / f"{name}{ext}").is_file():
+                            return True
+                return False
+            if sys.platform == "darwin":
+                return any(
+                    (Path.home() / "Library" / "LaunchAgents" / f"com.{n.lower()}.plist").is_file()
+                    for n in self._LEGACY_AUTOSTART_NAMES)
+            cfg = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config")))
+            return any((cfg / "autostart" / f"{n}.desktop").is_file() for n in self._LEGACY_AUTOSTART_NAMES)
+        except Exception:
+            return False
+
+    def _autostart_remove_legacy(self) -> int:
+        """Tar bort autostart-poster under det gamla namnet. Returnerar hur många som togs bort."""
+        removed = 0
+        for name in self._LEGACY_AUTOSTART_NAMES:
+            try:
+                if sys.platform == "win32":
+                    import winreg
+                    kp = r"Software\Microsoft\Windows\CurrentVersion\Run"
+                    with suppress(OSError):
+                        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, kp, 0, winreg.KEY_SET_VALUE) as k:
+                            winreg.DeleteValue(k, name)
+                            removed += 1
+                    for ext in (".bat", ".lnk", ".cmd", ".vbs"):
+                        f = self._startup_dir() / f"{name}{ext}"
+                        if f.is_file():
+                            f.unlink()
+                            removed += 1
+                    import subprocess as _sp
+                    for tn in (f"{name}_Auto", name):
+                        with suppress(Exception):
+                            _sp.run(["schtasks", "/delete", "/tn", tn, "/f"], capture_output=True, timeout=10)
+                elif sys.platform == "darwin":
+                    f = Path.home() / "Library" / "LaunchAgents" / f"com.{name.lower()}.plist"
+                    if f.is_file():
+                        import subprocess as _sp
+                        with suppress(Exception):
+                            _sp.run(["launchctl", "unload", str(f)], capture_output=True, timeout=5)
+                        f.unlink()
+                        removed += 1
+                else:
+                    cfg = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config")))
+                    f = cfg / "autostart" / f"{name}.desktop"
+                    if f.is_file():
+                        f.unlink()
+                        removed += 1
+            except Exception as e:
+                self._log.debug(f"{LOG_PREFIX} _autostart_remove_legacy({name}): {e}")
+        return removed
+
+    def _autostart_migrate_legacy(self) -> None:
+        """Namnbyte TaskBord → Ledgebord: skapa autostart under det nya namnet FÖRST, städa sedan det gamla.
+
+        Så startar appen med datorn som förut (aldrig två poster, aldrig ingen)."""
+        if not self._autostart_legacy_present():
+            return
+        results = self._autostart_enable_robust()
+        if any(results.values()):
+            n = self._autostart_remove_legacy()
+            self._log.info(f"{LOG_PREFIX} ★ AUTOSTART: flyttade till nya namnet ({', '.join(k for k, v in results.items() if v)}), "
+                           f"{n} gammal(a) post(er) borttagna")
+        else:
+            self._log.warning(f"{LOG_PREFIX} ★ AUTOSTART: kunde inte skapa ny post — behåller den gamla")
 
     def _autostart_health_check(self) -> None:
         """NY v7-fix37: Självreparation — om autostart borde vara på men inte är → fixa."""
@@ -205,12 +293,14 @@ class AutostartMixin:
             )
             if not settings_on:
                 return
+            with suppress(Exception):
+                self._autostart_migrate_legacy()
             self._autostart_repair_startup_bat()
             if sys.platform == "win32":
                 import winreg
                 kp = r"Software\Microsoft\Windows\CurrentVersion\Run"
                 # NY v7-fix67: städa gamla DesktopTodoPy-autostart
-                # (namnbyte → TaskBord) så den inte startar en död kopia
+                # (namnbyte → Ledgebord) så den inte startar en död kopia
                 with suppress(Exception):
                     with winreg.OpenKey(
                         winreg.HKEY_CURRENT_USER, kp, 0,

@@ -47,7 +47,7 @@ class UpdateMixin:
         from PySide6.QtWidgets import QProgressDialog
         self._update_progress_close()
         pd = QProgressDialog(text, "Avbryt" if cancelable else "", 0, maximum)
-        pd.setWindowTitle("TaskBord – uppdatering")
+        pd.setWindowTitle("Ledgebord – uppdatering")
         pd.setMinimumDuration(0)
         pd.setAutoClose(False)
         pd.setAutoReset(False)
@@ -215,7 +215,7 @@ class UpdateMixin:
                      f"{install_script_name()} (installerar nya paket). Appen startar inte om "
                      "automatiskt.")
         if updater.fingerprint(info) == self._update_failed_fp():
-            extra += ("\n\n⚠️ Just den här uppdateringen fick TaskBord att inte starta förra gången och "
+            extra += ("\n\n⚠️ Just den här uppdateringen fick Ledgebord att inte starta förra gången och "
                       "återställdes automatiskt. Installera den bara om du vet att något ändrats.")
         if not self._update_dialog(
             "ask", "Ny version finns",
@@ -299,17 +299,17 @@ class UpdateMixin:
             self._update_dialog(
                 "info", "Uppdaterad",
                 "Uppdateringen är installerad.\n\nKör " + install_script_name() + " för att installera "
-                "nya paket och starta om TaskBord.",
+                "nya paket och starta om Ledgebord.",
             )
             return
         _addon_note = (
             "\n\nThunderbird-tillägget har också ändrats — efter omstarten får du en "
             "påminnelse med en knapp som öppnar mappen med den nya filen."
-            if "TaskBord-Thunderbird.xpi" in info.changed else ""
+            if "Ledgebord-Thunderbird.xpi" in info.changed else ""
         )
         self._update_dialog(
             "info", "Uppdaterad",
-            f"{len(info.changed)} fil(er) uppdaterade. TaskBord startar om nu." + _addon_note,
+            f"{len(info.changed)} fil(er) uppdaterade. Ledgebord startar om nu." + _addon_note,
         )
         self._flush_window_state("före omstart")
         if updater.schedule_restart(SCRIPT_DIR, backup_root=payload):
@@ -317,7 +317,7 @@ class UpdateMixin:
         else:
             self._update_dialog(
                 "warn", "Uppdaterad",
-                "Starta om TaskBord manuellt (Avsluta i tray-menyn, starta sedan igen).",
+                "Starta om Ledgebord manuellt (Avsluta i tray-menyn, starta sedan igen).",
             )
 
     # --- självläkande uppdatering (core/update_watchdog.py) -------------
@@ -374,7 +374,7 @@ class UpdateMixin:
             f"{LOG_PREFIX} uppdateringen {tag} {commit} återställdes automatiskt: {info.get('reason')}"
         )
         text = (
-            f"Uppdateringen till {tag}{' (' + commit + ')' if commit else ''} fick TaskBord att inte "
+            f"Uppdateringen till {tag}{' (' + commit + ')' if commit else ''} fick Ledgebord att inte "
             f"starta ({info.get('reason', 'okänd orsak')}).\n\n"
             f"Din förra version har återställts automatiskt "
             f"({info.get('restored', 0)} fil(er) tillbaka, {info.get('removed', 0)} nya borttagna). "
@@ -438,7 +438,7 @@ class UpdateMixin:
                 self._update_msg_connected = True
             self._update_balloon_ts = time.monotonic()
             self._tray.showMessage(
-                "🆕 Ny version av TaskBord",
+                "🆕 Ny version av Ledgebord",
                 f"{len(info.changed)} fil(er) skiljer sig från din installation. "
                 "Klicka här eller välj “Ny version finns” i tray-menyn.",
                 self._QSystemTrayIcon.MessageIcon.Information, 10000,

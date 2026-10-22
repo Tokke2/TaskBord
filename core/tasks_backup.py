@@ -29,13 +29,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-logger = logging.getLogger("TaskBord")
+logger = logging.getLogger("Ledgebord")
 LOG_PREFIX = "[TASKS-BACKUP]"
 
 FILES = ("active.json", "archive.json")
 MANIFEST = "manifest.json"
 SUBDIR = "uppgifter"
-PREFIX = "taskbord-uppgifter-"
+PREFIX = "ledgebord-uppgifter-"
+LEGACY_PREFIX = "taskbord-uppgifter-"   # före namnbytet till Ledgebord — läses/rensas fortfarande
 KEEP_DEFAULT = 30
 MAX_ZIP_BYTES = 200 * 1024 * 1024
 
@@ -114,7 +115,7 @@ def create_backup(store: Any, dest: Any = None, label: str = "", prune: bool = T
     if "active.json" not in blobs:
         raise TasksBackupError("Det finns inga sparade uppgifter att säkerhetskopiera ännu.")
     manifest = {
-        "app": "TaskBord", "version": 1,
+        "app": "Ledgebord", "version": 1,
         "created": datetime.now().astimezone().isoformat(timespec="seconds"),
         "active": counts.get("active.json", 0), "archive": counts.get("archive.json", 0),
     }
@@ -135,9 +136,17 @@ def create_backup(store: Any, dest: Any = None, label: str = "", prune: bool = T
     return target
 
 
+def _globs(folder: Path, *prefixes: str) -> List[Path]:
+    """Alla .zip-filer i ``folder`` som börjar på något av prefixen (nya + gamla namnet)."""
+    found: List[Path] = []
+    for pf in prefixes:
+        found.extend(folder.glob(f"{pf}*.zip"))
+    return found
+
+
 def _prune(folder: Path, keep: int = KEEP_DEFAULT) -> None:
     try:
-        files = sorted(folder.glob(f"{PREFIX}*.zip"), key=lambda p: p.stat().st_mtime, reverse=True)
+        files = sorted(_globs(folder, PREFIX, LEGACY_PREFIX), key=lambda p: p.stat().st_mtime, reverse=True)
         for old in files[keep:]:
             if "fore-aterstallning" in old.name:
                 continue  # säkerhetskopior inför återställning raderas aldrig automatiskt
@@ -159,7 +168,7 @@ def inspect_backup(path: Any) -> Dict[str, Any]:
                 raise TasksBackupError("Backupen är skadad (kontrollsumman stämmer inte).")
             names = set(z.namelist())
             if "active.json" not in names:
-                raise TasksBackupError("Det här är ingen TaskBord-uppgiftsbackup (active.json saknas).")
+                raise TasksBackupError("Det här är ingen Ledgebord-uppgiftsbackup (active.json saknas).")
             res: Dict[str, Any] = {"active": 0, "archive": 0, "created": ""}
             for fname, key in (("active.json", "active"), ("archive.json", "archive")):
                 if fname in names:
@@ -282,10 +291,10 @@ def restore_backup(store: Any, path: Any) -> Dict[str, Any]:
 def list_backups(store: Any) -> List[Dict[str, Any]]:
     """Backuper (egna + automatiska), nyast först: [{path, name, size, mtime, auto}]."""
     out: List[Dict[str, Any]] = []
-    for folder, pattern, auto in ((default_dir(store), f"{PREFIX}*.zip", False),
-                                  (auto_dir(), f"{AUTO_PREFIX}*.zip", True)):
+    for folder, prefixes, auto in ((default_dir(store), (PREFIX, LEGACY_PREFIX), False),
+                                   (auto_dir(), (AUTO_PREFIX, LEGACY_AUTO_PREFIX), True)):
         try:
-            for p in folder.glob(pattern):
+            for p in _globs(folder, *prefixes):
                 st = p.stat()
                 out.append({"path": str(p), "name": p.name, "size": st.st_size,
                             "mtime": st.st_mtime, "auto": auto})
@@ -297,7 +306,8 @@ def list_backups(store: Any) -> List[Dict[str, Any]]:
 # --------------------------------------------------------------------------
 # Automatisk säkerhetskopia (skild från js/, så att den klarar att js/ försvinner)
 # --------------------------------------------------------------------------
-AUTO_PREFIX = "taskbord-auto-"
+AUTO_PREFIX = "ledgebord-auto-"
+LEGACY_AUTO_PREFIX = "taskbord-auto-"
 AUTO_FILES = ("active.json", "archive.json", "settings.json")
 AUTO_KEEP = 20
 
@@ -346,7 +356,7 @@ def _content_hash(blobs: Dict[str, bytes]) -> str:
 
 def _auto_zips(folder: Path) -> List[Path]:
     try:
-        return sorted(folder.glob(f"{AUTO_PREFIX}*.zip"), key=lambda p: (p.stat().st_mtime, p.name), reverse=True)
+        return sorted(_globs(folder, AUTO_PREFIX, LEGACY_AUTO_PREFIX), key=lambda p: (p.stat().st_mtime, p.name), reverse=True)
     except Exception:
         return []
 
@@ -385,7 +395,7 @@ def snapshot_external(data_dir: Any, dest: Any = None, keep: int = AUTO_KEEP) ->
     if zips and _auto_manifest(zips[0]).get("hash") == digest:
         return None  # oförändrat
     manifest = {
-        "app": "TaskBord", "version": 1, "kind": "auto", "hash": digest,
+        "app": "Ledgebord", "version": 1, "kind": "auto", "hash": digest,
         "created": datetime.now().astimezone().isoformat(timespec="seconds"),
         "active": _count(active), "archive": _count(arch) if arch else 0,
     }

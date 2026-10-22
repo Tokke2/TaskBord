@@ -378,7 +378,7 @@ class TrayMixin:
                 f"({self._get_top_toggle_combo() if _tt_on else 'av'})"
             )
             _tt.setToolTip(
-                "Snabbtangent som lägger TaskBord över alla andra appar\n"
+                "Snabbtangent som lägger Ledgebord över alla andra appar\n"
                 "(tryck igen för att lägga tillbaka det). Default: Ctrl+Alt+T."
             )
             _tt.triggered.connect(self._change_top_toggle_hotkey_dialog)
@@ -822,7 +822,7 @@ class TrayMixin:
             with suppress(Exception):
                 if self._tray is not None:
                     self._tray.setToolTip(
-                        f"TaskBord — lyft i {_secs}s "
+                        f"Ledgebord — lyft i {_secs}s "
                         f"(klicka igen = förläng)"
                     )
         except Exception as e:
@@ -862,7 +862,7 @@ class TrayMixin:
                 )
             with suppress(Exception):
                 if self._tray is not None:
-                    self._tray.setToolTip("TaskBord")
+                    self._tray.setToolTip("Ledgebord")
         except Exception as e:
             self._log.warning(
                 f"{LOG_PREFIX} _lift_timeout: {e}", exc_info=True

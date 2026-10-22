@@ -27,7 +27,7 @@ import desktop  # noqa: E402
 with tempfile.TemporaryDirectory() as tmp:
     os.environ["APPDATA"] = tmp
     desktop.IS_WINDOWS = True
-    cmd = r'"C:\Users\rl\AppData\Local\Programs\Python\Python314\pythonw.exe" "D:\Program\TaskBord\main.pyw"'
+    cmd = r'"C:\Users\rl\AppData\Local\Programs\Python\Python314\pythonw.exe" "D:\Program\Ledgebord\main.pyw"'
     check("skriver Startup-bat", desktop._enable_autostart_startup(cmd))
     bat = Path(tmp, *desktop.WINDOWS_STARTUP_SUBPATH.split("\\"), f"{desktop.AUTOSTART_VALUE_NAME}.bat")
     txt = bat.read_bytes().decode("utf-8")

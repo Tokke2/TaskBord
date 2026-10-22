@@ -1,17 +1,17 @@
-# TaskBord
-📋 TaskBord — A lightweight, portable desktop todo widget for Windows, built with Python and PySide6. Features reminders, recurring tasks, email import, snooze, natural-language task entry and customizable desktop modes.
+# Ledgebord
+📋 Ledgebord — A lightweight, portable desktop todo widget for Windows, built with Python and PySide6. Features reminders, recurring tasks, email import, snooze, natural-language task entry and customizable desktop modes.
 
 ## 🚀 Installation (Windows)
 
-1. Ladda ner eller klona repot och öppna mappen `TaskBord`.
+1. Ladda ner eller klona repot och öppna appmappen.
 2. Dubbelklicka på **`FORSTA_START.bat`**. Filen:
    - hämtar senaste stabila Python-versionen från python.org (inget versionsnummer är hårdkodat),
    - installerar Python om det saknas, eller uppgraderar det om installerad version är äldre än senaste,
    - installerar eller uppgraderar alla paket i `requirements.txt` och `requirements-optional.txt` till senaste version,
-   - startar TaskBord med den nyaste Python som finns.
+   - startar Ledgebord med den nyaste Python som finns.
 3. Nästa gång: dubbelklicka på **`STARTA_HAR.bat`**. Den startar direkt med nyaste installerade Python och installerar bara om Python saknas.
 
-> Plattform: TaskBord är idag gjord för Windows. Den använder Windows-specifika funktioner för fönsterlägen och skrivbordsikoner.
+> Plattform: Ledgebord är idag gjord för Windows. Den använder Windows-specifika funktioner för fönsterlägen och skrivbordsikoner.
 
 ## 📧 Importera uppgifter från mail (Thunderbird, Outlook m.m.)
 
@@ -20,11 +20,11 @@ skapar uppgifter. Uppgifterna sparas i **JSON** (`data/active.json`) och
 finns kvar efter omstart.
 
 * **Thunderbird-tillägget** — högerklicka på ett mail → *📋 Skicka till
-  TaskBord*. **Markera flera mail** (Ctrl/Shift-klick) så blir varje mail en egen uppgift, med
+  Ledgebord*. **Markera flera mail** (Ctrl/Shift-klick) så blir varje mail en egen uppgift, med
   EN sammanfattande notis (”3 uppgifter skapade · 1 fanns redan”); redan importerade mail
   hoppas över. Eller använd knappen i meddelandefönstret (prioritet,
   förfallodatum, taggar). Källkoden ligger i `thunderbird-tillagg/`,
-  färdig fil skapas med `SKAPA_XPI.bat` → `TaskBord-Thunderbird.xpi`.
+  färdig fil skapas med `SKAPA_XPI.bat` → `Ledgebord-Thunderbird.xpi`.
 * **Inkorgsmappen** `data/inbox/` — släpp `.eml`, `.msg` eller `.json` där
   så importeras de automatiskt (även mail som kom när appen var avstängd).
 * **📧-knappen i widgeten / tray-menyn** — importera vanliga
@@ -38,7 +38,7 @@ finns kvar efter omstart.
   avsändaren), ämne med *Re:* och originalet citerat. OBS: en `mailto:`-länk kan inte bära
   trådinformation, så svaret hamnar som ett nytt mail i stället för i samma tråd.
 * **🧩 Nytt Thunderbird-tillägg** — Thunderbird byter inte ut ett installerat tillägg av sig självt.
-  Ändras `TaskBord-Thunderbird.xpi` i appmappen (t.ex. vid en uppdatering) får du en tray-notis och
+  Ändras `Ledgebord-Thunderbird.xpi` i appmappen (t.ex. vid en uppdatering) får du en tray-notis och
   en menyrad *🆕 Nytt Thunderbird-tillägg — installera om…* med knapp **📂 Visa filen** (öppnar mappen
   med filen markerad) och **✔ Jag har installerat det**. Jämförs på innehåll, inte versionsnummer.
 
@@ -48,16 +48,16 @@ Full guide (installation, API, felsökning, JSON-format):
 Snabbstart:
 
 ```text
-1. Kör SKAPA_XPI.bat                        → TaskBord-Thunderbird.xpi
+1. Kör SKAPA_XPI.bat                        → Ledgebord-Thunderbird.xpi
 2. Thunderbird → Tillägg och teman → ⚙️ → Installera tillägg från fil…
-3. TaskBord: tray → 📧 E-post & Thunderbird → 📋 Kopiera inställningar
+3. Ledgebord: tray → 📧 E-post & Thunderbird → 📋 Kopiera inställningar
 4. Thunderbird: tilläggets Inställningar → klistra in JSON → spara
-5. Högerklicka på ett mail → 📋 Skicka till TaskBord
+5. Högerklicka på ett mail → 📋 Skicka till Ledgebord
 ```
 
 ## 🔄 Uppdatera appen (Sök ny version)
 
-**Automatiskt:** vid start (efter ca 30 s) och därefter högst en gång per dygn kollar TaskBord
+**Automatiskt:** vid start (efter ca 30 s) och därefter högst en gång per dygn kollar Ledgebord
 tyst i bakgrunden. Är allt aktuellt märker du ingenting. Finns en ny version får du *en*
 tray-notis (klicka på den för att uppdatera), och menyraden ändras till
 **🆕 Ny version finns — uppdatera…**. Inget installeras utan att du godkänner. Stäng av med
@@ -94,7 +94,7 @@ Appen körs på alla tre. Installation/start på **macOS och Linux** (Python 3.1
 ./starta.sh --forgrund   # starta i terminalen (visar fel direkt)
 ```
 
-På macOS kan du också dubbelklicka på `STARTA_TASKBORD.command`. Allt installeras i `.venv` i appmappen
+På macOS kan du också dubbelklicka på `STARTA_LEDGEBORD.command`. Allt installeras i `.venv` i appmappen
 (inget i systemets Python, inget utanför mappen). Uppdateringen via "Sök ny version" rör aldrig `.venv`, och
 kör du `./starta.sh` igen installeras nya paket bara om kraven ändrats. Debian/Ubuntu: `sudo apt install python3-venv`
 (och vid Qt-fel `libxcb-cursor0`).
@@ -174,12 +174,27 @@ Högerklicka på tray-ikonen → **Textstorlek**: *Kompakt* (mindre text, tätar
 
 ## 📌 Alltid överst – snabbtangent
 
-Standard **Ctrl+Alt+T**: lägger TaskBord **över alla andra appar** (läget *Alltid överst*). Tryck igen så går
+Standard **Ctrl+Alt+T**: lägger Ledgebord **över alla andra appar** (läget *Alltid överst*). Tryck igen så går
 fönstret tillbaka till det läge du hade förut (Bakom ikonerna / På skrivbordet). Fungerar var som helst i Windows,
 även när en annan app är aktiv. Ändra eller stäng av: tray → **⌨️ Snabbkommandon → 📌 Alltid överst på/av…**.
 (Vill du bara titta en stund: håll **Ctrl+Alt+V** – då visas fönstret så länge du håller tangenten.)
 **Högerklicka på fönstret → 📌 Alltid överst** (bockruta) – samma sak med musen, fungerar på alla system.
 På macOS/Linux finns inga globala tangenter – välj *Alltid överst* i tray-menyn.
+
+## 🎨 Namn och ikon
+
+Appen heter **Ledgebord** (tidigare TaskBord). Ikonen – en indigo ruta med en gul *kantlist* och ett bockat
+uppgiftskort – ligger i `icon\\ledgebord.ico` och används överallt: fönster, tray, aktivitetsfält, Alt+Tab,
+genvägen som `INSTALLERA.bat` skapar och Thunderbird-tillägget. Appen ger sig själv ett eget *AppUserModelID*
+(annars visar Windows Pythons ikon för `pythonw.exe`). Saknas ikonfilen ritas samma ikon om automatiskt
+(`core/icon_art.py`, bara standardbiblioteket; `python core/icon_art.py` skriver om filerna i `icon\\`).
+* **Autostart följer med:** posten "Starta med datorn" flyttas till nya namnet vid första start (den gamla
+  tas bort först när den nya är skapad). Gamla backupfiler (`taskbord-…zip`) hittas och rensas som förut.
+* **Oförändrat med flit** (så att inget går sönder): HTTP-huvudet `X-TaskBord-Token`, Thunderbird-tilläggets id,
+  Google-token (kopplingen behålls), miljövariablerna `TASKBORD_*` och GitHub-repots namn `Tokke2/TaskBord`
+  (uppdateringar hämtas därifrån tills repot döps om på GitHub).
+* **Thunderbird:** tillägget heter nu *Ledgebord* (v1.2.0) – installera `Ledgebord-Thunderbird.xpi` en gång
+  till (samma id, så det ersätter det gamla). Appen påminner om det.
 
 ## ↔ Dockning vid skärmkant
 
@@ -327,9 +342,9 @@ finns i två mixins (annars vinner en tyst), inga odefinierade namn, sökvägar 
 
 ## 💖 Stöd projektet
 
-TaskBord är gratis och utan reklam. Donationer är helt frivilliga och går till utveckling och underhåll. Appen fungerar exakt lika bra utan donation.
+Ledgebord är gratis och utan reklam. Donationer är helt frivilliga och går till utveckling och underhåll. Appen fungerar exakt lika bra utan donation.
 
 - 💙 **PayPal:** https://paypal.me/Rickard3dPrint
 - ☕ **Ko-fi:** https://ko-fi.com/tokke2
 
-Du hittar samma länkar i appen: högerklicka på fönstret och välj **💖 Stöd TaskBord…**.
+Du hittar samma länkar i appen: högerklicka på fönstret och välj **💖 Stöd Ledgebord…**.

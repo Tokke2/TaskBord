@@ -19,7 +19,7 @@ import logging
 import time
 from typing import Any, Callable, List, Optional, Tuple
 
-logger = logging.getLogger("TaskBord")
+logger = logging.getLogger("Ledgebord")
 
 DEFAULT_CLIP_TASK = "Ctrl+Alt+K"
 HOTKEY_ID = 0xB43

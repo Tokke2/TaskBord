@@ -37,7 +37,7 @@ def check(name, cond, extra=""):
 
 def make_xpi(path: Path, version: str, extra: str = "") -> None:
     with zipfile.ZipFile(path, "w") as z:
-        z.writestr("manifest.json", json.dumps({"name": "TaskBord", "version": version}))
+        z.writestr("manifest.json", json.dumps({"name": "Ledgebord", "version": version}))
         z.writestr("background.js", "// " + version + extra)
 
 

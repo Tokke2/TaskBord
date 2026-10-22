@@ -18,7 +18,7 @@ Flöde
    återställs från backupen, nya filer tas bort, ``data/update_rollback.json`` skrivs och den
    gamla appen startas igen. Nästa start visar ett meddelande om vad som hänt.
 
-Endast standardbiblioteket, importerar ingen annan TaskBord-kod. Skriver bara i appmappen.
+Endast standardbiblioteket, importerar ingen annan Ledgebord-kod. Skriver bara i appmappen.
 """
 
 from __future__ import annotations
@@ -171,12 +171,12 @@ def start_app(app_dir: Path, exe: str, script: Path) -> subprocess.Popen:
 
 
 def taskbord_answers(ports: Sequence[int], timeout: float = 0.5) -> bool:
-    """Svarar någon TaskBord på ``/health`` (mailbryggan, port 8765–8776)?"""
+    """Svarar någon Ledgebord på ``/health`` (mailbryggan, port 8765–8776)?"""
     for port in ports:
         try:
             with urllib.request.urlopen(f"http://127.0.0.1:{int(port)}/health", timeout=timeout) as r:
                 d = json.loads(r.read(65536).decode("utf-8", "replace"))
-            if isinstance(d, dict) and str(d.get("app", "")).lower() == "taskbord":
+            if isinstance(d, dict) and str(d.get("app", "")).lower() in ("ledgebord", "taskbord"):
                 return True
         except Exception:
             continue
@@ -312,8 +312,8 @@ def supervise(app_dir: Path, backup_root: Path, exe: str, script: Path,
             _log(app_dir, f"appen avslutades (kod {rc}) innan den bekräftat")
         if exited_at is not None and now - exited_at >= grace_sec:
             if rc == 0 and taskbord_answers(ports):
-                # startade inte nytt eftersom en annan TaskBord redan kör — inget att döma
-                _log(app_dir, "en annan TaskBord-instans svarar — ingen återställning")
+                # startade inte nytt eftersom en annan Ledgebord redan kör — inget att döma
+                _log(app_dir, "en annan Ledgebord-instans svarar — ingen återställning")
                 confirm_healthy(app_dir)
                 return "single"
             reason = f"appen avslutades med kod {rc} innan den kommit igång"
@@ -347,7 +347,7 @@ def _restart_old(app_dir: Path, exe: str, script: Path) -> None:
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
-    ap = argparse.ArgumentParser(description="TaskBord uppdateringsväktare")
+    ap = argparse.ArgumentParser(description="Ledgebord uppdateringsväktare")
     ap.add_argument("--app-dir", required=True)
     ap.add_argument("--backup", required=True)
     ap.add_argument("--exe", default=sys.executable)

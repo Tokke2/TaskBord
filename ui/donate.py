@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-NY v8: Donationsdialog för TaskBord.
+NY v8: Donationsdialog för Ledgebord.
 
-Öppnas från fönstrets högerklicksmeny ("💖 Stöd TaskBord…").
+Öppnas från fönstrets högerklicksmeny ("💖 Stöd Ledgebord…").
 
 Designprinciper:
   • Helt frivillig — appen fungerar lika bra utan donation.
@@ -16,16 +16,16 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-logger = logging.getLogger("TaskBord")
+logger = logging.getLogger("Ledgebord")
 LOG_PREFIX = "[DONATE]"
 
 # Donationslänkar. Ändra här om de ska peka på andra konton.
 DONATE_PAYPAL_URL: str = "https://paypal.me/Rickard3dPrint"
 DONATE_KOFI_URL: str = "https://ko-fi.com/tokke2"
 
-DONATE_TITLE: str = "💖 Stöd TaskBord"
+DONATE_TITLE: str = "💖 Stöd Ledgebord"
 DONATE_TEXT_HTML: str = (
-    "<p><b>TaskBord är gratis och utan reklam.</b> Om appen hjälper dig i "
+    "<p><b>Ledgebord är gratis och utan reklam.</b> Om appen hjälper dig i "
     "vardagen är en donation ett frivilligt tack som hjälper mig att fortsätta "
     "utveckla och underhålla den.</p>"
     "<ul>"
@@ -34,7 +34,7 @@ DONATE_TEXT_HTML: str = (
     "<li>Appen fungerar exakt lika bra utan donation.</li>"
     "</ul>"
     "<p style='color:#8a8a9e;font-size:11px'>Betalningen sker hos PayPal eller "
-    "Ko-fi i din webbläsare. TaskBord ser inga betalningsuppgifter.</p>"
+    "Ko-fi i din webbläsare. Ledgebord ser inga betalningsuppgifter.</p>"
 )
 
 try:
@@ -54,7 +54,7 @@ if _QT_AVAILABLE:
 
         def __init__(self, parent: Optional[QWidget] = None) -> None:
             super().__init__(parent)
-            self.setWindowTitle("TaskBord — Stöd projektet")
+            self.setWindowTitle("Ledgebord — Stöd projektet")
             self.setModal(True)
             self.setMinimumWidth(380)
 

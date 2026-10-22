@@ -4,7 +4,7 @@ skapa_xpi.py — bygger Thunderbird-tillägget till en .xpi-fil.
 
 Kör:   python skapa_xpi.py            (från appmappen)
        python thunderbird-tillagg/../skapa_xpi.py
-Ger:   TaskBord-Thunderbird.xpi   (installeras i Thunderbird via
+Ger:   Ledgebord-Thunderbird.xpi   (installeras i Thunderbird via
                                     Verktyg → Tillägg → kugghjulet →
                                     "Installera tillägg från fil…")
 
@@ -21,7 +21,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 ADDON_DIR = ROOT / "thunderbird-tillagg"
-OUTPUT = ROOT / "TaskBord-Thunderbird.xpi"
+OUTPUT = ROOT / "Ledgebord-Thunderbird.xpi"
 
 SKIP_DIRS = {"tester", "__pycache__", ".git"}
 SKIP_FILES = {".DS_Store", "Thumbs.db"}
@@ -60,7 +60,7 @@ def main() -> int:
 
     size_kb = OUTPUT.stat().st_size / 1024
     print("=" * 62)
-    print("  TaskBord — Thunderbird-tillägg packat")
+    print("  Ledgebord — Thunderbird-tillägg packat")
     print("=" * 62)
     print(f"  Namn:     {manifest.get('name')} v{manifest.get('version')}")
     print(f"  Fil:      {OUTPUT}")
@@ -70,8 +70,8 @@ def main() -> int:
     print("    1. Verktyg → Tillägg och teman")
     print("    2. Kugghjulet ⚙️ → Installera tillägg från fil…")
     print(f"    3. Välj {OUTPUT.name}")
-    print("    4. Inställningar → klistra in JSON från TaskBord")
-    print("       (TaskBord: tray → 📧 E-post & Thunderbird →")
+    print("    4. Inställningar → klistra in JSON från Ledgebord")
+    print("       (Ledgebord: tray → 📧 E-post & Thunderbird →")
     print("        📋 Kopiera inställningar för Thunderbird)")
     print("=" * 62)
     return 0

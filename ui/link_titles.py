@@ -13,7 +13,7 @@ from typing import Any, Callable, Optional
 
 from core import links as _links
 
-logger = logging.getLogger("TaskBord")
+logger = logging.getLogger("Ledgebord")
 LOG_PREFIX = "[LINKTITLE]"
 
 try:

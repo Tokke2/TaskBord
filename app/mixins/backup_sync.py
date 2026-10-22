@@ -84,7 +84,7 @@ class BackupSyncMixin:
                 n = fn()
                 if n:
                     self._log.warning(
-                        f"{LOG_PREFIX} {n} uppgift(er) hämtades in från en annan TaskBord-process"
+                        f"{LOG_PREFIX} {n} uppgift(er) hämtades in från en annan Ledgebord-process"
                     )
         except Exception as e:
             self._log.debug(f"{LOG_PREFIX} _sync_external_store: {e}")

@@ -1,4 +1,4 @@
-# TaskBord - hamtar senaste stabila Python-version for Windows fran python.org.
+# Ledgebord - hamtar senaste stabila Python-version for Windows fran python.org.
 # Skriver ut versionsnumret (t.ex. 3.15.0) eller ingenting vid fel.
 # Anvands av FORSTA_START.bat.
 $ErrorActionPreference = 'Stop'

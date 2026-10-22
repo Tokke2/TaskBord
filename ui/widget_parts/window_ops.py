@@ -89,7 +89,7 @@ class WindowOpsMixin:
             )
             # NY v8: frivillig donation (öppnar ui/donate.py-dialogen)
             menu.addSeparator()
-            act_donate = menu.addAction("💖 Stöd TaskBord…")
+            act_donate = menu.addAction("💖 Stöd Ledgebord…")
             chosen = menu.exec(event.globalPos())
             if chosen is act_center:
                 self._center_window(reset_size=False)

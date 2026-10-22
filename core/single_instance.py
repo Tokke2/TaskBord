@@ -1,7 +1,7 @@
 """
-single_instance.py — TaskBord v7-fix87: instans-meddelandekanal.
+single_instance.py — Ledgebord v7-fix87: instans-meddelandekanal.
 
-UPPGIFT: när en ANDRA instans av TaskBord startar ska den (1) upptäcka
+UPPGIFT: när en ANDRA instans av Ledgebord startar ska den (1) upptäcka
 att en redan kör, (2) SIGNALERA den befintliga instansen att visa sitt
 fönster, och (3) avsluta sig själv tyst.
 
@@ -41,11 +41,15 @@ def default_key() -> str:
     return f"TaskBord_SingleInstance_{safe_user or 'default'}"
 
 
+# /health svarar "Ledgebord" (äldre versioner: "TaskBord") — båda räknas som vår app
+APP_NAMES_ON_HEALTH = ("ledgebord", "taskbord")
+
+
 def probe_taskbord(port: int, timeout: float = 0.4, host: str = "127.0.0.1") -> bool:
     """
-    FIX v8: svarar en KÖRANDE TaskBord (valfri version/mapp) på 127.0.0.1:port?
+    FIX v8: svarar en KÖRANDE Ledgebord (valfri version/mapp) på 127.0.0.1:port?
 
-    Mail-bryggans /health kräver ingen token och svarar {"app": "TaskBord", ...}. Fungerar
+    Mail-bryggans /health kräver ingen token och svarar {"app": "Ledgebord", ...}. Fungerar
     därför även mot äldre kopior som saknar mutex/fillås. Kastar aldrig.
     """
     try:
@@ -57,13 +61,13 @@ def probe_taskbord(port: int, timeout: float = 0.4, host: str = "127.0.0.1") -> 
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         with opener.open(req, timeout=timeout) as resp:
             data = json.loads(resp.read(65536).decode("utf-8", "replace"))
-        return isinstance(data, dict) and str(data.get("app", "")).lower() == "taskbord"
+        return isinstance(data, dict) and str(data.get("app", "")).lower() in APP_NAMES_ON_HEALTH
     except Exception:
         return False
 
 
 def find_running_taskbord(first_port: int = 8765, attempts: int = 12) -> Optional[int]:
-    """FIX v8: porten där en redan körande TaskBord svarar (annars None)."""
+    """FIX v8: porten där en redan körande Ledgebord svarar (annars None)."""
     for p in range(int(first_port), int(first_port) + int(attempts)):
         if probe_taskbord(p):
             return p
@@ -74,7 +78,7 @@ class DataDirLock:
     """
     FIX v8: ett andra, FILBASERAT lås per datamapp (js/).
 
-    Bakgrund: det namngivna mutex-låset räckte inte — två TaskBord-processer mot samma
+    Bakgrund: det namngivna mutex-låset räckte inte — två Ledgebord-processer mot samma
     uppgiftsfiler (t.ex. autostart + manuell start) skriver över varandras uppgifter, och
     mail-bryggan hamnar hos den ena medan fönstret man tittar på tillhör den andra
     → uppgifter "ploppar upp och försvinner". Operativsystemet släpper fillåset
@@ -140,7 +144,7 @@ class DataDirLock:
 
 class InstanceMessenger:
     """
-    NY v7-fix87: lyssna/meddela mellan TaskBord-instanser.
+    NY v7-fix87: lyssna/meddela mellan Ledgebord-instanser.
 
     Användning (första instansen):
         m = InstanceMessenger()
@@ -186,7 +190,7 @@ class InstanceMessenger:
                     probe.disconnectFromServer()
                 logger.info(
                     f"{LOG_PREFIX} instans-kanal '{key}' upptagen — "
-                    f"en annan TaskBord körs redan"
+                    f"en annan Ledgebord körs redan"
                 )
                 return False
             # 2. Ingen lyssnar — städa eventuell DÖD socket-fil (Unix,
@@ -199,7 +203,7 @@ class InstanceMessenger:
             if not server.listen(key):
                 logger.info(
                     f"{LOG_PREFIX} instans-kanal '{key}' kunde ej lyssna — "
-                    f"en annan TaskBord körs troligen redan"
+                    f"en annan Ledgebord körs troligen redan"
                 )
                 return False
             server.newConnection.connect(self._on_new_connection)

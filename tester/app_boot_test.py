@@ -6,7 +6,7 @@ uppstart, undantag i AppController.__init__ osv. Körs i en kopia av projektet s
 skrivs i din riktiga js\\ eller data\\.
 
 * Kräver PySide6. På Linux utan GL-bibliotek (t.ex. en server) skapas tomma stubbar med gcc/nm.
-* Hoppas över (exit 0) om något saknas, eller om en annan TaskBord redan kör (port 8765).
+* Hoppas över (exit 0) om något saknas, eller om en annan Ledgebord redan kör (port 8765).
 """
 from __future__ import annotations
 
@@ -43,7 +43,7 @@ if env is None:
 env.pop("TASKBORD_BACKUP_DIR", None)
 
 # --- kopia av projektet (utan .git, js, data) ------------------------------------
-app_copy = work / "TaskBord"
+app_copy = work / "Ledgebord"
 shutil.copytree(ROOT, app_copy, ignore=shutil.ignore_patterns(".git", "js", "data", "__pycache__", "*.pyc", "node_modules"))
 
 ok = fail = 0
@@ -105,7 +105,7 @@ if log.exists():
 
 if "startar ingen ny instans" in text:
     shutil.rmtree(work, ignore_errors=True)
-    skip("en annan TaskBord kör redan (port 8765)")
+    skip("en annan Ledgebord kör redan (port 8765)")
 
 check("appen startade klart (AppController klar)", "AppController klar" in text, out[-400:])
 check("release loggades", "Release: v" in text)

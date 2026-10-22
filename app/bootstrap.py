@@ -359,7 +359,7 @@ def install_global_exception_hook() -> None:
                             _rep_dir.mkdir(parents=True, exist_ok=True)
                             _rep = _rep_dir / "window_failure_report.txt"
                             _rep.write_text(
-                                "TaskBord — NÖDRAPPORT FÖNSTERSKAPANDE\n"
+                                "Ledgebord — NÖDRAPPORT FÖNSTERSKAPANDE\n"
                                 "=" * 60 + "\n"
                                 f"Tid: {time.strftime('%Y-%m-%d %H:%M:%S')}\n"
                                 f"Python: {sys.version.split()[0]} "
@@ -823,7 +823,7 @@ def run() -> int:
             autostart_status = "check_failed"
         log.info(f"{LOG_PREFIX} Autostart (basic check): {autostart_status}")
 
-    # 10b. FIX v8: kör redan en TaskBord (valfri version/mapp)? Mail-bryggan svarar på /health.
+    # 10b. FIX v8: kör redan en Ledgebord (valfri version/mapp)? Mail-bryggan svarar på /health.
     # Fångar även äldre kopior utan lås. Då startas INGEN ny instans — den körande visas.
     try:
         from core.single_instance import find_running_taskbord, InstanceMessenger, default_key
@@ -836,7 +836,7 @@ def run() -> int:
             _running_port = find_running_taskbord(8765, 12)
         if _running_port is not None:
             log.warning(
-                f"{LOG_PREFIX} TaskBord kör redan (bryggan svarar på port {_running_port}) "
+                f"{LOG_PREFIX} Ledgebord kör redan (bryggan svarar på port {_running_port}) "
                 f"— startar ingen ny instans"
             )
             _shown = False
@@ -847,7 +847,7 @@ def run() -> int:
                     import ctypes
                     ctypes.windll.user32.MessageBoxW(
                         None,
-                        "TaskBord körs redan.\n\nEn andra instans startas inte.",
+                        "Ledgebord körs redan.\n\nEn andra instans startas inte.",
                         APP_NAME,
                         0x00000040,
                     )
@@ -896,7 +896,7 @@ def run() -> int:
                         import ctypes
                         ctypes.windll.user32.MessageBoxW(
                             None,
-                            "En instans av TaskBord körs redan.\n\nAvslutar.",
+                            "En instans av Ledgebord körs redan.\n\nAvslutar.",
                             APP_NAME,
                             0x00000040,  # MB_ICONINFORMATION
                         )
@@ -910,7 +910,7 @@ def run() -> int:
         _data_lock = DataDirLock(JS_DIR)
         if not _data_lock.acquire():
             log.warning(
-                f"{LOG_PREFIX} datamappen {JS_DIR} används redan av en annan TaskBord-process "
+                f"{LOG_PREFIX} datamappen {JS_DIR} används redan av en annan Ledgebord-process "
                 f"— avslutar (annars skriver två processer över varandras uppgifter)"
             )
             _notified2 = False
@@ -922,7 +922,7 @@ def run() -> int:
                     import ctypes
                     ctypes.windll.user32.MessageBoxW(
                         None,
-                        "TaskBord körs redan med samma uppgifter.\n\n"
+                        "Ledgebord körs redan med samma uppgifter.\n\n"
                         "Kolla att inte en äldre kopia ligger kvar (Aktivitetshanteraren → "
                         "pythonw.exe) och att Autostart bara pekar på EN mapp.",
                         APP_NAME,
@@ -973,7 +973,7 @@ def run() -> int:
             controller._instance_messenger = _messenger
             log.info(
                 f"{LOG_PREFIX} Instans-kanal aktiv: nästa start av "
-                f"TaskBord visar detta fönster (v7-fix87)"
+                f"Ledgebord visar detta fönster (v7-fix87)"
             )
         # kunde ej lyssna (t.ex. QLocalServer saknas) — låset i steg 11
         # skyddar fortfarande mot dubbla instanser

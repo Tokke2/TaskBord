@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-main.pyw — TaskBord v6.4.1 v7 (startfil) (18 888 888% bättre: central loggning + plugin + minne + snabbhet + enkelhet)
+main.pyw — Ledgebord v6.4.1 v7 (startfil) (18 888 888% bättre: central loggning + plugin + minne + snabbhet + enkelhet)
 =========================================================================
 Copyright © Rickard Längkvist, 2025–2026
 

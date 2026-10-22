@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-stability.py — TaskBord v6.4.1 v7 (18 888 888% bättre kod/design/felsökning/minne/CPU + AI-felsökning)
+stability.py — Ledgebord v6.4.1 v7 (18 888 888% bättre kod/design/felsökning/minne/CPU + AI-felsökning)
 ==========================================================================================================
 Copyright © Rickard Längkvist, 2025–2026
 

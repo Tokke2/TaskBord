@@ -1,7 +1,7 @@
 "use strict";
 
 /* ===========================================================================
- * TaskBord — Thunderbird-tillägg (MailExtension, Manifest V3)
+ * Ledgebord — Thunderbird-tillägg (MailExtension, Manifest V3)
  * background.js — hjärnan: menyval, popup-anrop, kö, notiser, retry
  * ===========================================================================
  * Copyright © Rickard Längkvist, 2025–2026
@@ -9,16 +9,16 @@
  * Vad tillägget gör
  * -----------------
  * 1. Du markerar ett mail i listan (eller har det öppet) och väljer
- *    "📋 Skicka till TaskBord" (högerklick, verktygsfältets knapp eller
+ *    "📋 Skicka till Ledgebord" (högerklick, verktygsfältets knapp eller
  *    meddelande-knappen).
- * 2. Tillägget skickar MAILET till TaskBords lokala brygga
+ * 2. Tillägget skickar MAILET till Ledgebords lokala brygga
  *      POST /eml   → rå .eml (originalet sparas i appen, bäst kvalitet)
  *      POST /task  → JSON (reservväg om rå-datat inte kan läsas, t.ex.
  *                    offline-IMAP)
- * 3. TaskBord skapar uppgiften och SPARAR DEN I JSON på disk direkt
+ * 3. Ledgebord skapar uppgiften och SPARAR DEN I JSON på disk direkt
  *    (data/active.json) → den finns kvar efter omstart.
  *
- * Om TaskBord inte körs
+ * Om Ledgebord inte körs
  * ---------------------
  * Mailet läggs i en kö (storage.local) och skickas automatiskt så snart
  * appen svarar igen (kontrolleras varje minut med alarms). Inget tappas.
@@ -37,7 +37,7 @@ const DEFAULT_CONFIG = {
   token: "",
   notify: true,       // visa systemnotis när uppgiften skapats
   includeBody: true,  // skicka med brödtexten som anteckning
-  includeTags: true,  // Thunderbirds taggar → TaskBords taggar
+  includeTags: true,  // Thunderbirds taggar → Ledgebords taggar
   useRaw: true        // skicka originalmailet (.eml) när det går
 };
 
@@ -51,7 +51,7 @@ async function loadConfig() {
     const data = await api.storage.local.get(CONFIG_KEY);
     stored = (data && data[CONFIG_KEY]) || {};
   } catch (e) {
-    console.warn("[TaskBord] kunde inte läsa inställningar:", e);
+    console.warn("[Ledgebord] kunde inte läsa inställningar:", e);
   }
   return Object.assign({}, DEFAULT_CONFIG, stored);
 }
@@ -75,7 +75,7 @@ function endpoint(cfg, path) {
 }
 
 /* ---------------------------------------------------------------------------
- * HTTP mot TaskBord
+ * HTTP mot Ledgebord
  * ------------------------------------------------------------------------- */
 
 /**
@@ -94,7 +94,7 @@ async function postRaw(cfg, buffer, extraHeaders) {
       body: buffer
     });
   } catch (e) {
-    const err = new Error("Kunde inte nå TaskBord (" + e.message + ")");
+    const err = new Error("Kunde inte nå Ledgebord (" + e.message + ")");
     err.offline = true;
     throw err;
   }
@@ -125,7 +125,7 @@ function buildExtras(overrides, payload, cfg) {
   if (ov.title) extra.title = ov.title;
   if (ov.note) extra.note = ov.note;
   if (!Object.keys(extra).length && payload && payload.tags && cfg.includeTags) {
-    extra.tags = payload.tags;   // Thunderbird-taggar → TaskBord-taggar
+    extra.tags = payload.tags;   // Thunderbird-taggar → Ledgebord-taggar
   }
   return Object.keys(extra).length ? JSON.stringify(extra) : "";
 }
@@ -147,7 +147,7 @@ async function request(cfg, path, options) {
   } catch (e) {
     // Nätverksfel = appen körs inte (eller annan port)
     const err = new Error(
-      "Kunde inte nå TaskBord på " + normalizeUrl(cfg.url) +
+      "Kunde inte nå Ledgebord på " + normalizeUrl(cfg.url) +
       ". Kör appen? (" + (e && e.message ? e.message : e) + ")"
     );
     err.offline = true;
@@ -163,7 +163,7 @@ async function request(cfg, path, options) {
 
   if (!response.ok) {
     const err = new Error(
-      payload.error || ("TaskBord svarade HTTP " + response.status)
+      payload.error || ("Ledgebord svarade HTTP " + response.status)
     );
     err.status = response.status;
     err.payload = payload;
@@ -186,8 +186,8 @@ async function testConnection(cfg) {
       ok: false,
       level: "no-app",
       message:
-        "❌ Ingen kontakt med TaskBord på " + normalizeUrl(conf.url) +
-        ".\n\n• Kör appen? (TaskBord → tray-ikonen ska synas)\n" +
+        "❌ Ingen kontakt med Ledgebord på " + normalizeUrl(conf.url) +
+        ".\n\n• Kör appen? (Ledgebord → tray-ikonen ska synas)\n" +
         "• Är e-postbryggan på? Tray-menyn → 📧 E-post & Thunderbird → " +
         "Brygga på/av\n• Rätt port i inställningarna?"
     };
@@ -200,9 +200,9 @@ async function testConnection(cfg) {
         ok: false,
         level: "bad-token",
         message:
-          "⚠️ TaskBord svarar (" + health.app + " " + health.app_version +
+          "⚠️ Ledgebord svarar (" + health.app + " " + health.app_version +
           "), men TOKEN stämmer inte.\n\nKopiera inställningarna från " +
-          "TaskBord: tray-menyn → 📧 E-post & Thunderbird → " +
+          "Ledgebord: tray-menyn → 📧 E-post & Thunderbird → " +
           "'Kopiera inställningar för Thunderbird' och klistra in här."
       };
     }
@@ -265,7 +265,7 @@ async function getPlainTextBody(messageId) {
     const full = await api.messages.getFull(messageId);
     return findTextInPart(full) || "";
   } catch (e) {
-    console.warn("[TaskBord] kunde inte läsa brödtext:", e);
+    console.warn("[Ledgebord] kunde inte läsa brödtext:", e);
     return "";
   }
 }
@@ -329,7 +329,7 @@ async function enqueue(payload, reason) {
   });
   await saveQueue(queue);
   await ensureRetryAlarm();
-  console.info("[TaskBord] mailet köades (" + reason + ") — skickas när appen svarar");
+  console.info("[Ledgebord] mailet köades (" + reason + ") — skickas när appen svarar");
   return queue.length;
 }
 
@@ -339,10 +339,10 @@ async function ensureRetryAlarm() {
     const existing = await api.alarms.get(RETRY_ALARM);
     if (!existing) {
       await api.alarms.create(RETRY_ALARM, { periodInMinutes: 1 });
-      console.info("[TaskBord] retry-timer startad (varje minut)");
+      console.info("[Ledgebord] retry-timer startad (varje minut)");
     }
   } catch (e) {
-    console.warn("[TaskBord] kunde inte starta retry-timer:", e);
+    console.warn("[Ledgebord] kunde inte starta retry-timer:", e);
   }
 }
 
@@ -398,20 +398,20 @@ async function flushQueue(silent) {
         remaining.push(item);
         if (!silent) {
           await notify(
-            "⚠️ TaskBord: token stämmer inte",
+            "⚠️ Ledgebord: token stämmer inte",
             "Öppna tilläggets inställningar och klistra in inställningarna " +
-            "från TaskBord på nytt."
+            "från Ledgebord på nytt."
           );
         }
       } else {
-        console.error("[TaskBord] kunde inte skicka kö-post:", e);
+        console.error("[Ledgebord] kunde inte skicka kö-post:", e);
       }
     }
   }
   await saveQueue(remaining);
   if (!remaining.length) await clearRetryAlarm();
   if (sent) {
-    console.info("[TaskBord] " + sent + " köade mail skickades till TaskBord");
+    console.info("[Ledgebord] " + sent + " köade mail skickades till Ledgebord");
   }
   return sent;
 }
@@ -436,13 +436,13 @@ async function notify(title, message) {
   } catch (e) {
     /* faller igenom till konsolen */
   }
-  console.info("[TaskBord] " + title + " — " + message);
+  console.info("[Ledgebord] " + title + " — " + message);
 }
 
 async function notifyResult(cfg, result, via) {
   const title = result.duplicate
     ? "📋 Redan importerad"
-    : "📋 Uppgift skapad i TaskBord";
+    : "📋 Uppgift skapad i Ledgebord";
   const text = result.duplicate
     ? '"' + (result.title || "mailet") + '" finns redan som uppgift.'
     : (result.title || "mailet") +
@@ -455,7 +455,7 @@ async function notifyResult(cfg, result, via) {
  * ------------------------------------------------------------------------- */
 
 /**
- * Skicka ett mail till TaskBord.
+ * Skicka ett mail till Ledgebord.
  *
  * @param {object} options
  *   messageId   {number}  Thunderbird-internt id
@@ -473,7 +473,7 @@ async function sendMessageAsTask(options) {
       ok: false,
       error:
         "Ingen token inställd. Öppna tilläggets inställningar och klistra " +
-        "in inställningarna från TaskBord (tray-menyn → 📧 E-post & " +
+        "in inställningarna från Ledgebord (tray-menyn → 📧 E-post & " +
         "Thunderbird → Kopiera inställningar för Thunderbird)."
     };
   }
@@ -483,7 +483,7 @@ async function sendMessageAsTask(options) {
     try {
       header = await api.messages.get(opts.messageId);
     } catch (e) {
-      console.warn("[TaskBord] kunde inte läsa meddelandet:", e);
+      console.warn("[Ledgebord] kunde inte läsa meddelandet:", e);
     }
   }
 
@@ -521,16 +521,16 @@ async function sendMessageAsTask(options) {
           const body = await getPlainTextBody(opts.messageId);
           if (body) payload.note = body;
         }
-        const len = await enqueue(payload, "TaskBord körs inte");
+        const len = await enqueue(payload, "Ledgebord körs inte");
         if (!opts.quiet) await notify(
-          "📥 TaskBord körs inte — mailet köat",
-          "Uppgiften skapas automatiskt när TaskBord startar (" +
+          "📥 Ledgebord körs inte — mailet köat",
+          "Uppgiften skapas automatiskt när Ledgebord startar (" +
           len + " i kön)."
         );
         return { ok: true, queued: true, transport: "queue" };
       }
       console.warn(
-        "[TaskBord] kunde inte skicka originalmail, provar JSON-vägen:", e
+        "[Ledgebord] kunde inte skicka originalmail, provar JSON-vägen:", e
       );
     }
   }
@@ -551,10 +551,10 @@ async function sendMessageAsTask(options) {
     return Object.assign({ transport: "json", queued: false }, res);
   } catch (e) {
     if (e.offline) {
-      const len = await enqueue(payload, "TaskBord körs inte");
+      const len = await enqueue(payload, "Ledgebord körs inte");
       if (!opts.quiet) await notify(
-        "📥 TaskBord körs inte — mailet köat",
-        "Uppgiften skapas automatiskt när TaskBord startar (" + len + " i kön)."
+        "📥 Ledgebord körs inte — mailet köat",
+        "Uppgiften skapas automatiskt när Ledgebord startar (" + len + " i kön)."
       );
       return { ok: true, queued: true, transport: "queue" };
     }
@@ -570,7 +570,7 @@ async function sendQuickTask(data) {
       ok: false,
       error:
         "Ingen token inställd. Öppna inställningarna och klistra in " +
-        "inställningarna från TaskBord."
+        "inställningarna från Ledgebord."
     };
   }
   const payload = {
@@ -592,7 +592,7 @@ async function sendQuickTask(data) {
     return Object.assign({ transport: "json" }, res);
   } catch (e) {
     if (e.offline) {
-      const len = await enqueue(payload, "TaskBord körs inte");
+      const len = await enqueue(payload, "Ledgebord körs inte");
       return { ok: true, queued: true, queued_count: len };
     }
     return { ok: false, error: e.message };
@@ -607,17 +607,17 @@ function buildMenus() {
   const items = [
     {
       id: "taskbord-send",
-      title: "📋 Skicka till TaskBord (en uppgift per markerat mail)",
+      title: "📋 Skicka till Ledgebord (en uppgift per markerat mail)",
       contexts: ["message_list"]
     },
     {
       id: "taskbord-send-display",
-      title: "📋 Skicka till TaskBord (ny uppgift)",
+      title: "📋 Skicka till Ledgebord (ny uppgift)",
       contexts: ["message_display_action"]
     },
     {
       id: "taskbord-options",
-      title: "⚙️ TaskBord-inställningar…",
+      title: "⚙️ Ledgebord-inställningar…",
       contexts: ["tools_menu", "message_list", "message_display_action"]
     }
   ];
@@ -625,7 +625,7 @@ function buildMenus() {
     try {
       api.menus.create(item);
     } catch (e) {
-      console.warn("[TaskBord] menus.create misslyckades:", item.id, e);
+      console.warn("[Ledgebord] menus.create misslyckades:", item.id, e);
     }
   }
 }
@@ -662,12 +662,12 @@ async function sendMessagesAsTasks(messages) {
   }
   const parts = [];
   if (total.created) parts.push(total.created + " uppgifter skapade");
-  if (total.queued) parts.push(total.queued + " köade (TaskBord körs inte)");
+  if (total.queued) parts.push(total.queued + " köade (Ledgebord körs inte)");
   if (total.duplicate) parts.push(total.duplicate + " fanns redan");
   if (total.failed) parts.push(total.failed + " misslyckades: " + firstError);
   if (messages.length > MAX) parts.push("bara de första " + MAX + " skickades");
   await notify(
-    total.failed ? "⚠️ TaskBord" : "📋 Mail skickade till TaskBord",
+    total.failed ? "⚠️ Ledgebord" : "📋 Mail skickade till Ledgebord",
     parts.join(" · ") || "Inget skickades."
   );
   return total;
@@ -701,16 +701,16 @@ api.menus.onClicked.addListener(async (info, tab) => {
     }
 
     if (!messageId) {
-      await notify("📋 TaskBord", "Hitta inget mail — markera ett mail först.");
+      await notify("📋 Ledgebord", "Hitta inget mail — markera ett mail först.");
       return;
     }
     const res = await sendMessageAsTask({ messageId, header });
     if (!res.ok) {
-      await notify("⚠️ TaskBord", res.error || "Kunde inte skapa uppgiften.");
+      await notify("⚠️ Ledgebord", res.error || "Kunde inte skapa uppgiften.");
     }
   } catch (e) {
-    console.error("[TaskBord] meny-klick misslyckades:", e);
-    await notify("⚠️ TaskBord", String(e && e.message ? e.message : e));
+    console.error("[Ledgebord] meny-klick misslyckades:", e);
+    await notify("⚠️ Ledgebord", String(e && e.message ? e.message : e));
   }
 });
 
@@ -726,7 +726,7 @@ async function getDisplayedHeader(tabId) {
       return await api.messageDisplay.getDisplayedMessage(tabId);
     }
   } catch (e) {
-    console.warn("[TaskBord] kunde inte läsa visat meddelande:", e);
+    console.warn("[Ledgebord] kunde inte läsa visat meddelande:", e);
   }
   return null;
 }
@@ -795,7 +795,7 @@ api.runtime.onMessage.addListener((message, sender, sendResponse) => {
  * ------------------------------------------------------------------------- */
 
 async function startup() {
-  console.info("[TaskBord] tillägg startat " + (api.runtime.getManifest().version));
+  console.info("[Ledgebord] tillägg startat " + (api.runtime.getManifest().version));
   buildMenus();
   await updateBadge((await loadQueue()).length);
   // Skicka eventuella köade mail (appen kanske är igång nu)
@@ -805,7 +805,7 @@ async function startup() {
 
 try {
   api.runtime.onStartup.addListener(() => {
-    startup().catch((e) => console.warn("[TaskBord] startup:", e));
+    startup().catch((e) => console.warn("[Ledgebord] startup:", e));
   });
 } catch (e) {
   /* vissa versioner saknar onStartup — då räcker onInstalled/top-level */
@@ -813,8 +813,8 @@ try {
 
 try {
   api.runtime.onInstalled.addListener((details) => {
-    console.info("[TaskBord] installerad/uppdaterad:", details.reason);
-    startup().catch((e) => console.warn("[TaskBord] onInstalled:", e));
+    console.info("[Ledgebord] installerad/uppdaterad:", details.reason);
+    startup().catch((e) => console.warn("[Ledgebord] onInstalled:", e));
     if (details.reason === "install" && api.runtime.openOptionsPage) {
       // Första gången: öppna inställningarna så att token kan klistras in
       api.runtime.openOptionsPage();
@@ -827,9 +827,9 @@ try {
 if (api.alarms && api.alarms.onAlarm) {
   api.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === RETRY_ALARM) {
-      flushQueue(false).catch((e) => console.warn("[TaskBord] retry:", e));
+      flushQueue(false).catch((e) => console.warn("[Ledgebord] retry:", e));
     }
   });
 }
 
-startup().catch((e) => console.warn("[TaskBord] startup (top-level):", e));
+startup().catch((e) => console.warn("[Ledgebord] startup (top-level):", e));

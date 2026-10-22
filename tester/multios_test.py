@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-multios_test.py — TaskBord ska fungera på Windows, macOS och Linux.
+multios_test.py — Ledgebord ska fungera på Windows, macOS och Linux.
 
 Kör:  python tester/multios_test.py
 
-Kontrollerar start-/installationsskripten för macOS/Linux (starta.sh, STARTA_TASKBORD.command), OS-anpassade
+Kontrollerar start-/installationsskripten för macOS/Linux (starta.sh, STARTA_LEDGEBORD.command), OS-anpassade
 texter, fönsternivå via Qt-flaggor utanför Windows, autostart på Linux (XDG) och att uppdateringen aldrig rör .venv.
 """
 from __future__ import annotations
@@ -84,13 +84,13 @@ if "--child" in sys.argv:
 
 # ---------------------------------------------------------------- skript ------------------
 sh = ROOT / "starta.sh"
-cmd = ROOT / "STARTA_TASKBORD.command"
+cmd = ROOT / "STARTA_LEDGEBORD.command"
 check("starta.sh finns", sh.is_file())
 check("starta.sh har shebang", sh.read_text(encoding="utf-8").startswith("#!/usr/bin/env bash"))
-check("STARTA_TASKBORD.command finns och anropar starta.sh", cmd.is_file() and "starta.sh" in cmd.read_text(encoding="utf-8"))
+check("STARTA_LEDGEBORD.command finns och anropar starta.sh", cmd.is_file() and "starta.sh" in cmd.read_text(encoding="utf-8"))
 check("skripten använder LF-radslut (inte CRLF)", b"\r" not in sh.read_bytes() and b"\r" not in cmd.read_bytes())
 if shutil.which("git") and (ROOT / ".git").exists():
-    ls = subprocess.run(["git", "ls-files", "-s", "starta.sh", "STARTA_TASKBORD.command"], cwd=ROOT, capture_output=True, text=True).stdout
+    ls = subprocess.run(["git", "ls-files", "-s", "starta.sh", "STARTA_LEDGEBORD.command"], cwd=ROOT, capture_output=True, text=True).stdout
     check("skripten är körbara i git (100755)", ls.count("100755") == 2, ls)
 if shutil.which("bash"):
     r = subprocess.run(["bash", "-n", str(sh)], capture_output=True, text=True)

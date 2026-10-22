@@ -58,7 +58,7 @@ class PreFlightChecker:
         if sys.version_info < (3, 9):
             return False, (
                 f"Python {sys.version_info.major}.{sys.version_info.minor} är för gammal. "
-                f"TaskBord kräver Python 3.9+"
+                f"Ledgebord kräver Python 3.9+"
             ), True
         return True, (
             f"Python {sys.version_info.major}.{sys.version_info.minor}"

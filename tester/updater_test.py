@@ -39,7 +39,7 @@ def fake_http(zip_bytes, tag="v1.0.0"):
     def _get(url, max_bytes, timeout=20.0, accept="", progress=None):
         if url == updater.LATEST_API:
             return json.dumps({
-                "tag_name": tag, "name": "TaskBord " + tag, "published_at": "2026-10-13T08:28:09Z",
+                "tag_name": tag, "name": "Ledgebord " + tag, "published_at": "2026-10-13T08:28:09Z",
                 "html_url": "https://github.com/x/y/releases/tag/" + tag,
                 "zipball_url": "https://api.github.com/repos/x/y/zipball/" + tag,
             }).encode()

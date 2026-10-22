@@ -8,7 +8,7 @@ Testar att .ics-filen är giltig enligt RFC 5545 och att Google
 Calendar-länken blir rätt. Om paketet `icalendar` finns installerat
 görs dessutom en riktig rundtur (skriv → läs tillbaka → jämför), vilket
 ger ett starkt bevis för att Google Calendar/Outlook kan läsa filen.
-Ingen Qt och ingen TaskBord-instans behövs.
+Ingen Qt och ingen Ledgebord-instans behövs.
 """
 from __future__ import annotations
 
@@ -111,7 +111,7 @@ check("uppgift utan titel hoppas över", all(str(t.get("title", "")).strip() for
 
 # --- 3. Struktur på .ics-filen --------------------------------------------
 print("\n3. Struktur (RFC 5545)")
-ics = build_ics(TASKER, calendar_name="TaskBord")
+ics = build_ics(TASKER, calendar_name="Ledgebord")
 check("börjar med BEGIN:VCALENDAR", ics.startswith("BEGIN:VCALENDAR\r\n"))
 check("slutar med END:VCALENDAR", ics.rstrip().endswith("END:VCALENDAR"))
 check("CRLF-radbrytning (inga ensamma LF)", ics.replace("\r\n", "").count("\n") == 0 and "\r\n" in ics)
@@ -172,7 +172,7 @@ check("radbrytning i text escapas", "\\n" in ics)
 print("\n6. Skriv till fil")
 with tempfile.TemporaryDirectory() as d:
     mal = Path(d) / "kalender" / "taskbord.ics"
-    antal = write_ics(TASKER, mal, calendar_name="TaskBord")
+    antal = write_ics(TASKER, mal, calendar_name="Ledgebord")
     check("returnerar antalet händelser (3)", antal == 3, f"fick {antal}")
     check("skapar mappen automatiskt", mal.exists())
     data = mal.read_bytes()
@@ -222,7 +222,7 @@ q = urllib.parse.parse_qs(urllib.parse.urlparse(str(url)).query)
 check("action=TEMPLATE", q.get("action") == ["TEMPLATE"])
 check("text = titeln", q.get("text") == [TASKER[0]["title"]], f"fick {q.get('text')}")
 check("heldagsdatum 20261013/20261014", q.get("dates") == ["20261013/20261014"], f"fick {q.get('dates')}")
-check("beskrivning med (utan 'Skapad i TaskBord')", "Skapad i TaskBord" not in "".join(q.get("details", [])))
+check("beskrivning med (utan 'Skapad i Ledgebord')", "Skapad i Ledgebord" not in "".join(q.get("details", [])))
 check("delmoment i beskrivningen", "[x] Hämta underlag" in "".join(q.get("details", [])))
 check("ingen förfallodatum → ingen länk", google_calendar_url({"title": "x", "due_date": None}) is None)
 check("ingen titel → ingen länk", google_calendar_url({"title": "", "due_date": "2026-10-13"}) is None)

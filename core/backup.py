@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-backup.py — TaskBord v6.4.1 v7 (18 888 888% bättre kod & design + AI-felsökning)
+backup.py — Ledgebord v6.4.1 v7 (18 888 888% bättre kod & design + AI-felsökning)
 =====================================================================================
 Copyright Rickard Längkvist, 2025–2026
 
@@ -1995,7 +1995,7 @@ if __name__ == "__main__":
         datefmt="%H:%M:%S",
     )
     print("=" * 60)
-    print("TaskBord backup.py v6.4.0 — självtest")
+    print("Ledgebord backup.py v6.4.0 — självtest")
     print("=" * 60)
     
     mgr = BackupManager(keep=5)

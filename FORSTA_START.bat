@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM  TaskBord - FORSTA START / UPPDATERING (Windows)
+REM  Ledgebord - FORSTA START / UPPDATERING (Windows)
 REM  Ingen version ar hardkodad:
 REM   1. Laser senaste stabila Python-version fran python.org
 REM   2. Anvander nyaste installerade Python 3.10+ som finns
@@ -8,7 +8,7 @@ REM   3. Installerar Python om det saknas, eller uppdaterar om
 REM      installerad version ar aldre an senaste
 REM   4. Installerar/uppgraderar alla paket (requirements.txt
 REM      och requirements-optional.txt) till senaste version
-REM   5. Startar TaskBord
+REM   5. Startar Ledgebord
 REM
 REM  Anvandning:
 REM    FORSTA_START.bat        full installation/uppdatering
@@ -18,7 +18,7 @@ REM  Inga adminrattigheter behovs.
 REM ============================================================
 chcp 65001 >nul
 setlocal EnableDelayedExpansion
-title TaskBord - Forsta start
+title Ledgebord - Forsta start
 
 set "APPDIR=%~dp0"
 set "APP=%APPDIR%main.pyw"
@@ -33,7 +33,7 @@ if not exist "%APP%" goto :no_app
 if not exist "%APPDIR%requirements.txt" goto :no_req
 
 echo ==================================================
-echo   TaskBord - FORSTA START / UPPDATERING
+echo   Ledgebord - FORSTA START / UPPDATERING
 echo   Mapp: %APPDIR%
 echo ==================================================
 echo.
@@ -85,7 +85,7 @@ echo        Kontrollerar att kravda paket gar att importera ...
 if errorlevel 1 goto :fail_verify
 
 :start_app
-echo [5/5] Startar TaskBord ...
+echo [5/5] Startar Ledgebord ...
 set "PYW=%PY%"
 for %%F in ("%PY%") do if exist "%%~dpFpythonw.exe" set "PYW=%%~dpFpythonw.exe"
 start "" "%PYW%" "%APP%"

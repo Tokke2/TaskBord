@@ -1,4 +1,4 @@
-# 📧 TaskBord + Thunderbird — importera mail som uppgifter
+# 📧 Ledgebord + Thunderbird — importera mail som uppgifter
 
 **Svar på frågan:** *Ja, man kan göra ett tillägg till Thunderbird som
 importerar uppgifter till appen* — och uppgifterna sparas i JSON-fil
@@ -16,7 +16,7 @@ e-postbrygga, inkorgsmappen och var allt sparas.
 ┌───────────────────────┐            ┌──────────────────────────────┐
 │ Högerklicka på mail   │            │  E-postbrygga (localhost)    │
 │  📋 Skicka till       │  HTTP      │  http://127.0.0.1:8765       │
-│     TaskBord          │ ─────────► │  POST /eml  (originalmail)   │
+│     Ledgebord          │ ─────────► │  POST /eml  (originalmail)   │
 │  eller knappen 📋 i   │  token     │  POST /task (JSON)           │
 │  meddelandefönstret   │            │            │                 │
 └───────────────────────┘            │            ▼                 │
@@ -37,33 +37,33 @@ JSON-lagring:
 | **3. 📧-knappen i widgeten / tray-menyn** | Ja | Vanliga `.eml`/`.msg`-filer från disken |
 
 Om appen inte körs när du klickar i tillägget läggs mailet i tilläggets
-**kö** och skickas automatiskt så fort TaskBord startar — inget tappas.
+**kö** och skickas automatiskt så fort Ledgebord startar — inget tappas.
 
 ---
 
 ## 2. Snabbstart (3 steg)
 
-### Steg 1 — Starta TaskBord
+### Steg 1 — Starta Ledgebord
 Bryggan startar automatiskt med appen. Kontrollera i tray-menyn:
 
 > 📧 E-post & Thunderbird → **Brygga (lokal server)** ✅ och
 > **Bevaka inkorgsmappen** ✅
 
 ### Steg 2 — Installera Thunderbird-tillägget
-1. Kör `SKAPA_XPI.bat` i appmappen (skapar `TaskBord-Thunderbird.xpi`).
+1. Kör `SKAPA_XPI.bat` i appmappen (skapar `Ledgebord-Thunderbird.xpi`).
 2. I Thunderbird: **Verktyg → Tillägg och teman**.
 3. Klicka **kugghjulet ⚙️ → Installera tillägg från fil…**
-4. Välj `TaskBord-Thunderbird.xpi` och godkänn.
+4. Välj `Ledgebord-Thunderbird.xpi` och godkänn.
 
 ### Steg 3 — Koppla ihop dem (token)
-1. I TaskBord: tray-menyn → **📧 E-post & Thunderbird →
+1. I Ledgebord: tray-menyn → **📧 E-post & Thunderbird →
    📋 Kopiera inställningar för Thunderbird…**
    (adress + hemlig token läggs på urklipp, en ruta visar dem)
-2. I Thunderbird: **Tillägg och teman → TaskBord → Inställningar**
+2. I Thunderbird: **Tillägg och teman → Ledgebord → Inställningar**
 3. Klistra in i fältet **Klistra in JSON** → **📥 Läs in och spara**
    → knappen **🔌 Testa anslutning** ska visa *✅ Ansluten*.
 
-Klart! Högerklicka på ett mail → **📋 Skicka till TaskBord (ny uppgift)**.
+Klart! Högerklicka på ett mail → **📋 Skicka till Ledgebord (ny uppgift)**.
 
 ---
 
@@ -71,8 +71,8 @@ Klart! Högerklicka på ett mail → **📋 Skicka till TaskBord (ny uppgift)**.
 
 | Sätt | Vad som händer |
 |---|---|
-| **Högerklicka på mail** i listan → 📋 Skicka till TaskBord | Uppgift skapas direkt (ämne = titel, avsändare = tagg) |
-| **Markera flera mail** → högerklicka → 📋 Skicka till TaskBord | En uppgift per mail (max 100), ETT sammanfattande meddelande; redan importerade hoppas över; är TaskBord avstängt köas alla |
+| **Högerklicka på mail** i listan → 📋 Skicka till Ledgebord | Uppgift skapas direkt (ämne = titel, avsändare = tagg) |
+| **Markera flera mail** → högerklicka → 📋 Skicka till Ledgebord | En uppgift per mail (max 100), ETT sammanfattande meddelande; redan importerade hoppas över; är Ledgebord avstängt köas alla |
 | **📋-knappen i meddelandefönstret** (message display action) | Popup: välj **prioritet**, **förfallodatum** (`imorgon`, `fredag`, `2026-10-20`) och **taggar** |
 | **📋-knappen i huvudfönstrets verktygsfält** | Popup med det visade mailet + fältet *Skapa uppgift direkt* |
 | **Popupens snabbuppgift** | Skapa uppgift utan mail (text + anteckning) |
@@ -80,7 +80,7 @@ Klart! Högerklicka på ett mail → **📋 Skicka till TaskBord (ny uppgift)**.
 Detaljer:
 * **Prioritet** gissas automatiskt från ämne/brödtext om du väljer *Auto*
   (t.ex. ”brådskande”, ”ASAP”, ”viktigt” → hög; ”senare”, ”ingen brådska” → låg).
-* **Thunderbirds taggar** blir taggar i TaskBord (system-taggar som `$label1`
+* **Thunderbirds taggar** blir taggar i Ledgebord (system-taggar som `$label1`
   hoppas över).
 * **Brödtexten** sparas som anteckning på uppgiften (`email_body`).
 * **Originalmailet** (`.eml`) sparas i `data/emails/<uppgift-id>.eml` och
@@ -139,7 +139,7 @@ kräver token i headern `X-TaskBord-Token`.
 | Metod | Sökväg | Beskrivning |
 |---|---|---|
 | `GET` | `/` | Statussida (öppna i webbläsaren för att testa) |
-| `GET` | `/health` | `{"ok":true,"app":"TaskBord",…}` — ingen token (för att hitta appen) |
+| `GET` | `/health` | `{"ok":true,"app":"Ledgebord",…}` — ingen token (för att hitta appen) |
 | `GET` | `/tasks?limit=50` | Aktiva uppgifter |
 | `GET` | `/imported?message_id=<id>` | Är mailet redan importerat? |
 | `GET` | `/settings` | Adress + token |
@@ -193,7 +193,7 @@ curl -X POST http://127.0.0.1:8765/task \
 
 | Problem | Lösning |
 |---|---|
-| *”Kunde inte nå TaskBord”* i tillägget | Starta appen. Kontrollera tray → 📧 E-post & Thunderbird att **Brygga** är ✅. Testa `http://127.0.0.1:8765` i webbläsaren. |
+| *”Kunde inte nå Ledgebord”* i tillägget | Starta appen. Kontrollera tray → 📧 E-post & Thunderbird att **Brygga** är ✅. Testa `http://127.0.0.1:8765` i webbläsaren. |
 | *”Token stämmer inte”* | Gör om steg 3: kopiera inställningarna på nytt och klistra in i tillägget. (Om du klickat *Skapa ny token* i appen måste tillägget uppdateras.) |
 | Porten 8765 är upptagen | Appen väljer automatiskt nästa lediga port och skriver den till `data/mail_bridge/bridge_status.json` — kopiera inställningarna igen efter bytet, eller sätt `mail_bridge_port` i `data/settings.json`. |
 | Uppgiften kommer inte in | Titta i loggen: `data/logs/app_*.log` — sök efter `[MAILBRIDGE]`. Kör även `python core/mail_bridge.py` (självtest) för att verifiera bryggan. |
@@ -210,7 +210,7 @@ curl -X POST http://127.0.0.1:8765/task \
 * Token ligger i `data/mail_bridge/token.txt` — byt den när du vill via
   appen (`Skapa ny token`) och uppdatera tillägget.
 * Ingen e-post skickas någonstans: bara **lokalt** mellan Thunderbird och
-  TaskBord. Inga molntjänster inblandade.
+  Ledgebord. Inga molntjänster inblandade.
 * Storleksgränser: 25 MB per mail, 512 kB JSON.
 
 ---
@@ -250,7 +250,7 @@ offline-kö och att uppgifterna hamnar i `data/active.json`.
 
 **Felsöka tillägget i Thunderbird:** `Verktyg → Utvecklarverktyg →
 Felsökningskonsol` (Ctrl+Shift+J) visar tilläggets `console.info`-rader
-(`[TaskBord] …`). Tillfällig laddning utan att bygga xpi: `about:debugging`
+(`[Ledgebord] …`). Tillfällig laddning utan att bygga xpi: `about:debugging`
 → *Detta Thunderbird* → **Läs in tillfälligt tillägg** → välj
 `thunderbird-tillagg/manifest.json`.
 
@@ -267,5 +267,5 @@ Felsökningskonsol` (Ctrl+Shift+J) visar tilläggets `console.info`-rader
 | `thunderbird-tillagg/icons/` | Ikoner (genereras av `skapa_ikoner.py`) |
 | `core/mail_bridge.py` | Appens brygga: HTTP-server, dedup-register, inkorgsbevakning |
 | `core/email_import.py` | Befintlig `.eml`/`.msg`-import (återanvänds av bryggan) |
-| `skapa_xpi.py` / `SKAPA_XPI.bat` | Packar tillägget till `TaskBord-Thunderbird.xpi` |
+| `skapa_xpi.py` / `SKAPA_XPI.bat` | Packar tillägget till `Ledgebord-Thunderbird.xpi` |
 | `tester/` | Testverktyg: `smoke_main_bridge.py` (main.pyw) och `mock_test.js` (tillägget) |

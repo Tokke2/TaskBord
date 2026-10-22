@@ -1,4 +1,4 @@
-# 🧪 tester — TaskBords testverktyg
+# 🧪 tester — Ledgebords testverktyg
 
 | Fil | Vad den testar | Kräver |
 |---|---|---|

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # ============================================================================
-#  TaskBord – första start / start (macOS och Linux)
+#  Ledgebord – första start / start (macOS och Linux)
 #
 #  Motsvarar FORSTA_START.bat på Windows. Allt hamnar i appmappen (.venv) –
 #  inget installeras i systemets Python och inget skrivs utanför mappen.
 #
-#    ./starta.sh               installerar vid behov och startar TaskBord i bakgrunden
+#    ./starta.sh               installerar vid behov och startar Ledgebord i bakgrunden
 #    ./starta.sh --forgrund    startar i terminalen (visar fel direkt)
 #    ./starta.sh --snabb       hoppar över paketinstallation
 #    ./starta.sh --installera  tvingar ominstallation/uppgradering av paketen
@@ -86,4 +86,4 @@ if [ "$FORGRUND" = "1" ]; then
   exec "$VPY" "$APPDIR/main.pyw"
 fi
 nohup "$VPY" "$APPDIR/main.pyw" >/dev/null 2>&1 &
-echo "TaskBord startad (PID $!). Loggar finns i $APPDIR/data/. Starta med --forgrund för att se fel."
+echo "Ledgebord startad (PID $!). Loggar finns i $APPDIR/data/. Starta med --forgrund för att se fel."

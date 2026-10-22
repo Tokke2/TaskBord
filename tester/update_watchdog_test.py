@@ -9,7 +9,7 @@ backupmappen) startas som egen process med korta tider och startar en låtsas-``
   * hänger sig (bekräftar aldrig)→ processen stoppas, återställs
   * bekräftar inte men svarar på /health → behålls (appen kom igång)
   * avslutas rent efter bekräftelse (användaren stängde) → behålls
-  * en annan TaskBord kör redan (avslutar med 0, /health svarar) → ingen återställning
+  * en annan Ledgebord kör redan (avslutar med 0, /health svarar) → ingen återställning
   * js/ och data/ rörs aldrig; osäkra sökvägar i manifestet ignoreras
 Dessutom: apply_update lägger väktare + manifest, schedule_restart bygger rätt kommando och faller
 tillbaka på den enkla omstartaren när väktaren saknas, app-sidans bekräftelse/underrättelse.
@@ -85,7 +85,7 @@ NEW_VARIANTS = {
 import http.server, json, threading
 class H(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
-        b = json.dumps({"app": "TaskBord"}).encode()
+        b = json.dumps({"app": "Ledgebord"}).encode()
         self.send_response(200); self.send_header("Content-Length", str(len(b))); self.end_headers(); self.wfile.write(b)
     def log_message(self, *a): pass
 srv = http.server.HTTPServer(("127.0.0.1", int(os.environ["WD_TEST_PORT"])), H)
@@ -283,12 +283,12 @@ try:
     check("avslutad efter bekräftelse: ingen återställning",
           (app / "app" / "mod.py").read_text() == "VERSION = 'new'\n" and wd.read_rollback(app) is None)
 
-    # 3g. annan TaskBord kör redan (nya avslutar med 0, /health svarar)
+    # 3g. annan Ledgebord kör redan (nya avslutar med 0, /health svarar)
     port = free_port()
 
     class H(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
-            b = json.dumps({"app": "TaskBord"}).encode()
+            b = json.dumps({"app": "Ledgebord"}).encode()
             self.send_response(200); self.send_header("Content-Length", str(len(b))); self.end_headers(); self.wfile.write(b)
         def log_message(self, *a): pass
     srv = http.server.HTTPServer(("127.0.0.1", port), H)
