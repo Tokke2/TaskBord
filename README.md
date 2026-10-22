@@ -161,6 +161,7 @@ Standard **Ctrl+Alt+T**: lägger TaskBord **över alla andra appar** (läget *Al
 fönstret tillbaka till det läge du hade förut (Bakom ikonerna / På skrivbordet). Fungerar var som helst i Windows,
 även när en annan app är aktiv. Ändra eller stäng av: tray → **⌨️ Snabbkommandon → 📌 Alltid överst på/av…**.
 (Vill du bara titta en stund: håll **Ctrl+Alt+V** – då visas fönstret så länge du håller tangenten.)
+**Högerklicka på fönstret → 📌 Alltid överst** (bockruta) – samma sak med musen, fungerar på alla system.
 På macOS/Linux finns inga globala tangenter – välj *Alltid överst* i tray-menyn.
 
 ## 📋 Lägg till från urklipp

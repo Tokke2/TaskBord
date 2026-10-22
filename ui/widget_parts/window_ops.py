@@ -15,6 +15,23 @@ from ui.widget_atoms import *  # noqa: F401,F403
 class WindowOpsMixin:
     """Fönsterhantering: fönstermeny, flytt mellan skärmar, centrering, lås, framåt och automatisk omplacering."""
 
+    def _is_always_on_top(self) -> bool:
+        """Ligger fönstret i läget 'Alltid överst' just nu? (läser inställningen)"""
+        try:
+            return str(self.settings.desktop_mode()).strip().lower() == "top"
+        except Exception:
+            return False
+
+    def _top_menu_label(self) -> str:
+        """Menytext; på Windows visas snabbtangenten om den är på."""
+        label = "📌 Alltid överst"
+        try:
+            if sys.platform == "win32" and self.settings.top_toggle_enabled():
+                label += f"  ({self.settings.top_toggle_hotkey()})"
+        except Exception:
+            pass
+        return label
+
     def contextMenuEvent(self, event: Any) -> None:
         """
         NY v7-fix47: högerklicksmeny på fönstret.
@@ -34,6 +51,14 @@ class WindowOpsMixin:
                 "🔓 Lås upp fönstret"
                 if self._locked
                 else "🔒 Lås fönstret"
+            )
+            # NY: Alltid överst (bockas av/på; samma som tray-menyn och Ctrl+Alt+T)
+            act_top = menu.addAction(self._top_menu_label())
+            act_top.setCheckable(True)
+            act_top.setChecked(self._is_always_on_top())
+            act_top.setToolTip(
+                "Fönstret ligger över alla andra appar tills du slår av det.\n"
+                "Av = tillbaka till skrivbordet (bakom ikonerna)."
             )
             # NY v7-fix81: PDF-export även här (utom 📄-knappen + tray)
             act_pdf = menu.addAction("📄 Exportera checklista → PDF…")
@@ -57,6 +82,8 @@ class WindowOpsMixin:
                 self._center_window(reset_size=True)
             elif chosen is act_lock:
                 self._toggle_lock()
+            elif chosen is act_top:
+                self.top_toggle_requested.emit()
             elif chosen is act_pdf:
                 self._on_export_pdf()
             elif chosen is act_cal:

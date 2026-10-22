@@ -193,6 +193,9 @@ class WindowsMixin:
                             w = TodoWidget(
                                 primary, self.store, self.settings, win_id=wid,
                             )
+                        # Högerklicksmenyn "📌 Alltid överst" → samma växling som Ctrl+Alt+T/tray
+                        with suppress(Exception):
+                            w.top_toggle_requested.connect(self._toggle_always_on_top)
                         self._log.info(
                             f"{LOG_PREFIX} widget {wid!r}: steg 2/4 — TodoWidget "
                             f"skapad utan krasch"
