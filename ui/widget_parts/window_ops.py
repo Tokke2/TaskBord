@@ -24,7 +24,7 @@ class WindowOpsMixin:
 
     def _top_menu_label(self) -> str:
         """Menytext; på Windows visas snabbtangenten om den är på."""
-        label = "📌 Alltid överst"
+        label = "Visa över andra appar"
         try:
             if sys.platform == "win32" and self.settings.top_toggle_enabled():
                 label += f"  ({self.settings.top_toggle_hotkey()})"
@@ -52,13 +52,13 @@ class WindowOpsMixin:
                 if self._locked
                 else "🔒 Lås fönstret"
             )
-            # NY: Alltid överst (bockas av/på; samma som tray-menyn och Ctrl+Alt+T)
+            # Kryssruta "Visa över andra appar" (samma som tray-menyn och Ctrl+Alt+T)
             act_top = menu.addAction(self._top_menu_label())
             act_top.setCheckable(True)
             act_top.setChecked(self._is_always_on_top())
             act_top.setToolTip(
-                "Fönstret ligger över alla andra appar tills du slår av det.\n"
-                "Av = tillbaka till skrivbordet (bakom ikonerna)."
+                "Ikryssad: fönstret ligger över alla andra appar.\n"
+                "Urkryssad: fönstret ligger på skrivbordet (bakom ikonerna)."
             )
             # NY v7-fix81: PDF-export även här (utom 📄-knappen + tray)
             act_pdf = menu.addAction("📄 Exportera checklista → PDF…")

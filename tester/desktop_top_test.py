@@ -152,10 +152,28 @@ sh3._desktop_layer_mode = None
 Ctl("top")._apply_desktop_shell(sh3, "w3")
 check("lift-timeout/push-release (läge None → apply) ger 'top' igen", sh3._desktop_layer_mode == "top")
 
+# --- 5b. urkryssad 'Visa över andra appar': kvarglömd topmost städas bort ----------------------------
+u5 = FakeUser32(parent=0)
+u5.ex |= 0x8  # WS_EX_TOPMOST har blivit kvar (t.ex. efter en tillfällig lyftning)
+with_fake(u5)
+sh5 = Shell()
+c5 = Ctl("behind")
+c5._maintain_desktop_level(sh5)
+check("maintain/behind: kvarglömd TOPMOST släpps (NOTOPMOST)", len(topmost_calls(u5, -2)) == 1)
+u5.calls.clear()
+u5.ex &= ~0x8
+c5._maintain_desktop_level(sh5)
+check("maintain/behind: inget onödigt NOTOPMOST när stilen är ren", not topmost_calls(u5, -2))
+sh5._desktop_layer_mode = "normal"
+u5.ex |= 0x8
+u5.calls.clear()
+c5._apply_desktop_shell(sh5, "w5")
+check("apply/behind utan skrivbordslager: aldrig topmost", len(topmost_calls(u5, -2)) >= 1 and not topmost_calls(u5, -1))
+check("_clear_topmost: inget hwnd → False", DesktopShellMixin._clear_topmost(0) is False)
+
 # --- 6. källkod: inställning, meny, tvinga-synlig, push-release --------------------------
 src = lambda p: (ROOT / p).read_text(encoding="utf-8")  # noqa: E731
-check("tray-menyn har valet 'top'", '("top", "Alltid överst' in src("app/mixins/tray.py"))
-check("tray-menyn har kvar 'behind'", '("behind", "Bakom ikonerna' in src("app/mixins/tray.py"))
+check("tray-menyn har kryssrutan 'Visa över andra appar'", "_set_show_over_apps" in src("app/mixins/tray.py") and "Visa över andra appar" in src("app/mixins/top_toggle.py"))
 check("force_show lämnar 'top' ifred", '("above", "behind", "top")' in src("app/mixins/windows.py"))
 check("push-release återfäster 'top'", '("behind", "above", "top")' in src("app/mixins/hotkeys.py"))
 

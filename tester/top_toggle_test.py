@@ -145,6 +145,22 @@ finally:
     if not had:
         del ctypes.windll
 
+# --- kryssrutan "Visa över andra appar" --------------------------------------------------------
+st2 = Settings(str(tmp / "settings2.json"))
+check("standard: urkryssad (ligger på skrivbordet)", st2.desktop_mode() == "behind")
+c = Ctl(st2, "behind")
+c._set_show_over_apps(False)
+check("urkryssad när den redan är urkryssad → inget ändras", c.set_calls == [] and c.mode == "behind")
+c._set_show_over_apps(True)
+check("ikryssa → alltid överst", c.mode == "top" and c.set_calls == ["top"])
+c._set_show_over_apps(True)
+check("ikryssad igen → ingen dubbelväxling", c.set_calls == ["top"])
+c._set_show_over_apps(False)
+check("avkryssa → tillbaka till skrivbordet (behind)", c.mode == "behind" and c.set_calls == ["top", "behind"])
+check("etiketten är 'Visa över andra appar'", c._top_menu_label().startswith("Visa över andra appar"))
+c2 = Ctl(st2, "behind"); c2._toggle_always_on_top(); c2._toggle_always_on_top()
+check("notiserna: 'Visa över andra appar: PÅ/AV'", "Visa över andra appar: PÅ" in c2.notes[0] and "Visa över andra appar: AV" in c2.notes[1], c2.notes)
+
 # --- ihopkoppling i appen ------------------------------------------------------------------------
 src = lambda p: (ROOT / p).read_text(encoding="utf-8")
 check("controllern ärver mixinen", "TopToggleMixin" in src("app/controller.py"))
@@ -152,6 +168,9 @@ check("WM_HOTKEY-filtret hanterar 0xB44", "0xB44" in src("app/mixins/hotkeys.py"
 check("tangenten installeras vid start och avregistreras vid avslut",
       "_install_top_toggle_hotkey" in src("app/mixins/hotkeys.py") and "_unregister_top_toggle_hotkey" in src("app/mixins/hotkeys.py"))
 check("tray-menyn har posten", "_change_top_toggle_hotkey_dialog" in src("app/mixins/tray.py"))
+check("tray-menyn har kryssrutan (checkable, kopplad till _set_show_over_apps)",
+      "act_over.setCheckable(True)" in src("app/mixins/tray.py") and "_set_show_over_apps(bool(checked))" in src("app/mixins/tray.py"))
+check("kantdockningen lyfter bara fönstret när kryssrutan är ikryssad", 'desktop_mode()).strip().lower() == "top"' in src("ui/edge_dock.py"))
 
 print(f"\ntop_toggle_test: {_ok} lyckades, {_fail} misslyckades")
 sys.stdout.flush()

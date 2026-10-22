@@ -259,8 +259,13 @@ if _QT:
         def reveal(self) -> None:
             if self.state == "hidden":
                 self._slide("shown")
+                # Lyft bara när 'Visa över andra appar' är ikryssad — annars stannar fönstret på skrivbordet
+                try:
+                    over = str(self.w.settings.desktop_mode()).strip().lower() == "top"
+                except Exception:
+                    over = False
                 with_r = getattr(self._shell(), "raise_", None)
-                if callable(with_r):
+                if over and callable(with_r):
                     with_r()
             elif self.state == "animating" and self._after_anim == "hidden":
                 self._slide("shown")

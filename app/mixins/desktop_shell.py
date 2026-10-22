@@ -66,6 +66,7 @@ class DesktopShellMixin:
             WS_EX_NOACTIVATE = 0x08000000
             WS_EX_TOOLWINDOW = 0x00000080
             old_ex = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+            _was_topmost = bool(old_ex & 0x8)  # WS_EX_TOPMOST (stilen rensas strax nedan)
             new_ex = (old_ex | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW) & ~0x8  # clear TOPMOST
             user32.SetWindowLongW(hwnd, GWL_EXSTYLE, new_ex)
 
@@ -212,12 +213,9 @@ class DesktopShellMixin:
             if mode == "top":
                 self._apply_top_mode(shell, hwnd, wid)
                 return
-            if _prev_layer == "top":
-                # kom från 'alltid överst' → släpp topmost-läget innan skrivbordslagret tar över
-                with suppress(Exception):
-                    user32.SetWindowPos(
-                        hwnd, -2, 0, 0, 0, 0, 0x0010 | 0x0001 | 0x0002,
-                    )  # HWND_NOTOPMOST | NOACTIVATE|NOSIZE|NOMOVE
+            # Inte 'visa över andra appar' → fönstret får ALDRIG vara topmost (kom från 'alltid överst'
+            # eller blev kvar topmost efter en tillfällig lyftning)
+            self._clear_topmost(hwnd, force=_prev_layer == "top" or _was_topmost)
             desktop_status = self._imports.get("desktop")
             if mode in ("above", "behind") and desktop_status and desktop_status.ok:
                 if mode == "above":
@@ -355,6 +353,23 @@ class DesktopShellMixin:
                 f"{LOG_PREFIX} _apply_desktop_shell misslyckades: {e}",
                 exc_info=True,
             )
+
+    @staticmethod
+    def _clear_topmost(hwnd: int, force: bool = False) -> bool:
+        """Ta bort WS_EX_TOPMOST från fönstret om det har den (eller alltid med force). True om något ändrades."""
+        if not hwnd:
+            return False
+        try:  # utanför Windows saknas ctypes.windll → AttributeError → False
+            import ctypes
+            user32 = ctypes.windll.user32
+            if force or user32.GetWindowLongW(hwnd, -20) & 0x00000008:  # GWL_EXSTYLE & WS_EX_TOPMOST
+                user32.SetWindowPos(
+                    hwnd, -2, 0, 0, 0, 0, 0x0010 | 0x0001 | 0x0002,
+                )  # HWND_NOTOPMOST | NOACTIVATE|NOSIZE|NOMOVE
+                return True
+        except Exception:
+            pass
+        return False
 
     def _apply_portable_level(self, shell: Any, wid: str) -> None:
         """
@@ -509,6 +524,7 @@ class DesktopShellMixin:
                         hwnd, -1, 0, 0, 0, 0, 0x0040 | 0x0010 | 0x0001 | 0x0002,
                     )  # HWND_TOPMOST | SHOWWINDOW|NOACTIVATE|NOSIZE|NOMOVE
                 return
+            self._clear_topmost(hwnd)  # urkryssad 'Visa över andra appar' → aldrig topmost
             desktop_status = self._imports.get("desktop")
             if mode in ("above", "behind") and desktop_status and desktop_status.ok:
                 if mode == "above":

@@ -514,32 +514,20 @@ class TrayMixin:
                     lambda checked=False, s=style: self._set_glass_style(s)
                 )
 
-            # === NY v7-fix38: SKRIVBORDSLÄGE (Win+D-säkert) ===
-            desktop_menu = self._tray_menu.addMenu("🖼  Skrivbordsläge (Win+D-säkert)")
-            _cur_mode = self._desktop_mode()
-            # NY v7-fix45: LEGACY dolt ur menyn — det är en AUTOMATISK
-            # nödfallback (above→behind→legacy), inte ett användarval.
-            # v7-fix56: legacy är HELT borttaget — bara above/behind finns.
-            # 'above' (över ikonerna) visade sig osynligt på din skärm och migreras
-            # automatiskt till 'behind' — därför bara två val: som förut, eller alltid överst.
-            _mode_items = (
-                ("behind", "Bakom ikonerna (som förut)"),
-                ("top", "Alltid överst (ovanpå alla fönster)"),
+            # === VISA ÖVER ANDRA APPAR (kryssruta) ===
+            # Ikryssad  = alltid överst (ligger över alla andra appar).
+            # Urkryssad = ligger på skrivbordet (bakom ikonerna, Win+D-säkert). Standard: urkryssad.
+            act_over = self._tray_menu.addAction(self._top_menu_label())
+            act_over.setCheckable(True)
+            act_over.setChecked(self._desktop_mode() == "top")
+            act_over.setToolTip(
+                "Ikryssad: Ledgebord ligger över alla andra appar.\n"
+                "Urkryssad: Ledgebord ligger på skrivbordet (bakom ikonerna, Win+D kan inte gömma det).\n"
+                "Valet sparas."
             )
-            for _m_val, _m_label in _mode_items:
-                act = desktop_menu.addAction(_m_label)
-                act.setCheckable(True)
-                act.setChecked(_cur_mode == _m_val)
-                act.setToolTip(
-                    "'Bakom ikonerna' = som förut: widgeten ligger på\n"
-                    "skrivbordet, ikonerna målas ovanpå (Rainmeter-metoden),\n"
-                    "Win+D kan aldrig gömma den.\n"
-                    "'Alltid överst' = widgeten ligger ovanpå alla andra\n"
-                    "fönster hela tiden. Valet sparas."
-                )
-                act.triggered.connect(
-                    lambda checked=False, m=_m_val: self._set_desktop_mode(m)
-                )
+            act_over.triggered.connect(
+                lambda checked=False: self._set_show_over_apps(bool(checked))
+            )
 
             # === NY: TEXTSTORLEK / DENSITET (Kompakt · Normal · Stor) ===
             size_menu = self._tray_menu.addMenu("🔠  Textstorlek")

@@ -57,13 +57,31 @@ class TopToggleMixin:
             self._set_desktop_mode(new)
             self._log.info(f"{LOG_PREFIX} Alltid överst: {cur} → {new}")
             if new == "top":
-                self._notify_hotkey("📌 Alltid överst: PÅ — fönstret ligger över alla andra appar.")
+                self._notify_hotkey("Visa över andra appar: PÅ — fönstret ligger över alla andra appar.")
             else:
-                self._notify_hotkey("📌 Alltid överst: AV — fönstret ligger på skrivbordet igen.")
+                self._notify_hotkey("Visa över andra appar: AV — fönstret ligger på skrivbordet.")
             return new
         except Exception as e:
             self._log.warning(f"{LOG_PREFIX} _toggle_always_on_top: {e}", exc_info=True)
             return ""
+
+    def _top_menu_label(self) -> str:
+        """Texten på kryssrutan (tray + högerklick); snabbtangenten visas om den är på."""
+        label = "Visa över andra appar"
+        with suppress(Exception):
+            if sys.platform == "win32" and self._top_toggle_enabled():
+                label += f"  ({self._get_top_toggle_combo()})"
+        return label
+
+    def _set_show_over_apps(self, on: bool) -> None:
+        """Kryssrutan 'Visa över andra appar': på = alltid överst, av = på skrivbordet."""
+        try:
+            if (self._desktop_mode() == "top") != bool(on):
+                self._toggle_always_on_top()
+            else:
+                self._populate_tray_menu()
+        except Exception as e:
+            self._log.warning(f"{LOG_PREFIX} _set_show_over_apps: {e}", exc_info=True)
 
     def _top_toggle_press(self) -> None:
         """Snabbtangenten trycktes (GUI-tråden)."""

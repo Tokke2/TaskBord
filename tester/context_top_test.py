@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-context_top_test.py — högerklicksmenyn i fönstret har "📌 Alltid överst" (bockruta).
+context_top_test.py — högerklicksmenyn i fönstret har "Visa över andra appar" (bockruta).
 
 Kör:  python tester/context_top_test.py
 Bygger en riktig TodoWidget (offscreen) i en egen process; menyns exec() ersätts så att den väljer ett val.
@@ -83,8 +83,8 @@ def child() -> None:
 
     settings.set_desktop_mode("behind")
     w.contextMenuEvent(Ev())
-    top = [a for a in seen["acts"] if a[0].startswith("📌 Alltid överst")]
-    ck("menyn har valet '📌 Alltid överst'", len(top) == 1)
+    top = [a for a in seen["acts"] if a[0].startswith("Visa över andra appar")]
+    ck("menyn har valet 'Visa över andra appar'", len(top) == 1)
     ck("valet är en bockruta", top and top[0][1])
     ck("inte bockad i läget 'behind'", top and top[0][2] is False)
     ck("har förklarande tooltip", top and "över alla andra appar" in top[0][3])
@@ -92,14 +92,14 @@ def child() -> None:
     ck("valet ligger bland de andra (lås, PDF, backup finns kvar)",
        all(any(t[0].startswith(p) for t in seen["acts"]) for p in ("🔒", "📄", "💾", "🎯")))
 
-    pick["text"] = "📌 Alltid överst"
+    pick["text"] = "Visa över andra appar"
     w.contextMenuEvent(Ev())
     ck("att välja valet skickar top_toggle_requested", emitted == [1])
 
     settings.set_desktop_mode("top")
     pick["text"] = None
     w.contextMenuEvent(Ev())
-    top = [a for a in seen["acts"] if a[0].startswith("📌 Alltid överst")]
+    top = [a for a in seen["acts"] if a[0].startswith("Visa över andra appar")]
     ck("bockad i läget 'top'", top and top[0][2] is True)
     ck("_is_always_on_top följer inställningen", w._is_always_on_top() is True)
     settings.set_desktop_mode("above")

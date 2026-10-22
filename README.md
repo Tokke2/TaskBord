@@ -103,7 +103,7 @@ kör du `./starta.sh` igen installeras nya paket bara om kraven ändrats. Debian
 |---|---|---|---|
 | Uppgifter, backup, mail-brygga, kalender, uppdatering | ✅ | ✅ | ✅ |
 | Start med datorn | Registret/Startup | LaunchAgent | `~/.config/autostart` |
-| Skrivbordsläge "Alltid överst" / "Bakom ikonerna" | Win32 (på skrivbordet) | Qt-flaggor (överst; "bakom" ignoreras av macOS) | Qt-flaggor (X11 fullt, Wayland beroende på skrivbord) |
+| "Visa över andra appar" (kryssruta) / på skrivbordet | Win32 (på skrivbordet) | Qt-flaggor (överst; "bakom" ignoreras av macOS) | Qt-flaggor (X11 fullt, Wayland beroende på skrivbord) |
 | Globala snabbtangenter (Ctrl+Alt+…) | ✅ | ❌ (använd tray-menyn) | ❌ (använd tray-menyn) |
 | Google-nyckel (`token.json`) | krypterad (DPAPI) | filrättighet 0600 | filrättighet 0600 |
 | Systemtema | register | Qt | Qt |
@@ -119,14 +119,16 @@ att skriva). Dialogen säger direkt om den duger (minst två av Ctrl/Alt/Shift e
 Windows-genväg, inte samma som Visa-över-tangenten), *Standard* återställer och *Stäng av* tar bort
 den. Är tangenten upptagen av ett annat program behålls den gamla. Gäller direkt, ingen omstart.
 
-## 🖥️ Skrivbordsläge – bakom ikonerna eller alltid överst
+## 🖥️ Visa över andra appar (kryssruta)
 
-Högerklicka på tray-ikonen → **Skrivbordsläge** och välj:
+Kryssrutan **Visa över andra appar** finns i tray-menyn och när du högerklickar på fönstret:
 
-- **Bakom ikonerna (som förut)** – widgeten ligger på skrivbordet och Win+D kan inte gömma den.
-- **Alltid överst (ovanpå alla fönster)** – widgeten ligger ovanpå alla andra fönster hela tiden och går att skriva i direkt.
+- **Urkryssad (standard)** – Ledgebord ligger på skrivbordet (bakom ikonerna). Andra appar hamnar ovanpå, och Win+D kan inte gömma det.
+- **Ikryssad** – Ledgebord ligger över alla andra appar hela tiden och går att skriva i direkt.
 
-Valet sparas och gäller även efter omstart. Om Windows (t.ex. Win+D) minimerar widgeten i läget *Alltid överst* återställs den automatiskt inom några sekunder.
+Valet sparas och gäller även efter omstart (snabbtangent: **Ctrl+Alt+T**). Är rutan urkryssad rättar appen själv till
+om fönstret mot förmodan har blivit liggande överst. Om Windows (t.ex. Win+D) minimerar widgeten i ikryssat läge
+återställs den automatiskt inom några sekunder.
 
 ## ⌨️ Styra listan med tangentbordet
 
@@ -172,14 +174,14 @@ Högerklicka på tray-ikonen → **Textstorlek**: *Kompakt* (mindre text, tätar
 
 **Fönstrets plats efter uppdatering:** position och storlek skrivs ner till `js\settings.json` både före installationen och före omstarten (mappen `js\` rörs aldrig av uppdateringen), så fönstret kommer upp exakt där det stod.
 
-## 📌 Alltid överst – snabbtangent
+## 📌 Visa över andra appar – snabbtangent
 
-Standard **Ctrl+Alt+T**: lägger Ledgebord **över alla andra appar** (läget *Alltid överst*). Tryck igen så går
+Standard **Ctrl+Alt+T**: lägger Ledgebord **över alla andra appar** (kryssrutan *Visa över andra appar* ikryssad). Tryck igen så går
 fönstret tillbaka till det läge du hade förut (Bakom ikonerna / På skrivbordet). Fungerar var som helst i Windows,
 även när en annan app är aktiv. Ändra eller stäng av: tray → **⌨️ Snabbkommandon → 📌 Alltid överst på/av…**.
 (Vill du bara titta en stund: håll **Ctrl+Alt+V** – då visas fönstret så länge du håller tangenten.)
-**Högerklicka på fönstret → 📌 Alltid överst** (bockruta) – samma sak med musen, fungerar på alla system.
-På macOS/Linux finns inga globala tangenter – välj *Alltid överst* i tray-menyn.
+**Högerklicka på fönstret → Visa över andra appar** (kryssruta) – samma sak med musen, fungerar på alla system.
+På macOS/Linux finns inga globala tangenter – kryssa i *Visa över andra appar* i tray-menyn.
 
 ## 🎨 Namn och ikon
 

@@ -47,7 +47,7 @@ _MOUSE: List[Tuple[str, str]] = [
     ("Klick på ett kort", "Markerar uppgiften (och gör tangenterna ovan aktiva)"),
     ("Dubbelklick på titeln", "Ändra titeln direkt på kortet"),
     ("Högerklick på ett kort", "Åtgärder: klar, prioritet, datum, delmoment, länkar och bilagor, ta bort …"),
-    ("Högerklick på fönstret", "Fönstermenyn: Alltid överst, lås, centrera, export, backup …"),
+    ("Högerklick på fönstret", "Fönstermenyn: Visa över andra appar, lås, centrera, export, backup …"),
     ("Dra fönstret mot en kant", "Släpp nära vänster/höger/övre skärmkanten → fönstret glider ut och kommer tillbaka när musen nuddar kanten"),
     ("Klick på en tagg", "Filtrerar listan på taggen"),
     ("🔗 / 📎 på ett kort", "Öppnar länken i webbläsaren / bilagan i sitt program (högerklick: fler val)"),
@@ -84,13 +84,13 @@ def build_sections(settings: Any = None, platform: Optional[str] = None) -> List
             (_combo(settings, "clip_task_hotkey", "Ctrl+Alt+K") + ("" if clip_on else "  (av)"),
              "Gör markerad text (eller urklipp) till en uppgift"),
             (_combo(settings, "top_toggle_hotkey", "Ctrl+Alt+T") + ("" if top_on else "  (av)"),
-             "Alltid överst på / av"),
+             "Visa över andra appar på / av"),
         ]
         sections.append(("🌐 Globala snabbtangenter (fungerar i alla program)", glob))
     else:
         sections.append(("🌐 Globala snabbtangenter",
                          [("—", "Finns bara i Windows. Använd tray-menyn eller högerklicka på fönstret "
-                                "(📌 Alltid överst) på macOS och Linux.")]))
+                                "(Visa över andra appar) på macOS och Linux.")]))
 
     # --- Fönstrets tangenter (när fönstret är aktivt) --------------------------------------
     win: List[Tuple[str, str]] = [("F1", "Den här översikten"), ("F3", "Fokusläge på / av")]
