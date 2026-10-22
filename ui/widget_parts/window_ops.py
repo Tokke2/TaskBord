@@ -72,6 +72,14 @@ class WindowOpsMixin:
             )
             # NY v8: backup av uppgifter
             act_backup = menu.addAction("💾 Backup av uppgifter…")
+            act_help = menu.addAction("⌨️ Tangentöversikt (F1)")
+            act_titles = menu.addAction("🔗 Hämta sidtitlar för länkar")
+            act_titles.setCheckable(True)
+            act_titles.setChecked(bool(getattr(self.settings, "links_fetch_titles", lambda: True)()))
+            act_titles.setToolTip(
+                "När du klistrar in en webbadress hämtas sidans titel (ett anrop till just den sidan).\n"
+                "Av = länken visas med bara värdnamnet."
+            )
             # NY v8: frivillig donation (öppnar ui/donate.py-dialogen)
             menu.addSeparator()
             act_donate = menu.addAction("💖 Stöd TaskBord…")
@@ -92,6 +100,10 @@ class WindowOpsMixin:
                 self._on_open_google_calendar()
             elif chosen is act_backup:
                 self._on_open_backup()
+            elif chosen is act_titles:
+                self.settings.set_links_fetch_titles(act_titles.isChecked())
+            elif chosen is act_help:
+                self._on_show_shortcut_help()
             elif chosen is act_donate:
                 self._on_open_donate()
         except Exception as e:

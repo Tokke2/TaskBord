@@ -223,6 +223,14 @@ class BackupSyncMixin:
                 f"{LOG_PREFIX} autosave misslyckades: {e}", exc_info=True
             )
 
+    def _open_shortcut_help(self) -> None:
+        """⌨️ Tangentöversikt från tray-menyn (samma som F1 i fönstret)."""
+        try:
+            from ui.shortcut_help_dialog import open_shortcut_help
+            open_shortcut_help(None, settings=getattr(self, "settings", None))
+        except Exception as e:
+            self._log.warning(f"{LOG_PREFIX} kunde inte öppna tangentöversikten: {e}")
+
     def _open_backup_dialog(self) -> None:
         """NY v8: öppna backup-dialogen från tray-menyn."""
         try:

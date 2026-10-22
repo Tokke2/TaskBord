@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from ui.widget_base import *  # noqa: F401,F403
 from ui.widget_atoms import *  # noqa: F401,F403
+from core import links as _link_utils
 
 
 class TaskActionsMixin:
@@ -225,6 +226,9 @@ class TaskActionsMixin:
                     f"{LOG_PREFIX} QMessageBox saknas — kan inte visa dialog"
                 )
                 return
+            if self._task_is_archived(task_id):
+                self._explain_archive_is_history()
+                return
             # NY v6.4.1 v7: Svensk bekräftelsedialog med tydlig info
             preview = task_text if len(task_text) < 60 else task_text[:57] + "..."
             reply = QMessageBox.question(
@@ -279,6 +283,12 @@ class TaskActionsMixin:
         if not text:
             logger.debug(f"{LOG_PREFIX} _on_input_submit: tom input — ignorerar")
             return
+        # URL:er i texten blir klickbara länkar (🔗) med sidans titel; resten är uppgiftens text.
+        # Tas ut FÖRE tolkningen av datum/taggar så siffror i adressen inte tolkas som datum.
+        _urls = _link_utils.extract_urls(text)
+        if _urls:
+            _rest = _link_utils.strip_urls(text)
+            text = _rest or _link_utils.display_title(_urls[0])
         if len(text) > 500:
             logger.warning(
                 f"{LOG_PREFIX} input-text for lang ({len(text)} tecken) — trunkerar"
@@ -317,6 +327,8 @@ class TaskActionsMixin:
             )
             if tid and _start and hasattr(self.store, "set_start_date"):
                 self.store.set_start_date(tid, _start)  # NY v8: valfritt startdatum
+            if tid and _urls:
+                self._add_links_to_task(tid, _urls)
             if tid:
                 self.input_field.clear()
                 # Återställ pending priority till "none"

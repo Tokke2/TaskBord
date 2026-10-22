@@ -93,7 +93,7 @@ def child() -> None:
     TW = W.TodoWidget
     mixins = [c for c in TW.__mro__ if c.__name__.endswith("Mixin")]
     qidx = TW.__mro__.index(QWidget)
-    ck("TodoWidget har 12 mixins", len(mixins) == 12)
+    ck("TodoWidget har 13 mixins", len(mixins) == 13)
     ck("alla mixins står före QWidget i MRO", all(TW.__mro__.index(m) < qidx for m in mixins))
     ck("facaderna ger samma klass (widget / ui.widget)", True)  # olika modulobjekt, men samma delar:
     ck("båda facaderna delar widget_base", W._base is UW._base is B)

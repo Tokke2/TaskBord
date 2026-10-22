@@ -150,6 +150,16 @@ class ThemeMixin:
                 "font-size: 10px; font-weight: 600; } "
                 f"QLabel#taskDate {{ color: {t['muted']}; "
                 "font-size: 10px; font-weight: 500; } "
+                f"QLabel#linkChip {{ color: {t['fg']}; "
+                "background: rgba(56, 189, 248, 0.16); "
+                "border: 1px solid rgba(56, 189, 248, 0.45); "
+                "border-radius: 8px; padding: 1px 8px; "
+                "font-size: 11px; font-weight: 600; } "
+                f"QLabel#attachChip {{ color: {t['fg']}; "
+                "background: rgba(251, 191, 36, 0.16); "
+                "border: 1px solid rgba(251, 191, 36, 0.5); "
+                "border-radius: 8px; padding: 1px 8px; "
+                "font-size: 11px; font-weight: 600; } "
             )
 
             self.setObjectName("TodoWidget")

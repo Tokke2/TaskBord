@@ -302,6 +302,11 @@ class FocusTimersMixin:
             kan stjäla Enter medan man skriver
           - Tydlig logg per kortkommando (action=sekvens → hanterare)
         """
+        # F1 = tangentöversikt (fast tangent, ligger utanför inställningarnas lista)
+        with suppress(Exception):
+            _f1 = QShortcut(QKeySequence("F1"), self)
+            _f1.activated.connect(self._on_show_shortcut_help)
+            self._hotkey_shortcuts.append(_f1)
         if not hasattr(self.settings, "shortcuts"):
             return
         try:
@@ -339,6 +344,12 @@ class FocusTimersMixin:
                         f"HAR INGEN hanterare — skapas EJ (ett QShortcut "
                         f"utan hanterare STJÄLER tangenten utan att göra "
                         f"något) (v7-fix78)"
+                    )
+                    continue
+                if str(seq).strip().upper() == "F1":
+                    logger.warning(
+                        f"{LOG_PREFIX} kortkommando '{action}'='{seq}' hoppas över: "
+                        f"F1 är reserverad för tangentöversikten"
                     )
                     continue
                 name, fn = entry

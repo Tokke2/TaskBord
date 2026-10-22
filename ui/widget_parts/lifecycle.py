@@ -289,6 +289,9 @@ class LifecycleMixin:
         self.tabs = QTabWidget(self)
         self.tabs.addTab(self._build_active_tab(), "Aktiva")
         self.tabs.addTab(self._build_archive_tab(), "Arkiverade")
+        self.tabs.setTabToolTip(
+            1, "Historik: klara uppgifter sparas här för alltid (de tas aldrig bort)"
+        )
         self.tabs.currentChanged.connect(self._on_tab_changed)
         self.content_stack.addWidget(self.tabs)
         # Sida 1: Focus Mode (1 task stort + nav-knappar)

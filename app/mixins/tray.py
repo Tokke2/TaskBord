@@ -241,6 +241,12 @@ class TrayMixin:
             self._backup_tasks_action.triggered.connect(self._open_backup_dialog)
             self._tray_menu.addAction(self._backup_tasks_action)
 
+            # NY: tangentöversikt (samma som F1 i fönstret)
+            _help_act = self._QAction("⌨️  Tangentöversikt…", self._tray_menu)
+            _help_act.setToolTip("Alla tangenter och snabbkommandon, med dina egna inställningar (F1 i fönstret).")
+            _help_act.triggered.connect(self._open_shortcut_help)
+            self._tray_menu.addAction(_help_act)
+
             self._tray_menu.addSeparator()
 
             # NY v6.4.1: Autostart toggle (med live-status från registry)

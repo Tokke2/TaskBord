@@ -54,6 +54,7 @@ if _QT_AVAILABLE:
     from ui.widget_parts.window_ops import WindowOpsMixin
     from ui.widget_parts.keynav import KeyNavMixin
     from ui.widget_parts.qt_events import QtEventsMixin
+    from ui.widget_parts.links_attach import LinksAttachMixin
 
     class TodoWidget(
         LifecycleMixin,
@@ -68,6 +69,7 @@ if _QT_AVAILABLE:
         WindowOpsMixin,
         KeyNavMixin,
         QtEventsMixin,
+        LinksAttachMixin,
         QWidget,
     ):
         """

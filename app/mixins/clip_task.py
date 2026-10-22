@@ -9,6 +9,7 @@ from contextlib import suppress
 from app.config import parse_hotkey_combo
 from app.constants import LOG_PREFIX
 from core import clip_capture as _cc
+from core import links as _links
 
 
 class ClipTaskMixin:
@@ -187,6 +188,9 @@ class ClipTaskMixin:
             return
         if self.store is None or not hasattr(self.store, "add_task"):
             return
+        urls = _links.extract_urls(text)[:5]
+        if urls:  # URL:en ur titeln; bara en URL → värdnamnet tills sidtiteln är hämtad
+            title = _links.strip_urls(title) or _links.display_title(urls[0])
         new_id = self.store.add_task(title)
         if not new_id:
             self._clip_balloon("⚠️ Kunde inte skapa uppgiften", title[:80])
@@ -194,6 +198,10 @@ class ClipTaskMixin:
         if note:
             with suppress(Exception):
                 self.store.set_task_metadata(new_id, "note", note)
+        for u in urls:  # URL:er blir klickbara länkar (🔗), titeln hämtas i bakgrunden
+            with suppress(Exception):
+                if self.store.add_link(new_id, u, "") and self._links_fetch_enabled():
+                    self._clip_fetcher().fetch(new_id, u)
         self._log.info(
             f"{LOG_PREFIX} uppgift skapad från {source} id={new_id!r} titel={title[:30]!r}"
         )
@@ -204,6 +212,20 @@ class ClipTaskMixin:
             f"✅ Uppgift skapad ({what})",
             title if len(title) <= 80 else title[:79] + "…",
         )
+
+    def _links_fetch_enabled(self) -> bool:
+        try:
+            return bool(self.settings.links_fetch_titles())
+        except Exception:
+            return True
+
+    def _clip_fetcher(self):
+        """Hämtar sidtitlar i en bakgrundstråd och sätter dem i GUI-tråden (ui/link_titles.py)."""
+        f = getattr(self, "_clip_link_fetcher", None)
+        if f is None:
+            from ui.link_titles import LinkTitleFetcher
+            f = self._clip_link_fetcher = LinkTitleFetcher(self.store)
+        return f
 
     def _clip_balloon(self, title: str, text: str) -> None:
         if self._tray is None:

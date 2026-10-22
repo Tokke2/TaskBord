@@ -1309,6 +1309,7 @@ class Settings(QObject):
             "top_toggle_enabled": True,
             "top_toggle_hotkey": "Ctrl+Alt+T",
             "top_toggle_prev_mode": "behind",
+            "links_fetch_titles": True,
             # NY v7-fix72: tray-klick lyfter fönstret i X sekunder
             "tray_lift_seconds": 5,
             # NY v7-fix90: e-postbrygga — Thunderbird-tillägg + inkorgsmapp
@@ -1381,6 +1382,7 @@ class Settings(QObject):
             "top_toggle_enabled": lambda v: _coerce_bool(v, True),
             "top_toggle_hotkey": lambda v: _coerce_str(v, "Ctrl+Alt+T")[:40],
             "top_toggle_prev_mode": lambda v: (str(v) if str(v) in ("above", "behind") else "behind"),
+            "links_fetch_titles": lambda v: _coerce_bool(v, True),
             # NY v7-fix72 (1-60 sekunder)
             "tray_lift_seconds": lambda v: _coerce_int(v, 5, 1, 60),
             # NY v7-fix90: e-postbrygga (Thunderbird-tillägget)
@@ -3019,6 +3021,21 @@ class Settings(QObject):
         v = str(mode) if str(mode) in ("above", "behind") else "behind"
         with self._lock:
             self._data["top_toggle_prev_mode"] = v
+        self._dirty = True
+        self._save_async_worker(self._data)
+        return True
+
+    @_log_call
+    def links_fetch_titles(self) -> bool:
+        """Hämta sidans titel när en länk läggs till (ett anrop till just den sidan)."""
+        with self._lock:
+            return bool(self._data.get("links_fetch_titles", True))
+
+    @_log_setter("links_fetch_titles")
+    def set_links_fetch_titles(self, enabled: bool) -> bool:
+        v = _coerce_bool(enabled, True)
+        with self._lock:
+            self._data["links_fetch_titles"] = v
         self._dirty = True
         self._save_async_worker(self._data)
         return True

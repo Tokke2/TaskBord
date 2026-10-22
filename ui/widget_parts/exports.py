@@ -122,6 +122,18 @@ class ExportsMixin:
                 f"{_describe_widget_error(e)}"
             )
 
+    def _on_show_shortcut_help(self) -> None:
+        """F1 / fönstermenyn: ⌨️ Tangentöversikt (alla tangenter, med dina inställningar)."""
+        try:
+            get_throttle().notify_activity()
+            from ui.shortcut_help_dialog import open_shortcut_help
+            open_shortcut_help(self, settings=getattr(self, "settings", None))
+        except Exception as e:
+            logger.warning(
+                f"{LOG_PREFIX} _on_show_shortcut_help misslyckades: "
+                f"{_describe_widget_error(e)}"
+            )
+
     def _on_push_task_to_google(self, task: Dict[str, Any]) -> None:
         """
         NY v8: skicka EN uppgift till Google Calendar (från uppgiftsmenyn).

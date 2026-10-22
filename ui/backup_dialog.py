@@ -146,6 +146,8 @@ if _QT:
             try:
                 r = tb.restore_backup(self.store, path)
                 _info(self, "♻ Återställt", f"{r['active']} aktiva och {r['archive']} arkiverade uppgifter är tillbaka."
+                      + (f"\n\n{r['archive_kept']} nyare arkiverade uppgifter behölls (arkivet är historik som aldrig tas bort)."
+                         if r.get("archive_kept") else "")
                       + (f"\n\nNuläget före återställningen finns sparat i:\n{r['safety']}" if r.get("safety") else ""))
             except Exception as e:
                 logger.warning(f"{LOG_PREFIX} återställning misslyckades: {e}", exc_info=True)

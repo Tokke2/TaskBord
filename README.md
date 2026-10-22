@@ -147,6 +147,21 @@ Tryck **↓** (eller **↑**) – även när du står i inmatningsfältet – s�
 
 Skriver du ett vanligt tecken som inte är en kommandotangent hamnar det i inmatningsfältet. När en uppgift blir klar eller tas bort flyttas markeringen till nästa, så du kan bocka av en hel rad med mellanslag.
 
+## ⌨️ F1 – tangentöversikt
+
+Tryck **F1** (i fönstret) så visas alla tangenter och snabbkommandon, **med dina egna inställningar** – t.ex. de globala snabbtangenter du bytt (Windows) och de du stängt av. Även under tray-menyn (**⌨️ Tangentöversikt…**) och i högerklicksmenyn på fönstret. F1 är reserverad och kan inte tilldelas något annat. Översikten kan kopieras som text.
+
+## 🔗 Länkar och 📎 bilagor
+
+- **Klistra in en webbadress** i inmatningsfältet (eller använd Ctrl+Alt+K / högerklicka → *🔗 Lägg till länk…*) – den blir en klickbar länk på kortet. Skriver du bara adressen blir uppgiftens titel sidans titel; skriver du text + adress behålls din text. Titeln hämtas i bakgrunden (ett anrop till just den sidan, högst 6 s). Stäng av under högerklick på fönstret → *🔗 Hämta sidtitlar för länkar*; då visas värdnamnet.
+- **Bifoga fil** (högerklick på uppgiften → *📎 Bifoga fil…*): filen **kopieras in i appmappen** (`<datamapp>/attachments/<uppgift>/`, alltså `js\attachments` i Windows-installationen) – originalet rörs inte och inget skrivs utanför appmappen. Max 50 MB per fil.
+- Klicka på chipen för att öppna (länk i webbläsaren, fil i sitt program – körbara filtyper som `.exe`/`.bat` frågar först). Högerklick: kopiera, visa i mappen, ta bort.
+- Tar du bort en uppgift raderas dess bilagor också. **Bilagorna ingår inte i backup-zip:en** (bara uppgifterna) – kopiera mappen `attachments` om du vill ha dem med.
+
+## 📜 Arkivet är historik som ligger kvar för alltid
+
+Klara uppgifter hamnar i *Arkiverade* och **tas aldrig bort** – varken av appen, av „rensa arkiv“ (finns inte längre), av automatisk städning (finns ingen) eller av att återställa en äldre backup (nyare arkiverade uppgifter läggs då till i arkivet). Arkiverade uppgifter har ingen „Ta bort“-knapp. Du kan fortfarande markera en arkiverad uppgift som oklar, då blir den aktiv igen. Länkar/bilagor kan läggas till på arkiverade uppgifter men inte tas bort.
+
 ## 🔠 Textstorlek (Kompakt · Normal · Stor)
 
 Högerklicka på tray-ikonen → **Textstorlek**: *Kompakt* (mindre text, tätare kort, döljer raden "Tillagd" – du ser fler uppgifter), *Normal* (som förut) eller *Stor* (större text, luftigare). Valet sparas.
@@ -287,8 +302,8 @@ fasad — alla importer (`from widget import TodoWidget`) fungerar som förut:
 | --- | --- |
 | `ui/widget.py` | `TodoWidget(mixins…, QWidget)` — signaler, `__init__` och diagnostik |
 | `ui/widget_base.py` | konstanter, teman, hjälpfunktioner, logg/felhantering, PWM, `parse_natural_input` |
-| `ui/widget_atoms.py` | `EditableLabel`, `TagChip`, `PriorityBadge`, `PriorityDot`, `DueDateLabel`, `GlassFrame` |
-| `ui/widget_parts/*.py` | metoderna, en mixin per område: `lifecycle`, `task_menu`, `task_actions`, `render`, `task_card`, `theme`, `keys_position`, `focus_timers`, `exports`, `window_ops`, `keynav`, `qt_events` |
+| `ui/widget_atoms.py` | `EditableLabel`, `TagChip`, `LinkChip`, `PriorityBadge`, `PriorityDot`, `DueDateLabel`, `GlassFrame` |
+| `ui/widget_parts/*.py` | metoderna, en mixin per område: `lifecycle`, `task_menu`, `task_actions`, `render`, `task_card`, `theme`, `keys_position`, `focus_timers`, `exports`, `window_ops`, `keynav`, `qt_events`, `links_attach` |
 
 Ändra textstorleken via `set_ui_font_scale()` (i `widget_base`), inte genom att skriva till `_UI_FONT_SCALE`.
 `tester/widget_split_test.py` vaktar delningen (alla metoder kvar, inga namn saknas, ingen metod i två mixins).

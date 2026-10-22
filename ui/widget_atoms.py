@@ -219,6 +219,55 @@ if _QT_AVAILABLE:
 
 
 # ===========================================================================
+# LINK / ATTACHMENT CHIP (🔗 länk, 📎 bilaga)
+# ===========================================================================
+
+if _QT_AVAILABLE:
+    class LinkChip(QLabel):
+        """Klickbar chip för en länk (🔗) eller bilaga (📎). Vänsterklick öppnar, högerklick ger menyn.
+
+        Stilen kommer från temat (objectName ``linkChip`` / ``attachChip``) så texten alltid är läsbar.
+        """
+
+        clicked = Signal(str)                 # key (url eller filens relativa sökväg)
+        menu_requested = Signal(str, object)  # key, global position
+        MAX_CHARS: ClassVar[int] = 30
+
+        def __init__(
+            self, text: str, key: str, kind: str = "link", tooltip: str = "",
+            parent: Optional[QWidget] = None,
+        ) -> None:
+            super().__init__(parent)
+            self._key = key
+            self._kind = kind
+            self.setObjectName("attachChip" if kind == "attachment" else "linkChip")
+            self.setProperty("chipKind", kind)
+            self.setText(self.elide(text, self.MAX_CHARS))
+            self.setToolTip(tooltip or key)
+            self.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+
+        @staticmethod
+        def elide(text: str, n: int) -> str:
+            t = " ".join(str(text or "").split())
+            if len(t) <= n:
+                return t
+            head = (n - 1) * 2 // 3
+            return t[:head] + "…" + t[-(n - 1 - head):]
+
+        def key(self) -> str:
+            return self._key
+
+        def mousePressEvent(self, event: QMouseEvent) -> None:
+            get_throttle().notify_activity()
+            if event.button() == Qt.MouseButton.RightButton:
+                self.menu_requested.emit(self._key, event.globalPosition().toPoint())
+            elif event.button() == Qt.MouseButton.LeftButton:
+                self.clicked.emit(self._key)
+            event.accept()
+
+
+# ===========================================================================
 # PRIORITY BADGE
 # ===========================================================================
 
@@ -533,6 +582,6 @@ if _QT_AVAILABLE:
 
 
 __all__ = [
-    _n for _n in ("EditableLabel", "InlineTitleEdit", "TagChip", "PriorityBadge", "PriorityDot", "DueDateLabel", "GlassFrame")
+    _n for _n in ("EditableLabel", "InlineTitleEdit", "TagChip", "LinkChip", "PriorityBadge", "PriorityDot", "DueDateLabel", "GlassFrame")
     if _n in globals()
 ]

@@ -162,8 +162,19 @@ class TaskMenuMixin:
             menu.addSeparator()
             act = menu.addAction("✏️ Redigera titel…")
             act.triggered.connect(lambda _c: self._prompt_rename(tid))
-            act = menu.addAction("🗑 Ta bort…")
-            act.triggered.connect(lambda _c: self._prompt_delete(tid))
+            act = menu.addAction("🔗 Lägg till länk…")
+            act.setToolTip("Klistra in en webbadress — den blir en klickbar länk med sidans titel")
+            act.triggered.connect(lambda _c: self._prompt_add_link(tid))
+            act = menu.addAction("📎 Bifoga fil…")
+            act.setToolTip("Filen kopieras in i appmappen och följer med uppgiften")
+            act.triggered.connect(lambda _c: self._prompt_attach_file(tid))
+            if self._task_is_archived(tid):
+                # arkivet är historik som sparas för alltid — inget "Ta bort" här
+                act = menu.addAction("📜 Historik — sparas för alltid")
+                act.setEnabled(False)
+            else:
+                act = menu.addAction("🗑 Ta bort…")
+                act.triggered.connect(lambda _c: self._prompt_delete(tid))
             # --- NY v8: kalender (Google Calendar m.fl.) -------------
             menu.addSeparator()
             act = menu.addAction("📅 Lägg till i Google Calendar")
@@ -547,14 +558,32 @@ class TaskMenuMixin:
         except Exception as e:
             logger.warning(f"{LOG_PREFIX} _prompt_rename: {e}")
 
+    def _explain_archive_is_history(self) -> None:
+        """Arkiverade uppgifter är permanent historik: de kan aldrig tas bort."""
+        try:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.information(
+                self, "📜 Historik",
+                "Arkiverade uppgifter är historik och sparas för alltid — de kan inte tas bort.\n\n"
+                "Vill du ha tillbaka en uppgift: markera den som oklar (☐) så blir den aktiv igen.",
+            )
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} _explain_archive_is_history: {e}")
+
     def _prompt_delete(self, task_id: str) -> None:
         """NY v7-fix41: ta bort uppgift med bekräftelse."""
         try:
             from PySide6.QtWidgets import QMessageBox
+            if self._task_is_archived(task_id):
+                self._explain_archive_is_history()
+                return
             task = None
             if hasattr(self.store, "find_task"):
                 task = self.store.find_task(task_id)
             title = (task or {}).get("title", "uppgiften")
+            _n_att = len((task or {}).get("attachments") or [])
+            if _n_att:
+                title += f"\n(📎 {_n_att} bifogade filer i appmappen raderas också)"
             if task and isinstance(task.get("recurring"), dict):
                 title += "\n(⚠ återkommande serie avslutas)"
             btn = QMessageBox.question(

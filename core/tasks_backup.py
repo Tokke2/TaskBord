@@ -177,6 +177,62 @@ def inspect_backup(path: Any) -> Dict[str, Any]:
         raise TasksBackupError("Det här är ingen giltig ZIP-fil.")
 
 
+def _task_list(raw: bytes) -> List[Any]:
+    data = json.loads(raw.decode("utf-8"))
+    if isinstance(data, dict):
+        data = data.get("tasks", [])
+    return data if isinstance(data, list) else []
+
+
+def _wrap(raw: bytes, tasks: List[Any]) -> bytes:
+    """Skriv tillbaka ``tasks`` i samma omslag (version/saved_at) som originalet hade."""
+    try:
+        data = json.loads(raw.decode("utf-8"))
+    except Exception:
+        data = None
+    if not isinstance(data, dict):
+        data = {"version": 1}
+    data["tasks"] = tasks
+    return json.dumps(data, ensure_ascii=False, indent=1).encode("utf-8")
+
+
+def merge_archive(active_raw: bytes, archive_raw: bytes, current: List[Dict[str, Any]]):
+    """
+    Slå ihop backupens arkiv med de uppgifter som är arkiverade just nu.
+    Returnerar (active_bytes, archive_bytes, antal_bevarade). Ingen arkiverad uppgift försvinner.
+    """
+    active = _task_list(active_raw)
+    archive = _task_list(archive_raw)
+    arch_ids = {t.get("id") for t in archive if isinstance(t, dict)}
+    add = [t for t in current if isinstance(t, dict) and t.get("id") not in arch_ids]
+    if not add:
+        return active_raw, archive_raw, 0
+    add_ids = {t.get("id") for t in add}
+    # uppgiften är klar sedan backupen togs → den ska ligga i arkivet, inte aktiv
+    active = [t for t in active if not (isinstance(t, dict) and t.get("id") in add_ids)]
+    archive = archive + add
+    return _wrap(active_raw, active), _wrap(archive_raw, archive), len(add)
+
+
+def _current_archived(store: Any, archive_path: Path) -> List[Dict[str, Any]]:
+    """Arkiverade uppgifter nu: minnet (kan ha osparat) + filen på disken, utan dubbletter."""
+    out: Dict[str, Dict[str, Any]] = {}
+    try:
+        for t in list(getattr(store, "_archive_tasks", []) or []):
+            if isinstance(t, dict) and t.get("id"):
+                out[str(t["id"])] = json.loads(json.dumps(t))
+    except Exception:
+        pass
+    try:
+        if archive_path.is_file():
+            for t in _task_list(archive_path.read_bytes()):
+                if isinstance(t, dict) and t.get("id") and str(t["id"]) not in out:
+                    out[str(t["id"])] = t
+    except Exception:
+        pass
+    return list(out.values())
+
+
 def restore_backup(store: Any, path: Any) -> Dict[str, Any]:
     """
     Återställ uppgifter från en backup. Först tas en säkerhetskopia av nuläget
@@ -189,18 +245,29 @@ def restore_backup(store: Any, path: Any) -> Dict[str, Any]:
     except TasksBackupError as e:
         logger.info(f"{LOG_PREFIX} ingen säkerhetskopia av nuläget: {e}")
     targets = _paths(store)
+    current_archived = _current_archived(store, targets["archive.json"])
     with zipfile.ZipFile(str(path)) as z:
         names = set(z.namelist())
+        raws: Dict[str, bytes] = {}
         for fname in FILES:
             if fname not in names and fname != "archive.json":
                 continue
-            raw = z.read(fname) if fname in names else b'{"tasks": []}'
-            dest = targets[fname]
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            tmp = dest.with_name(f".{dest.name}.{os.getpid()}.restore")
-            tmp.write_bytes(raw)
-            os.replace(str(tmp), str(dest))
-            os.utime(str(dest), None)  # ny mtime → store läser om filen
+            raws[fname] = z.read(fname) if fname in names else b'{"tasks": []}'
+    # Arkiverade uppgifter är historik som aldrig tas bort: de som är arkiverade NU men inte
+    # finns i backupen läggs till i arkivet (en gammal backup får inte radera nyare historik).
+    if current_archived and "active.json" in raws:
+        raws["active.json"], raws["archive.json"], kept = merge_archive(
+            raws["active.json"], raws.get("archive.json", b'{"tasks": []}'), current_archived
+        )
+        info["archive_kept"] = kept
+        info["archive"] = _count(raws["archive.json"])
+    for fname, raw in raws.items():
+        dest = targets[fname]
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        tmp = dest.with_name(f".{dest.name}.{os.getpid()}.restore")
+        tmp.write_bytes(raw)
+        os.replace(str(tmp), str(dest))
+        os.utime(str(dest), None)  # ny mtime → store läser om filen
     for attr in ("_active_mtime", "_archive_mtime"):  # tvinga omläsning (grov mtime-upplösning)
         try:
             setattr(store, attr, 0.0)

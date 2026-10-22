@@ -1073,6 +1073,61 @@ _EXTRA_TASK_KEYS: Final[Tuple[str, ...]] = (
     "email_date", "email_to", "email_attachments",
 )
 _EXTRA_TASK_MAX_LEN: Final[int] = 50_000
+MAX_LINKS_PER_TASK: Final[int] = 20
+MAX_ATTACHMENTS_PER_TASK: Final[int] = 50
+
+
+def _coerce_links(raw: Any) -> List[Dict[str, str]]:
+    """Länkar på en uppgift: ``[{url, title}]`` (bara http/https, utan dubbletter)."""
+    out: List[Dict[str, str]] = []
+    if not isinstance(raw, list):
+        return out
+    seen: Set[str] = set()
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        url = item.get("url")
+        if not isinstance(url, str):
+            continue
+        url = url.strip()
+        if not url.lower().startswith(("http://", "https://")) or len(url) > 2000 or url in seen:
+            continue
+        title = item.get("title")
+        out.append({"url": url, "title": title.strip()[:200] if isinstance(title, str) else ""})
+        seen.add(url)
+        if len(out) >= MAX_LINKS_PER_TASK:
+            break
+    return out
+
+
+def _coerce_attachments(raw: Any) -> List[Dict[str, Any]]:
+    """Bilagor: ``[{name, file, size, added}]``; ``file`` är relativ till datamappen (attachments/…)."""
+    out: List[Dict[str, Any]] = []
+    if not isinstance(raw, list):
+        return out
+    seen: Set[str] = set()
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        f = item.get("file")
+        if not isinstance(f, str):
+            continue
+        f = f.strip().replace("\\", "/")
+        if (not f.startswith("attachments/") or ".." in f.split("/") or len(f) > 400 or f in seen):
+            continue
+        name = item.get("name")
+        size = item.get("size")
+        added = item.get("added")
+        out.append({
+            "name": (name.strip()[:200] if isinstance(name, str) and name.strip() else f.rsplit("/", 1)[-1]),
+            "file": f,
+            "size": size if isinstance(size, int) and not isinstance(size, bool) and size >= 0 else 0,
+            "added": added[:40] if isinstance(added, str) else "",
+        })
+        seen.add(f)
+        if len(out) >= MAX_ATTACHMENTS_PER_TASK:
+            break
+    return out
 
 
 def _coerce_task(raw: Any, idx: int = 0) -> Optional[Dict[str, Any]]:
@@ -1128,6 +1183,13 @@ def _coerce_task(raw: Any, idx: int = 0) -> Optional[Dict[str, Any]]:
         val = raw.get(key)
         if isinstance(val, str) and val.strip():
             out[key] = val[:_EXTRA_TASK_MAX_LEN]
+    # Länkar och bilagor (listor) — sparas bara om de finns
+    links = _coerce_links(raw.get("links"))
+    if links:
+        out["links"] = links
+    atts = _coerce_attachments(raw.get("attachments"))
+    if atts:
+        out["attachments"] = atts
     return out
 
 
@@ -1919,9 +1981,20 @@ class TaskStore(QObject):
         return tid
 
     @_log_crud("remove_task")
-    def remove_task(self, task_id: str) -> bool:
-        """Ta bort task (från active OCH archive)."""
+    def remove_task(self, task_id: str, force: bool = False) -> bool:
+        """Ta bort en AKTIV uppgift.
+
+        Arkiverade uppgifter är historik som sparas för alltid och tas inte bort
+        (returnerar False). ``force=True`` är bara till för underhåll/tester.
+        """
+        removed_active = False
         with self._lock:
+            if task_id in self._archive_index and not force:
+                logger.warning(
+                    f"{LOG_PREFIX} remove_task: {task_id!r} är arkiverad — "
+                    f"arkivet är permanent historik, tar inte bort"
+                )
+                return False
             # Active
             idx = self._active_index.get(task_id)
             if idx is not None:
@@ -1937,11 +2010,11 @@ class TaskStore(QObject):
                     f"{LOG_PREFIX} remove_task: {task_id!r} (active, "
                     f"title='{task['title'][:50]}')"
                 )
+                removed_active = True
                 self._emit("task_removed", task_id)
                 self._emit("changed")
-                return True
             # Archive
-            idx = self._archive_index.get(task_id)
+            idx = None if removed_active else self._archive_index.get(task_id)
             if idx is not None:
                 task = self._archive_tasks.pop(idx)
                 self._deindex_task(task, archive=True)
@@ -1955,8 +2028,23 @@ class TaskStore(QObject):
                 self._emit("task_removed", task_id)
                 self._emit("changed")
                 return True
+        if removed_active:
+            self._drop_attachment_files(task_id)  # bilagorna följer med den borttagna uppgiften
+            return True
         logger.warning(f"{LOG_PREFIX} remove_task: {task_id!r} hittades inte")
         return False
+
+    def is_archived(self, task_id: str) -> bool:
+        """True om uppgiften ligger i arkivet (historik som aldrig tas bort)."""
+        with self._lock:
+            return task_id in self._archive_index
+
+    def _drop_attachment_files(self, task_id: str) -> None:
+        try:
+            from core import attachments as _att
+            _att.delete_task_files(self._data_dir, task_id)
+        except Exception as e:  # städning får aldrig välta en borttagning
+            logger.warning(f"{LOG_PREFIX} bilagestädning misslyckades för {task_id!r}: {e}")
 
     def _deindex_task(self, task: Dict[str, Any], archive: bool = False) -> None:
         """Ta bort task från index (inline)."""
@@ -2052,6 +2140,7 @@ class TaskStore(QObject):
                             next_task.pop("start_date", None)
                         next_task["created"] = _now_iso()
                         next_task["completed"] = None
+                        next_task.pop("attachments", None)  # filerna hör till den arkiverade kopian
                         next_task["snoozed_until"] = None
                         _reset_subtasks(next_task.get("subtasks", []))
                         self._active_tasks.append(next_task)
@@ -2308,6 +2397,110 @@ class TaskStore(QObject):
         self._emit("changed")  # v7-fix11 (UI-refresh)
         return True
 
+    # ------------------------------------------------------------------
+    # Länkar och bilagor (fungerar på aktiva OCH arkiverade uppgifter; att TA BORT
+    # en länk/bilaga går bara på aktiva — arkivet är historik som inte ändras bakåt)
+    # ------------------------------------------------------------------
+    def _change_task_list(
+        self, task_id: str, key: str, action: str, fn: Any, allow_archived: bool = True
+    ) -> bool:
+        """Gemensam mutation av en lista på en uppgift. ``fn(list) -> bool`` ändrar listan på plats."""
+        with self._lock:
+            task = self._by_id.get(task_id)
+            if task is None:
+                logger.warning(f"{LOG_PREFIX} {action}: {task_id!r} hittades inte")
+                return False
+            if not allow_archived and task_id in self._archive_index:
+                logger.warning(f"{LOG_PREFIX} {action}: {task_id!r} är arkiverad (historik) — ändras inte")
+                return False
+            before = _safe_copy(task)
+            lst = task.get(key)
+            if not isinstance(lst, list):
+                lst = []
+            if not fn(lst):
+                return False
+            if lst:
+                task[key] = lst
+            else:
+                task.pop(key, None)
+            self._dirty = True
+        self._find_cache.clear()
+        self._filter_cache.clear()
+        self._audit_log.add(action, task_id, before=before, after=_safe_copy(task))
+        logger.info(f"{LOG_PREFIX} {action}: {task_id!r}")
+        self._emit("task_updated", task_id)
+        self._emit("changed")
+        return True
+
+    def add_link(self, task_id: str, url: str, title: str = "") -> bool:
+        """Lägg till en länk (http/https). False om ogiltig, redan finns eller max uppnått."""
+        cl = _coerce_links([{"url": url, "title": title}])
+        if not cl:
+            return False
+        item = cl[0]
+
+        def _do(lst: List[Any]) -> bool:
+            if len(lst) >= MAX_LINKS_PER_TASK or any(x.get("url") == item["url"] for x in lst):
+                return False
+            lst.append(item)
+            return True
+
+        return self._change_task_list(task_id, "links", "add_link", _do)
+
+    def set_link_title(self, task_id: str, url: str, title: str) -> bool:
+        """Sätt sidtiteln på en befintlig länk."""
+        t = str(title or "").strip()[:200]
+        if not t:
+            return False
+
+        def _do(lst: List[Any]) -> bool:
+            for x in lst:
+                if x.get("url") == url and x.get("title") != t:
+                    x["title"] = t
+                    return True
+            return False
+
+        return self._change_task_list(task_id, "links", "set_link_title", _do)
+
+    def remove_link(self, task_id: str, url: str) -> bool:
+        def _do(lst: List[Any]) -> bool:
+            n = len(lst)
+            lst[:] = [x for x in lst if x.get("url") != url]
+            return len(lst) != n
+
+        return self._change_task_list(task_id, "links", "remove_link", _do, allow_archived=False)
+
+    def add_attachment(self, task_id: str, name: str, file: str, size: int = 0, added: str = "") -> bool:
+        """Registrera en redan kopierad bilaga (se core/attachments.copy_in)."""
+        ca = _coerce_attachments([{"name": name, "file": file, "size": size, "added": added or _now_iso()}])
+        if not ca:
+            return False
+        item = ca[0]
+
+        def _do(lst: List[Any]) -> bool:
+            if len(lst) >= MAX_ATTACHMENTS_PER_TASK or any(x.get("file") == item["file"] for x in lst):
+                return False
+            lst.append(item)
+            return True
+
+        return self._change_task_list(task_id, "attachments", "add_attachment", _do)
+
+    def remove_attachment(self, task_id: str, file: str) -> bool:
+        """Ta bort bilagan från uppgiften OCH raderar den kopierade filen (bara aktiva uppgifter)."""
+        def _do(lst: List[Any]) -> bool:
+            n = len(lst)
+            lst[:] = [x for x in lst if x.get("file") != file]
+            return len(lst) != n
+
+        ok = self._change_task_list(task_id, "attachments", "remove_attachment", _do, allow_archived=False)
+        if ok:
+            try:
+                from core import attachments as _att
+                _att.delete_file(self._data_dir, file)
+            except Exception as e:
+                logger.warning(f"{LOG_PREFIX} kunde inte radera bilagefilen {file!r}: {e}")
+        return ok
+
     @_log_crud("archive_task")
     def archive_task(self, task_id: str) -> bool:
         """Flytta task till archive."""
@@ -2366,8 +2559,11 @@ class TaskStore(QObject):
         return True
 
     @_log_crud("clear_archive")
-    def clear_archive(self) -> int:
-        """Rensa ALLA arkiverade tasks. Returnerar antal."""
+    def clear_archive(self, force: bool = False) -> int:
+        """Rensa arkivet — NEJ: arkivet är permanent historik. Returnerar 0 om inte ``force``."""
+        if not force:
+            logger.warning(f"{LOG_PREFIX} clear_archive: nekad — arkivet sparas för alltid")
+            return 0
         with self._lock:
             count = len(self._archive_tasks)
             if count == 0:

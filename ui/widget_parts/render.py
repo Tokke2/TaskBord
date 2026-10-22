@@ -426,7 +426,8 @@ class RenderMixin:
                 empty_text = (
                     "✨  Inga uppgifter ännu\n"
                     "Skriv nedan och tryck Enter" if not archived
-                    else "🗄️  Inga arkiverade uppgifter"
+                    else "🗄️  Inga arkiverade uppgifter\n"
+                    "Klara uppgifter hamnar här och sparas för alltid"
                 )
                 if not archived:
                     self._update_stats_chip(0, 0, n_snoozed_hidden)
@@ -636,6 +637,8 @@ class RenderMixin:
                 (task.get("recurring") or {}).get("interval", ""),
                 tuple(_flatten_subtasks(task.get("subtasks") or [])),
                 _task_has_email(task),
+                tuple((x.get("url"), x.get("title")) for x in (task.get("links") or [])),
+                tuple(x.get("file") for x in (task.get("attachments") or [])),
             )
             if tid in self._task_widgets and not archived:
                 existing = self._task_widgets[tid]
