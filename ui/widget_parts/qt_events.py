@@ -170,6 +170,7 @@ class QtEventsMixin:
                 f"was_dragging={self._drag_active} "
                 f"final_pos=({_final[0]},{_final[1]})"
             )
+            _was_drag = bool(self._drag_active)
             self._drag_active = False
             self._drag_offset = None
             # NY v7-fix9: Tvinga SPARNING av slutpositionen (förbi 500ms-
@@ -204,6 +205,8 @@ class QtEventsMixin:
                     self._last_pos_save = time.monotonic()
             logger.debug(f"{LOG_PREFIX} drag avslutad vid ({_sx}, {_sy})")
             event.accept()
+            if _was_drag:
+                self._edge_dock_after_drag()  # nära en skärmkant → docka
         except Exception as e:
             logger.warning(
                 f"{LOG_PREFIX} mouseReleaseEvent misslyckades: "

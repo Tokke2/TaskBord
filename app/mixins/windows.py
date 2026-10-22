@@ -227,6 +227,8 @@ class WindowsMixin:
                             # 4. Timer underhåller lagret var 30:e sek
                             _shell_ref.show()
                             self._apply_desktop_shell(_shell_ref, wid)
+                            with suppress(Exception):
+                                w._start_edge_dock()  # återuppta dockning vid skärmkant
                             # NY v7-fix38: auto-fallback om det genomskinliga
                             # skalet inte kunde skapas (CreateWindowEx-fel)
                             self._schedule_shell_native_check(_shell_ref, wid)

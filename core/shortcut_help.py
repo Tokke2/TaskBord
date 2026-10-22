@@ -48,6 +48,7 @@ _MOUSE: List[Tuple[str, str]] = [
     ("Dubbelklick på titeln", "Ändra titeln direkt på kortet"),
     ("Högerklick på ett kort", "Åtgärder: klar, prioritet, datum, delmoment, länkar och bilagor, ta bort …"),
     ("Högerklick på fönstret", "Fönstermenyn: Alltid överst, lås, centrera, export, backup …"),
+    ("Dra fönstret mot en kant", "Släpp nära vänster/höger/övre skärmkanten → fönstret glider ut och kommer tillbaka när musen nuddar kanten"),
     ("Klick på en tagg", "Filtrerar listan på taggen"),
     ("🔗 / 📎 på ett kort", "Öppnar länken i webbläsaren / bilagan i sitt program (högerklick: fler val)"),
 ]

@@ -451,6 +451,9 @@ class HotkeysMixin:
                 hwnd = int(shell.winId())
                 if not hwnd:
                     continue
+                with suppress(Exception):  # dockat och gömt → glid fram och håll kvar
+                    w._edge_dock_reveal()
+                    w._edge_dock_pin(True)
                 _prev = str(
                     getattr(shell, "_desktop_layer_mode", "normal")
                 )
@@ -539,6 +542,8 @@ class HotkeysMixin:
                 if shell is None:
                     continue
                 wid = getattr(w, "win_id", "?")
+                with suppress(Exception):
+                    w._edge_dock_pin(False)  # dockat fönster får gömma sig igen
                 _prev = str(
                     getattr(shell, "_push_prev_mode", "normal")
                 )

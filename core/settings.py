@@ -1310,6 +1310,8 @@ class Settings(QObject):
             "top_toggle_hotkey": "Ctrl+Alt+T",
             "top_toggle_prev_mode": "behind",
             "links_fetch_titles": True,
+            "edge_dock_enabled": True,
+            "edge_dock_edge": "",
             # NY v7-fix72: tray-klick lyfter fönstret i X sekunder
             "tray_lift_seconds": 5,
             # NY v7-fix90: e-postbrygga — Thunderbird-tillägg + inkorgsmapp
@@ -1383,6 +1385,8 @@ class Settings(QObject):
             "top_toggle_hotkey": lambda v: _coerce_str(v, "Ctrl+Alt+T")[:40],
             "top_toggle_prev_mode": lambda v: (str(v) if str(v) in ("above", "behind") else "behind"),
             "links_fetch_titles": lambda v: _coerce_bool(v, True),
+            "edge_dock_enabled": lambda v: _coerce_bool(v, True),
+            "edge_dock_edge": lambda v: (str(v) if str(v) in ("left", "right", "top") else ""),
             # NY v7-fix72 (1-60 sekunder)
             "tray_lift_seconds": lambda v: _coerce_int(v, 5, 1, 60),
             # NY v7-fix90: e-postbrygga (Thunderbird-tillägget)
@@ -2215,6 +2219,7 @@ class Settings(QObject):
         Sandner INTE windows_updated (undviker populate-loop).
         """
         try:
+            x, y, w, h = self._filter_geometry(wid, x, y, w, h)
             with self._lock:
                 windows = self._data.get("windows", [])
                 found = False
@@ -2252,6 +2257,7 @@ class Settings(QObject):
 
     def update_window_position(self, wid: str, x: int, y: int) -> bool:
         """Uppdatera fönsterposition (för BUGG 26 auto-reposition)."""
+        x, y = self._filter_geometry(wid, x, y)[:2]
         with self._lock:
             windows = self._data.get("windows", [])
             updated = False
@@ -3024,6 +3030,59 @@ class Settings(QObject):
         self._dirty = True
         self._save_async_worker(self._data)
         return True
+
+    @_log_call
+    def edge_dock_enabled(self) -> bool:
+        """Dockning vid skärmkant: dra fönstret mot en kant så glider det ut."""
+        with self._lock:
+            return bool(self._data.get("edge_dock_enabled", True))
+
+    @_log_setter("edge_dock_enabled")
+    def set_edge_dock_enabled(self, enabled: bool) -> bool:
+        v = _coerce_bool(enabled, True)
+        with self._lock:
+            self._data["edge_dock_enabled"] = v
+        self._dirty = True
+        self._save_async_worker(self._data)
+        return True
+
+    def edge_dock_edge(self) -> str:
+        """Kanten fönstret är dockat vid ("left"/"right"/"top"), tom = inte dockat."""
+        with self._lock:
+            v = str(self._data.get("edge_dock_edge", ""))
+        return v if v in ("left", "right", "top") else ""
+
+    def set_edge_dock_edge(self, edge: str) -> bool:
+        v = str(edge) if str(edge) in ("left", "right", "top") else ""
+        with self._lock:
+            if self._data.get("edge_dock_edge", "") == v:
+                return True
+            self._data["edge_dock_edge"] = v
+        self._dirty = True
+        self._save_async_worker(self._data)
+        return True
+
+    # Geometrifilter: dockat och gömt fönster ligger utanför skärmen — det som sparas ska ändå vara
+    # det SYNLIGA läget, oavsett vilken väg i appen som sparar positionen.
+    def set_geometry_filter(self, wid: str, fn: Any) -> None:
+        filters = getattr(self, "_geometry_filters", None)
+        if filters is None:
+            filters = self._geometry_filters = {}
+        if fn is None:
+            filters.pop(wid, None)
+        else:
+            filters[wid] = fn
+
+    def _filter_geometry(self, wid: str, x: int, y: int, w: Any = None, h: Any = None) -> tuple:
+        fn = (getattr(self, "_geometry_filters", None) or {}).get(wid)
+        if fn is not None:
+            try:
+                r = fn(x, y, w, h)
+                if r:
+                    return r
+            except Exception as e:
+                self._log.debug(f"{LOG_PREFIX} geometrifilter: {e}")
+        return (x, y, w, h)
 
     @_log_call
     def links_fetch_titles(self) -> bool:

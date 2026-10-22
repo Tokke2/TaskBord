@@ -73,6 +73,13 @@ class WindowOpsMixin:
             # NY v8: backup av uppgifter
             act_backup = menu.addAction("💾 Backup av uppgifter…")
             act_help = menu.addAction("⌨️ Tangentöversikt (F1)")
+            act_dock = menu.addAction("↔ Docka vid skärmkant")
+            act_dock.setCheckable(True)
+            act_dock.setChecked(bool(getattr(self.settings, "edge_dock_enabled", lambda: True)()))
+            act_dock.setToolTip(
+                "Dra fönstret mot vänster, höger eller övre kanten och släpp — då glider det ut\n"
+                "och kommer tillbaka när musen nuddar kanten. Dra bort det för att sluta docka."
+            )
             act_titles = menu.addAction("🔗 Hämta sidtitlar för länkar")
             act_titles.setCheckable(True)
             act_titles.setChecked(bool(getattr(self.settings, "links_fetch_titles", lambda: True)()))
@@ -100,6 +107,10 @@ class WindowOpsMixin:
                 self._on_open_google_calendar()
             elif chosen is act_backup:
                 self._on_open_backup()
+            elif chosen is act_dock:
+                self.settings.set_edge_dock_enabled(act_dock.isChecked())
+                if not act_dock.isChecked():
+                    self._edge_dock_release()
             elif chosen is act_titles:
                 self.settings.set_links_fetch_titles(act_titles.isChecked())
             elif chosen is act_help:
@@ -144,6 +155,46 @@ class WindowOpsMixin:
         except Exception as e:
             logger.debug(f"{LOG_PREFIX} _shell_screen_move: {e}")
 
+    # ------------------------------------------------------------------
+    # Dockning vid skärmkant (ui/edge_dock.py)
+    # ------------------------------------------------------------------
+    def _ensure_edge_dock(self) -> Any:
+        dk = getattr(self, "_edge_dock", None)
+        if dk is None:
+            from ui.edge_dock import EdgeDocker
+            dk = self._edge_dock = EdgeDocker(self, self.settings, self.win_id)
+        return dk
+
+    def _start_edge_dock(self) -> None:
+        """Vid start: återuppta dockningen om fönstret var dockat när appen stängdes."""
+        try:
+            self._ensure_edge_dock().adopt_saved()
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} _start_edge_dock: {_describe_widget_error(e)}")
+
+    def _edge_dock_after_drag(self) -> None:
+        """Fönstret har släppts efter drag: nära en skärmkant → docka."""
+        try:
+            self._ensure_edge_dock().on_drag_release()
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} _edge_dock_after_drag: {_describe_widget_error(e)}")
+
+    def _edge_dock_reveal(self) -> None:
+        dk = getattr(self, "_edge_dock", None)
+        if dk is not None:
+            dk.reveal()
+
+    def _edge_dock_pin(self, on: bool) -> None:
+        dk = getattr(self, "_edge_dock", None)
+        if dk is not None:
+            dk.pin(on)
+
+    def _edge_dock_release(self) -> None:
+        """Sluta docka (fönstret hamnar på sitt synliga läge)."""
+        dk = getattr(self, "_edge_dock", None)
+        if dk is not None:
+            dk.undock()
+
     def _center_window(self, reset_size: bool = False) -> None:
         """
         NY v7-fix47: centrera fönstret på primärskärmen.
@@ -151,6 +202,7 @@ class WindowOpsMixin:
         reset_size=True → även standardstorlek (nollställ).
         Position + storlek sparas direkt (överlever omstart).
         """
+        self._edge_dock_release()  # centrering = inte längre dockat
         try:
             _sh = getattr(self, "_shell", None)
             _target = _sh if _sh is not None else self
