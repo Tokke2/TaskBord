@@ -193,6 +193,17 @@ fönstret tillbaka till det läge du hade förut (Bakom ikonerna / På skrivbord
 **Högerklicka på fönstret → Visa över andra appar** (kryssruta) – samma sak med musen, fungerar på alla system.
 På macOS/Linux finns inga globala tangenter – kryssa i *Visa över andra appar* i tray-menyn.
 
+## 🔔 Påminnelser med knappar + siffra på ikonen
+
+När en uppgift är **försenad eller förfaller idag** visas ett litet kort nere till höger (tar inte fokus, så du kan
+skriva vidare i en annan app). Varje rad har knapparna **✓ Klar** (bockar av uppgiften) och **Skjut 1 h**
+(uppgiften döljs en timme och påminner igen när tiden gått). Dessutom **Öppna listan** och **Stäng**.
+Kortet försvinner av sig självt efter ca 30 s (står kvar medan musen är över det), flera påminnelser slås ihop
+och varje uppgift påminns en gång per session. Av/på: tray → påminnelser.
+
+**Tray-ikonen** visar antalet försenade + dagens uppgifter som en siffra (röd om något är försenat, annars orange).
+Inga uppgifter att bevaka → ren ikon.
+
 ## 🎨 Namn och ikon
 
 Appen heter **Ledgebord** (tidigare TaskBord). Ikonen – en indigo ruta med en gul *kantlist* och ett bockat

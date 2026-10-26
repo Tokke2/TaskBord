@@ -112,6 +112,8 @@ class BackupSyncMixin:
                 self._store_changed_in_thread = True
                 return
             self._update_tray_tooltip()
+            with suppress(Exception):
+                self._update_tray_badge()   # siffran på tray-ikonen (försenade + dagens)
             # Uppdatera inte menyn varje gång (för dyrt) — bara tooltip
         except Exception as e:
             self._log.debug(f"on_tasks_changed misslyckades: {e}")
