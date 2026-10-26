@@ -238,6 +238,10 @@ check("okänd total: bara MB", "av" not in updater.phase_text("download", 104857
 check("aldrig kollat => dags", updater.check_due(0, 1000))
 check("nyss kollat => inte dags", not updater.check_due(1000, 1000 + 3600))
 check("efter 24 h => dags", updater.check_due(1000, 1000 + 24 * 3600))
+check("kollintervallet är 12 h (2 gånger/dygn)", updater.CHECK_INTERVAL_SEC == 12 * 3600)
+check("efter 11 h 59 min => inte dags", not updater.check_due(1000, 1000 + 12 * 3600 - 60))
+check("efter 12 h => dags (andra kollen på dygnet)", updater.check_due(1000, 1000 + 12 * 3600))
+check("två kontroller per dygn: 08:00 och 20:00 räcker", updater.check_due(8 * 3600, 20 * 3600) and not updater.check_due(8 * 3600, 19 * 3600))
 check("klockan gått bakåt => dags", updater.check_due(5000, 1000))
 
 # --- inställningar överlever omstart ------------------------------------------
@@ -250,6 +254,8 @@ try:
     f = Path(tempfile.mkdtemp()) / "settings.json"
     st = Settings(file_path=f)
     check("auto-koll är på som standard", st.update_check_enabled() is True and st.update_last_check() == 0)
+    check("tyst installation är på som standard", st.update_auto_install() is True and st.update_auto_fp() == "")
+    st.set_update_auto_install(False); st.set_update_auto_fp("abc123")
     st.set_update_check_enabled(False)
     st.set_update_last_check(1760000000)
     st.set_update_notified("abc123")
@@ -258,6 +264,7 @@ try:
     check("auto-koll av sparas", st2.update_check_enabled() is False)
     check("senaste koll sparas", st2.update_last_check() == 1760000000)
     check("notifierad uppdatering sparas", st2.update_notified() == "abc123")
+    check("tyst installation av + fingeravtryck sparas", st2.update_auto_install() is False and st2.update_auto_fp() == "abc123")
 except ImportError:
     print("  (PySide6 saknas — hoppar över inställningstest)")
 
@@ -266,6 +273,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _src import app_source  # noqa: E402
 main = app_source(ROOT)
 check("tray-menyn har automatisk koll", "_toggle_auto_update" in main and "_init_update_check()" in main)
+check("tray-menyn har tyst installation", "_toggle_auto_install" in main and "Installera nya versioner tyst" in main)
+check("timern tickar varje timme (för 12 h-gränsen)", "setInterval(3600 * 1000)" in main)
 check("tray-menyn har Sök ny version", "Sök ny version" in main and "self._check_for_updates" in main)
 check("uppdateringen sparar uppgifter först", "self.store.save()" in main.split("def _finish_check")[1][:4000])
 

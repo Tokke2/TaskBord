@@ -40,7 +40,8 @@ NAMES = {
     "_refresh_update_action", "_update_action_text", "_check_for_updates", "_update_finish",
     "_poll_update_check", "_finish_check", "_finish_apply", "_auto_update_check",
     "_notify_update_available", "_on_tray_message_clicked", "_toggle_auto_update",
-    "_update_failed_fp",
+    "_update_failed_fp", "_begin_install", "_auto_install_blocker", "_update_busy_reason",
+    "_auto_install_when_idle", "_toggle_auto_install",
 }
 methods = {}
 for node in (n for t in trees for n in ast.walk(t)):
@@ -65,7 +66,8 @@ class FakeTimer:
     def start(self): self.running = True
     def stop(self): self.running = False
     @staticmethod
-    def singleShot(ms, f): pass
+    def singleShot(ms, f): FakeTimer.shots.append((ms, f))
+    shots: list = []
 
 
 class FakePD:
@@ -86,13 +88,18 @@ class FakePD:
 class FakeSettings:
     def __init__(self):
         self.enabled, self.last, self.notified = True, 0, ""
+        self.auto, self.auto_fp = False, ""   # tyst installation: av i de gamla scenarierna
     def update_check_enabled(self): return self.enabled
     def set_update_check_enabled(self, v): self.enabled = v
     def update_last_check(self): return self.last
     def set_update_last_check(self, v): self.last = v
     def update_notified(self): return self.notified
     def set_update_notified(self, v): self.notified = v
-    def update_failed(self): return ""
+    def update_failed(self): return getattr(self, "failed", "")
+    def update_auto_install(self): return self.auto
+    def set_update_auto_install(self, v): self.auto = v
+    def update_auto_fp(self): return self.auto_fp
+    def set_update_auto_fp(self, v): self.auto_fp = v
 
 
 class Log:
@@ -104,12 +111,40 @@ class Tray:
     def showMessage(self, title, text, icon, ms): self.msgs.append((title, text))
 
 
+class FakeApp:
+    modal = None
+    popup = None
+    def activeModalWidget(self): return self.modal
+    def activePopupWidget(self): return self.popup
+
+
+class FakeLock:
+    def __enter__(self): return self
+    def __exit__(self, *a): return False
+
+
+class FakeInput:
+    def __init__(self, text=""): self._t = text
+    def text(self): return self._t
+
+
+class FakeWidget:
+    def __init__(self, text="", inline=None, drag=False):
+        self.input_field = FakeInput(text)
+        self._inline_edit = inline
+        self._drag_active = drag
+
+
 class Stub:
     _mode = "normal"
+    AUTO_INSTALL_MAX_WAIT = 3
     def __init__(self):
         self.settings = FakeSettings()
+        self._widget_lock = FakeLock()
+        self._widgets = {"w": FakeWidget()}
+        self.waits = []
         self._tray = Tray()
-        self._app = None
+        self._app = FakeApp()
         self._QTimer = FakeTimer
         self._QSystemTrayIcon = type("T", (), {"MessageIcon": type("I", (), {"Information": 1})})
         self._log = Log()
@@ -312,6 +347,148 @@ r._update_pd.vis = False
 r._update_progress = ("install", 3, 5)
 r._update_progress_refresh()
 check("bortstängt installationsfönster visas igen", r._update_pd.vis)
+
+
+# ===== 10. TYST INSTALLATION + TYST OMSTART (2026-10-26) =====================================
+(APP / "main.pyw").write_bytes(b"print('v1')\n")
+(APP / "core" / "y.py").unlink(missing_ok=True)
+STATE["slow"] = 0.0
+STATE["zip"] = make_zip({"main.pyw": b"print('v9')\n", "core/x.py": b"A=9\n"})
+
+
+def reset_app():
+    """Tillbaka till 'gamla' installationen (main.pyw v1, ingen core/x.py)."""
+    (APP / "main.pyw").write_bytes(b"print('v1')\n")
+    (APP / "core" / "x.py").unlink(missing_ok=True)
+
+
+def auto_stub(**kw):
+    st = Stub()
+    st.settings.auto = True
+    for k, v in kw.items():
+        setattr(st.settings, k, v)
+    return st
+
+
+a = auto_stub()
+a._auto_update_check()
+check("tyst installation: klar", run(a))
+check("tyst installation: inga dialoger och inga förloppsfönster", not a.dialogs and not a.pds)
+check("tyst installation: ingen tray-notis", not a._tray.msgs)
+check("tyst installation: filerna byttes", (APP / "main.pyw").read_bytes() == b"print('v9')\n")
+check("tyst installation: js/ orörd", (APP / "js" / "active.json").read_text() == "{}")
+check("tyst omstart: appen avslutas (väktaren startar den nya)", a.shut == [1])
+check("uppgifter + fönsterläge sparades före bytet och före omstarten",
+      "före uppdatering" in a.saved and getattr(a, "flushed", []) == ["före uppdatering", "före tyst omstart"])
+check("fingeravtryck sparat före bytet (skydd mot loop)", len(a.settings.auto_fp) == 16)
+check("ingen fråga ställdes", not any(d[0] == "ask" for d in a.dialogs))
+
+# samma uppdatering igen (t.ex. filerna blev aldrig lika) -> ingen ny omstart, bara vanlig notis
+reset_app()
+b = auto_stub(auto_fp=a.settings.auto_fp)
+b._auto_update_check()
+run(b)
+check("loopskydd: samma uppdatering installeras inte automatiskt två gånger", b.shut == [] and (APP / "main.pyw").read_bytes() == b"print('v1')\n")
+check("loopskydd: användaren får i stället den vanliga notisen", len(b._tray.msgs) == 1)
+
+# avstängd inställning -> som förut (bara notis)
+c = auto_stub(auto=False)
+c._auto_update_check()
+run(c)
+check("avstängd tyst installation: bara notis, inget byts", len(c._tray.msgs) == 1 and c.shut == [] and (APP / "main.pyw").read_bytes() == b"print('v1')\n")
+
+# upptaget: dialog / meny / redigering / drag / text i inmatningsfältet -> väntar
+for label, setup in (
+    ("öppen dialog", lambda st: setattr(st._app, "modal", object())),
+    ("öppen meny", lambda st: setattr(st._app, "popup", object())),
+    ("inline-redigering", lambda st: st._widgets.update(w=FakeWidget(inline=object()))),
+    ("drag av kort", lambda st: st._widgets.update(w=FakeWidget(drag=True))),
+    ("text i inmatningsfältet", lambda st: st._widgets.update(w=FakeWidget(text="halvskriven uppgift"))),
+):
+    FakeTimer.shots.clear()
+    d = auto_stub()
+    setup(d)
+    check(f"upptaget ({label}) ger en orsak", d._update_busy_reason() != "")
+    d._auto_update_check()
+    run(d)
+    check(f"upptaget ({label}): ingen installation, ingen omstart", d.shut == [] and (APP / "main.pyw").read_bytes() == b"print('v1')\n")
+    check(f"upptaget ({label}): försöker igen om en minut", FakeTimer.shots and FakeTimer.shots[-1][0] == 60_000)
+    check(f"upptaget ({label}): ingen dialog", not d.dialogs)
+
+# väntan som blir lugn -> installerar då
+FakeTimer.shots.clear()
+e = auto_stub()
+e._app.modal = object()
+e._auto_update_check()
+run(e)
+e._app.modal = None
+FakeTimer.shots[-1][1]()   # minutens väntan är över
+check("lugnt igen: installerar tyst och startar om", run(e) and e.shut == [1] and (APP / "main.pyw").read_bytes() == b"print('v9')\n")
+
+# ger upp efter max väntan -> vanlig notis
+reset_app()
+FakeTimer.shots.clear()
+g = auto_stub(auto_fp="")
+g._app.modal = object()
+g._auto_update_check()
+run(g)
+for _ in range(10):
+    if not FakeTimer.shots:
+        break
+    FakeTimer.shots.pop()[1]()
+check("väntar högst AUTO_INSTALL_MAX_WAIT gånger sedan notis i stället", len(g._tray.msgs) == 1 and g.shut == [] and (APP / "main.pyw").read_bytes() == b"print('v1')\n")
+
+# requirements.txt ändrad -> aldrig tyst (kräver paketinstallation)
+(APP / "requirements.txt").write_text("PySide6==1\n")
+STATE["zip"] = make_zip({"main.pyw": b"print('v9')\n", "requirements.txt": b"PySide6==2\n"})
+r = auto_stub()
+r._auto_update_check()
+run(r)
+check("requirements ändrad: ingen tyst installation, bara notis", r.shut == [] and len(r._tray.msgs) == 1 and (APP / "main.pyw").read_bytes() == b"print('v1')\n")
+(APP / "requirements.txt").unlink()
+STATE["zip"] = make_zip({"main.pyw": b"print('v9')\n", "core/x.py": b"A=9\n"})
+
+# uppdatering som återställdes förut -> ingen tyst installation
+f = auto_stub()
+f.settings.failed = updater.fingerprint(updater.check_for_update(APP, fake_http))
+f._auto_update_check()
+run(f)
+check("återställd uppdatering installeras inte tyst", f.shut == [] and (APP / "main.pyw").read_bytes() == b"print('v1')\n")
+
+# förra uppdateringen ännu obekräftad -> vänta
+h = auto_stub()
+h._update_guard_pending = True
+h._auto_update_check()
+run(h)
+check("obekräftad förra uppdatering: ingen ny tyst installation", h.shut == [] and (APP / "main.pyw").read_bytes() == b"print('v1')\n")
+
+# installationen misslyckas -> helt tyst, inget ändrat, ingen omstart
+_real_apply = updater.apply_update
+def _boom(*a, **k): raise updater.UpdateError("disk full")
+updater.apply_update = _boom
+k = auto_stub()
+k._auto_update_check()
+run(k)
+check("misslyckad tyst installation: ingen dialog, ingen omstart", not k.dialogs and k.shut == [] and not k._tray.msgs)
+check("misslyckad tyst installation: appen kan köra vidare (inte upptagen)", k._update_busy is False)
+updater.apply_update = _real_apply
+
+# omstarten går inte att schemalägga -> tyst, appen kör vidare
+_real_restart = updater.schedule_restart
+updater.schedule_restart = lambda app_dir, *a, **kw: False
+reset_app()
+q = auto_stub()
+q._auto_update_check()
+run(q)
+check("omstart ej möjlig: inga dialoger, appen avslutas inte", not q.dialogs and q.shut == [])
+updater.schedule_restart = _real_restart
+
+# tray-växlaren
+t = auto_stub()
+t._toggle_auto_install()
+check("_toggle_auto_install slår av och på", t.settings.auto is False)
+t._toggle_auto_install()
+check("…och på igen", t.settings.auto is True)
 
 print(f"\nupdater_flow_test: {ok} lyckades, {fail} misslyckades")
 sys.exit(1 if fail else 0)

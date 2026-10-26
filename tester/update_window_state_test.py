@@ -40,9 +40,12 @@ src = (ROOT / "app/mixins/updates.py").read_text(encoding="utf-8")
 i_flush1 = src.find('self._flush_window_state("före uppdatering")')
 i_apply = src.find("updater.apply_update(")
 i_flush2 = src.find('self._flush_window_state("före omstart")')
-i_restart = src.find("updater.schedule_restart(")
+i_restart = src.find("updater.schedule_restart(", i_flush2)
+i_flush_s = src.find('self._flush_window_state("före tyst omstart")')
+i_restart_s = src.find("updater.schedule_restart(")
 check("fönsterläget sparas före installationen", 0 < i_flush1 < i_apply)
 check("fönsterläget sparas före omstarten", 0 < i_flush2 < i_restart)
+check("fönsterläget sparas även före den TYSTA omstarten", 0 < i_flush_s < i_restart_s)
 
 # --- 2. helpern skriver till js/settings.json ------------------------------------------
 try:

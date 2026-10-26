@@ -1329,11 +1329,13 @@ class Settings(QObject):
             "google_calendar_color_by_priority": True,
             # Klara uppgifter i kalendern: "grey" | "strike" | "off"
             "google_calendar_done_style": "grey",
-            # NY v8: automatisk, tyst koll efter ny version (max 1 gång/dygn)
+            # NY v8: automatisk, tyst koll efter ny version (2 gånger/dygn)
             "update_check_enabled": True,
             "update_last_check": 0,        # epoch-sekunder, senaste LYCKADE kollen
             "update_notified": "",         # fingeravtryck för uppdatering vi redan sagt till om
             "update_failed": "",           # fingeravtryck för uppdatering som återställdes (startade inte)
+            "update_auto_install": True,   # installera nya versioner tyst + starta om själv (efter den tysta kollen)
+            "update_auto_fp": "",          # fingeravtryck för uppdatering som redan installerats automatiskt (skydd mot loop)
             # NY: Thunderbird-tillägget (.xpi) — se core/addon_watch.py
             "addon_xpi_seen": "",          # .xpi som användaren bekräftat installerad
             "addon_xpi_notified": "",      # .xpi vi redan visat notis om
@@ -1406,6 +1408,8 @@ class Settings(QObject):
             "update_last_check": lambda v: _coerce_int(v, 0, 0, 4102444800),
             "update_notified": lambda v: _coerce_str(v, "")[:64],
             "update_failed": lambda v: _coerce_str(v, "")[:64],
+            "update_auto_install": lambda v: _coerce_bool(v, True),
+            "update_auto_fp": lambda v: _coerce_str(v, "")[:64],
             "addon_xpi_seen": lambda v: _coerce_str(v, "")[:64],
             "addon_xpi_notified": lambda v: _coerce_str(v, "")[:64],
             "autostart_method": lambda v: _coerce_str(v, DEFAULT_AUTOSTART_METHOD, VALID_AUTOSTART_METHODS),
@@ -2852,7 +2856,7 @@ class Settings(QObject):
     # --- NY v8: automatisk uppdateringskoll ------------------------------
     @_log_call
     def update_check_enabled(self) -> bool:
-        """Sök tyst efter ny version vid start och därefter max 1 gång/dygn?"""
+        """Sök tyst efter ny version vid start och därefter 2 gånger/dygn (var 12:e timme)?"""
         with self._lock:
             return bool(self._data.get("update_check_enabled", True))
 
@@ -2906,6 +2910,36 @@ class Settings(QObject):
         v = _coerce_str(fp, "")[:64]
         with self._lock:
             self._data["update_failed"] = v
+        self._dirty = True
+        self._save_async_worker(self._data)
+        return True
+
+    @_log_call
+    def update_auto_install(self) -> bool:
+        """Installera en ny version tyst och starta om automatiskt (efter den tysta kollen)?"""
+        with self._lock:
+            return bool(self._data.get("update_auto_install", True))
+
+    @_log_setter("update_auto_install")
+    def set_update_auto_install(self, enabled: bool) -> bool:
+        v = _coerce_bool(enabled, True)
+        with self._lock:
+            self._data["update_auto_install"] = v
+        self._dirty = True
+        self._save_async_worker(self._data)
+        return True
+
+    @_log_call
+    def update_auto_fp(self) -> str:
+        """Fingeravtryck för den uppdatering som senast installerades automatiskt."""
+        with self._lock:
+            return _coerce_str(self._data.get("update_auto_fp", ""), "")[:64]
+
+    @_log_setter("update_auto_fp")
+    def set_update_auto_fp(self, fp: str) -> bool:
+        v = _coerce_str(fp, "")[:64]
+        with self._lock:
+            self._data["update_auto_fp"] = v
         self._dirty = True
         self._save_async_worker(self._data)
         return True

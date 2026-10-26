@@ -492,7 +492,7 @@ class AppController(
         with suppress(Exception):
             self._init_update_guard()
 
-        # 6e-3. NY v8: tyst, automatisk koll efter ny version (max 1 gång/dygn)
+        # 6e-3. NY v8: tyst, automatisk koll efter ny version (2 gånger/dygn)
         with suppress(Exception):
             self._init_update_check()
 

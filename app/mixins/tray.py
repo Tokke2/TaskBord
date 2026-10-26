@@ -212,18 +212,35 @@ class TrayMixin:
 
             _auto_upd_on = bool(self.settings.update_check_enabled())
             _auto_upd = self._QAction(
-                f"{'✅' if _auto_upd_on else '⚪'}  Sök ny version automatiskt (1 gång/dygn)",
+                f"{'✅' if _auto_upd_on else '⚪'}  Sök ny version automatiskt (2 gånger/dygn)",
                 self._tray_menu,
             )
             _auto_upd.setCheckable(True)
             _auto_upd.setChecked(_auto_upd_on)
             _auto_upd.setToolTip(
-                "Kollar tyst i bakgrunden vid start och sedan högst en gång per dygn.\n"
-                "Du får bara en notis när det FINNS en ny version — inget installeras\n"
-                "utan att du godkänner det."
+                "Kollar tyst i bakgrunden vid start och sedan var 12:e timme (2 gånger per dygn).\n"
+                "Är nästa val nedan avstängt får du bara en notis när det FINNS en ny version."
             )
             _auto_upd.triggered.connect(self._toggle_auto_update)
             self._tray_menu.addAction(_auto_upd)
+
+            _auto_ins_on = bool(self.settings.update_auto_install())
+            _auto_ins = self._QAction(
+                f"{'✅' if _auto_ins_on else '⚪'}  Installera nya versioner tyst (omstart)",
+                self._tray_menu,
+            )
+            _auto_ins.setCheckable(True)
+            _auto_ins.setChecked(_auto_ins_on)
+            _auto_ins.setToolTip(
+                "När den tysta kollen hittar en ny version installeras den automatiskt och\n"
+                "Ledgebord startar om sig själv utan några fönster. Uppgifter och fönstrets\n"
+                "plats sparas först, och väntar du med text i inmatningsfältet eller har en\n"
+                "dialog öppen väntar omstarten tills du är klar. Startar den nya versionen\n"
+                "inte inom 60 s återställs den förra. Kräver nya paket (requirements.txt)\n"
+                "får du i stället en notis."
+            )
+            _auto_ins.triggered.connect(self._toggle_auto_install)
+            self._tray_menu.addAction(_auto_ins)
 
             # Ny Thunderbird-.xpi väntar på att installeras om
             _addon_act = self._addon_tray_action()

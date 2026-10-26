@@ -281,8 +281,11 @@ def fingerprint(info: "UpdateInfo") -> str:
     return h.hexdigest()[:16]
 
 
+CHECK_INTERVAL_SEC = 12 * 3600  # automatisk koll: 2 gånger per dygn
+
+
 def check_due(last_check: float, now: Optional[float] = None,
-              interval_sec: float = 24 * 3600) -> bool:
+              interval_sec: float = CHECK_INTERVAL_SEC) -> bool:
     """Har det gått minst ``interval_sec`` sedan senaste lyckade kollen? (klockhopp bakåt räknas som 'dags')."""
     now = time.time() if now is None else now
     if last_check <= 0 or last_check > now:

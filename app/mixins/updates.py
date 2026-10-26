@@ -199,7 +199,13 @@ class UpdateMixin:
         self._refresh_update_action()
         if silent:
             self._update_finish()
-            self._notify_update_available(info)
+            why_not = self._auto_install_blocker(info)
+            if not why_not:
+                self._auto_install_when_idle(info)
+            else:
+                if not info.up_to_date:
+                    self._log.info(f"{LOG_PREFIX} ingen automatisk installation: {why_not}")
+                self._notify_update_available(info)
             return
         if info.up_to_date:
             self._update_finish()
@@ -227,9 +233,19 @@ class UpdateMixin:
         ):
             self._update_finish()
             return
-        # --- Installationsfas: eget förloppsfönster, filbytet i bakgrundstråd ---
+        self._begin_install(info, silent=False)
+
+    def _begin_install(self, info: Any, silent: bool = False) -> None:
+        """
+        Installationsfas: spara uppgifter + fönsterläge + backup, byt filerna i en bakgrundstråd.
+        silent=True (automatisk uppdatering): inga fönster alls — omstarten sker också tyst.
+        """
+        from core import updater
         n = len(info.changed)
-        self._update_progress_open(updater.phase_text("save"), cancelable=False, maximum=0)
+        self._update_busy = True
+        self._update_silent = bool(silent)
+        if not silent:
+            self._update_progress_open(updater.phase_text("save"), cancelable=False, maximum=0)
         with suppress(Exception):
             self.store.save()
         self._flush_window_state("före uppdatering")
@@ -282,9 +298,12 @@ class UpdateMixin:
         from core import updater
         kind, payload = res
         info = self._update_info
+        silent = getattr(self, "_update_silent", False)
         self._update_finish()
         if kind == "err":
             self._log.error(f"{LOG_PREFIX} installation misslyckades: {payload}")
+            if silent:
+                return  # tyst: inget har ändrats; nästa koll försöker igen
             self._update_dialog(
                 "warn", "Uppdatering misslyckades",
                 f"{payload}\n\nInget har ändrats — din installation är som förut.",
@@ -295,6 +314,16 @@ class UpdateMixin:
         self._log.info(
             f"{LOG_PREFIX} uppdaterad till {info.tag} ({info.commit[:7]}), backup {payload}"
         )
+        if silent:
+            # Tyst omstart: inga dialoger. Uppgifter och fönsterläge sparas, väktaren startar den nya
+            # versionen (och återställer den gamla om den inte kommer igång inom 60 s).
+            self._flush_window_state("före tyst omstart")
+            if updater.schedule_restart(SCRIPT_DIR, backup_root=payload):
+                self._log.info(f"{LOG_PREFIX} tyst omstart efter uppdatering")
+                self.shutdown()
+            else:
+                self._log.warning(f"{LOG_PREFIX} tyst omstart misslyckades — ny version används vid nästa start")
+            return
         if info.requirements_changed:
             self._update_dialog(
                 "info", "Uppdaterad",
@@ -391,13 +420,13 @@ class UpdateMixin:
         with suppress(Exception):
             self._update_dialog("warn", "Uppdateringen återställdes", text)
 
-    # --- automatisk, tyst koll (max 1 gång/dygn) ------------------------
+    # --- automatisk, tyst koll (2 gånger/dygn) + tyst installation --------
     def _init_update_check(self) -> None:
-        """Första kollen ~30 s efter start, därefter var 3:e timme om det är >24 h sedan sist."""
+        """Första kollen ~30 s efter start, därefter varje timme om det är >12 h sedan sist (2 gånger/dygn)."""
         if self._mode == AppMode.SAFE_MODE:
             return
         self._update_auto_timer = self._QTimer(self._app)
-        self._update_auto_timer.setInterval(3 * 3600 * 1000)
+        self._update_auto_timer.setInterval(3600 * 1000)
         self._update_auto_timer.timeout.connect(self._auto_update_check)
         self._update_auto_timer.start()
         self._QTimer.singleShot(30_000, self._auto_update_check)
@@ -415,6 +444,97 @@ class UpdateMixin:
             self._check_for_updates(silent=True)
         except Exception as e:
             self._log.debug(f"{LOG_PREFIX} _auto_update_check: {e}")
+
+    AUTO_INSTALL_MAX_WAIT = 180   # försök i högst 3 timmar (1 gång/min) att hitta ett lugnt ögonblick
+
+    def _auto_install_blocker(self, info: Any) -> str:
+        """Varför en tyst installation INTE ska göras (tom sträng = det går bra)."""
+        from core import updater
+        try:
+            if info.up_to_date:
+                return "ingen ny version"
+            if not self.settings.update_auto_install():
+                return "automatisk installation är avstängd"
+            if not info.changed:
+                return "inga filer att byta"
+            if info.requirements_changed:
+                return "requirements.txt har ändrats (kräver paketinstallation av dig)"
+            fp = updater.fingerprint(info)
+            if not fp:
+                return "saknar fingeravtryck"
+            if fp == self._update_failed_fp():
+                return "samma uppdatering återställdes förut (startade inte)"
+            if fp == self.settings.update_auto_fp():
+                return "samma uppdatering har redan installerats automatiskt (skydd mot omstartsloop)"
+            if getattr(self, "_update_guard_pending", False):
+                return "förra uppdateringen är inte bekräftad ännu"
+            if getattr(self, "_update_auto_pending", False):
+                return "en tyst installation väntar redan"
+            return ""
+        except Exception as e:
+            return f"kontrollen misslyckades: {e}"
+
+    def _update_busy_reason(self) -> str:
+        """Pågår något där en omstart skulle störa? (tom sträng = lugnt)"""
+        try:
+            app = self._app
+            if app.activeModalWidget() is not None:
+                return "en dialog är öppen"
+            if app.activePopupWidget() is not None:
+                return "en meny är öppen"
+            with self._widget_lock:
+                ws = list(self._widgets.values())
+            for w in ws:
+                if getattr(w, "_inline_edit", None) is not None:
+                    return "du redigerar en uppgift"
+                if getattr(w, "_drag_active", False):
+                    return "du drar i ett kort"
+                inp = getattr(w, "input_field", None)
+                if inp is not None and inp.text().strip():
+                    return "du skriver en ny uppgift"
+        except Exception:
+            pass
+        return ""
+
+    def _auto_install_when_idle(self, info: Any, attempt: int = 0) -> None:
+        """
+        Installera tyst så fort du inte håller på med något (dialog/redigering/text i inmatningsfältet).
+        Väntar upp till 3 h; går det inte hamnar uppdateringen som vanligt i en tray-notis.
+        """
+        from core import updater
+        try:
+            self._update_auto_pending = True
+            reason = self._update_busy_reason()
+            if not reason and getattr(self, "_update_busy", False):
+                reason = "en annan uppdatering pågår"
+            if reason:
+                if attempt >= self.AUTO_INSTALL_MAX_WAIT:
+                    self._update_auto_pending = False
+                    self._log.info(f"{LOG_PREFIX} tyst installation gav upp ({reason}) — notis i stället")
+                    self._notify_update_available(info)
+                    return
+                if attempt == 0:
+                    self._log.info(f"{LOG_PREFIX} tyst installation väntar: {reason}")
+                self._QTimer.singleShot(60_000, lambda: self._auto_install_when_idle(info, attempt + 1))
+                return
+            self._update_auto_pending = False
+            fp = updater.fingerprint(info)
+            with suppress(Exception):
+                self.settings.set_update_auto_fp(fp)   # sparas FÖRE bytet: samma uppdatering körs aldrig två gånger
+            self._log.info(f"{LOG_PREFIX} tyst installation av {info.tag} ({len(info.changed)} filer, {fp})")
+            self._begin_install(info, silent=True)
+        except Exception as e:
+            self._update_auto_pending = False
+            self._log.warning(f"{LOG_PREFIX} tyst installation misslyckades: {e}", exc_info=True)
+            self._update_finish()
+
+    def _toggle_auto_install(self, checked: bool = False) -> None:
+        new = not self.settings.update_auto_install()
+        with suppress(Exception):
+            self.settings.set_update_auto_install(new)
+        self._log.info(f"{LOG_PREFIX} automatisk installation: {'PÅ' if new else 'AV'}")
+        with suppress(Exception):
+            self._populate_tray_menu()
 
     def _notify_update_available(self, info: Any) -> None:
         """Tyst koll hittade något: tray-notis EN gång per uppdatering (menytexten markeras alltid)."""

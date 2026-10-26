@@ -57,11 +57,21 @@ Snabbstart:
 
 ## 🔄 Uppdatera appen (Sök ny version)
 
-**Automatiskt:** vid start (efter ca 30 s) och därefter högst en gång per dygn kollar Ledgebord
-tyst i bakgrunden. Är allt aktuellt märker du ingenting. Finns en ny version får du *en*
-tray-notis (klicka på den för att uppdatera), och menyraden ändras till
-**🆕 Ny version finns — uppdatera…**. Inget installeras utan att du godkänner. Stäng av med
-tray → *Sök ny version automatiskt*.
+**Automatiskt och tyst:** vid start (efter ca 30 s) och därefter **2 gånger per dygn** (var 12:e timme) kollar
+Ledgebord i bakgrunden. Är allt aktuellt märker du ingenting. Finns en ny version installeras den **tyst** och
+Ledgebord **startar om sig själv utan några fönster**:
+
+* uppgifter, inställningar och fönstrets plats sparas först (och en backup tas), `js\` och `data\` rörs inte;
+* skriver du en uppgift, redigerar en titel, drar ett kort eller har en dialog/meny öppen väntar omstarten
+  tills du är klar (högst 3 timmar, därefter en vanlig notis);
+* kommer den nya versionen inte igång inom 60 s återställs den förra automatiskt, och just den uppdateringen
+  installeras aldrig tyst igen;
+* samma uppdatering installeras aldrig automatiskt två gånger (skydd mot omstartsloop);
+* ändras `requirements.txt` (nya paket) installeras inget tyst – du får en notis och kör `INSTALLERA.bat`.
+
+Vill du själv godkänna varje uppdatering: tray → avkryssa **Installera nya versioner tyst (omstart)** – då får
+du bara en tray-notis (klicka för att uppdatera) och menyraden **🆕 Ny version finns — uppdatera…**.
+Stäng av hela kollen med tray → *Sök ny version automatiskt*.
 
 **Manuellt:** tray-menyn → **🔄 Sök ny version…** hämtar GitHub-releasen *Latest* och jämför
 filerna med din installation (innehållet, inte versionsnumret — releasen kan heta v1.0.0 och
