@@ -41,7 +41,8 @@ echo.
 REM ----- Snabblage: starta med det som redan finns -----
 call :find_python
 if "%SNABB%"=="1" if defined PY goto :start_app
-if "%SNABB%"=="1" echo Ingen Python hittad - kor full installation forst.
+REM Snabbstart utan Python: oppna en synlig ruta for full installation (annars hanger den dolda)
+if "%SNABB%"=="1" (start "Ledgebord - Installation" "%~f0" & exit /b 1)
 
 REM ----- Senaste stabila version fran python.org -----
 call :get_latest
@@ -192,6 +193,8 @@ echo Forsok manuellt:  "%PY%" -m pip install -r requirements.txt
 goto :fail
 
 :fail
+REM Dold snabbstart som gick fel: visa full installation i ett synligt fonster
+if "%SNABB%"=="1" (start "Ledgebord - Installation" "%~f0" & exit /b 1)
 echo.
 pause
 exit /b 1

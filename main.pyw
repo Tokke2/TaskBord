@@ -114,6 +114,11 @@ _HERE = str(Path(__file__).resolve().parent)
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
+# Inga svarta konsollfönster som blinkar förbi när appen startar schtasks/reg/pip …
+from core.no_console import install as _no_console  # noqa: E402
+
+_no_console()
+
 from app.bootstrap import _self_test_central_log, run  # noqa: E402
 from app.constants import AppMode  # noqa: E402,F401
 from app.controller import AppController  # noqa: E402,F401

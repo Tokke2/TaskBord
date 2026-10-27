@@ -9,7 +9,7 @@
    - installerar Python om det saknas, eller uppgraderar det om installerad version är äldre än senaste,
    - installerar eller uppgraderar alla paket i `requirements.txt` och `requirements-optional.txt` till senaste version,
    - startar Ledgebord med den nyaste Python som finns.
-3. Nästa gång: dubbelklicka på **`STARTA_HAR.bat`**. Den startar direkt med nyaste installerade Python och installerar bara om Python saknas.
+3. Nästa gång: dubbelklicka på **`STARTA_HAR.bat`**. Den startar direkt med nyaste installerade Python och installerar bara om Python saknas. Inget svart konsollfönster visas: `STARTA_HAR.bat` startar via `STARTA_DOLT.vbs` (dolt), och själva appen körs med `pythonw.exe`, där alla underprogram (schtasks, reg, pip …) startas utan fönster (`core/no_console.py`). Saknas Python öppnas ett synligt installationsfönster. Allra utan blink: använd skrivbordsgenvägen "Ledgebord" eller dubbelklicka `main.pyw`.
 
 > Plattform: Ledgebord är idag gjord för Windows. Den använder Windows-specifika funktioner för fönsterlägen och skrivbordsikoner.
 
