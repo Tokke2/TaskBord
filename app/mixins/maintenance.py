@@ -124,6 +124,8 @@ class MaintenanceMixin:
     def _check_idle(self) -> None:
         """Kontrollera idle-tid (dölj widget om idle > 10 min)."""
         try:
+            if self._is_hidden_to_tray():
+                return   # redan gömd till tray av användaren — visa inte igen
             desktop_status = self._imports.get("desktop")
             if desktop_status and desktop_status.ok:
                 get_idle = getattr(self._desktop_mod(desktop_status), "get_idle_time_ms", None)

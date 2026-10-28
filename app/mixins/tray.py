@@ -776,6 +776,9 @@ class TrayMixin:
         det automatiskt på skrivbordet. Nytt klick = förläng timern.
         """
         try:
+            with suppress(Exception):
+                if self._is_hidden_to_tray():
+                    self._restore_from_tray()   # gömd till tray → visa först
             import ctypes
             _u = ctypes.windll.user32
             _secs = 5
@@ -839,6 +842,8 @@ class TrayMixin:
     def _lift_timeout(self) -> None:
         """NY v7-fix72: lyft-tiden ut — återfäst på skrivbordet."""
         try:
+            if self._is_hidden_to_tray():
+                return   # gömd till tray under tiden — inget att återfästa
             import ctypes
             _u = ctypes.windll.user32
             with self._widget_lock:
@@ -876,6 +881,8 @@ class TrayMixin:
     def _show_window_at_cursor(self) -> None:
         """NY v6.4: Visa alla fönster vid muspekaren."""
         try:
+            with suppress(Exception):
+                self._clear_tray_hidden()   # explicit visning → inte längre gömd till tray
             from PySide6.QtGui import QCursor
             cursor_pos = QCursor.pos()
             offset = 0

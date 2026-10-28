@@ -235,7 +235,7 @@ class FocusTimersMixin:
         ÄR Explorer-ikon-lagret → döljer ikoner. Rätt approach:
         reparenta till desktop-rot + HWND_TOP.
         """
-        if not self.isVisible():
+        if not self.isVisible() or getattr(self, "_hidden_to_tray", False):
             return
         # FIX v7-fix29: barn → inga Win32-operationer från timern
         if self._is_child():

@@ -240,6 +240,10 @@ class LifecycleMixin:
         hint.setAlignment(
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
         )
+        # Smalt fönster: det är tipset som kortas av först — inte räknaren eller knapparna
+        from PySide6.QtWidgets import QSizePolicy as _QSP
+        hint.setSizePolicy(_QSP.Policy.Ignored, _QSP.Policy.Fixed)
+        title_lbl.setSizePolicy(_QSP.Policy.Minimum, _QSP.Policy.Fixed)
         handle_row.addWidget(hint, 1)
         # NY v7-fix17: live-stats-chip ("X aktiva · Y klara")
         self.stats_chip = QLabel("", self)
@@ -247,6 +251,7 @@ class LifecycleMixin:
         self.stats_chip.setToolTip(
             "Antal uppgifter — uppdateras automatiskt"
         )
+        self.stats_chip.setSizePolicy(_QSP.Policy.Minimum, _QSP.Policy.Fixed)
         handle_row.addWidget(self.stats_chip)
         # Lock-knapp (toggle lås/lås upp)
         self.lock_btn = QPushButton("🔒", self)
@@ -261,6 +266,23 @@ class LifecycleMixin:
         )
         self.lock_btn.clicked.connect(self._toggle_lock)
         handle_row.addWidget(self.lock_btn)
+        # Minimera (–) och stäng (✕): båda gömmer fönstret till systemfältet (tray)
+        self.min_btn = QPushButton("–", self)
+        self.min_btn.setObjectName("winBtn")
+        self.min_btn.setFixedSize(30, 28)
+        self.min_btn.setToolTip("Minimera till systemfältet (tray-ikonen visar fönstret igen)")
+        self.min_btn.setAccessibleName("Minimera till systemfältet")
+        self.min_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.min_btn.clicked.connect(self._on_hide_to_tray_clicked)
+        handle_row.addWidget(self.min_btn)
+        self.close_btn = QPushButton("✕", self)
+        self.close_btn.setObjectName("closeBtn")
+        self.close_btn.setFixedSize(30, 28)
+        self.close_btn.setToolTip("Stäng fönstret — Ledgebord ligger kvar i systemfältet (Avsluta finns i tray-menyn)")
+        self.close_btn.setAccessibleName("Stäng till systemfältet")
+        self.close_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.close_btn.clicked.connect(self._on_hide_to_tray_clicked)
+        handle_row.addWidget(self.close_btn)
         root.addLayout(handle_row)
         # NY v7-fix86: tunn progress-bar under headern — % klara av
         # aktiva uppgifter (visuell feedback i samma design-språk som

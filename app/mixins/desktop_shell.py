@@ -450,6 +450,8 @@ class DesktopShellMixin:
                   re-show om gömt, tätare bevakning (5 s)
         """
         try:
+            if self._is_hidden_to_tray() or getattr(shell, "_hidden_to_tray", False):
+                return   # gömd till tray med knappen – / ✕: visa inte igen av sig själv
             import ctypes
             user32 = ctypes.windll.user32
             mode = getattr(shell, "_desktop_layer_mode", "normal")

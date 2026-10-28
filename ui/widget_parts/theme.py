@@ -218,6 +218,24 @@ class ThemeMixin:
                     color: white;
                     border: 1px solid {accent_hex};
                 }}
+                QPushButton#winBtn, QPushButton#closeBtn {{
+                    background: {t['surface']};
+                    color: {t['fg']};
+                    border: 1px solid {t['surface_edge']};
+                    border-radius: 9px;
+                    font-size: 14px;
+                    font-weight: 700;
+                    padding: 0px;
+                }}
+                QPushButton#winBtn:hover {{
+                    background: {t['surface_hov']};
+                    border: 1px solid {t['edge_hov']};
+                }}
+                QPushButton#closeBtn:hover {{
+                    background: #dc2626;
+                    color: #ffffff;
+                    border: 1px solid #dc2626;
+                }}
                 QLineEdit#searchInput, QLineEdit#inputField {{
                     background: {t['field_bg']};
                     border: 1px solid {t['surface_edge']};

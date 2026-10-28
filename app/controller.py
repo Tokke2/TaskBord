@@ -27,6 +27,7 @@ from app.mixins.mail_bridge_ctl import MailBridgeMixin
 from app.mixins.maintenance import MaintenanceMixin
 from app.mixins.plugin_updates import PluginUpdateMixin
 from app.mixins.reminders import RemindersMixin
+from app.mixins.tray_hide import TrayHideMixin
 from app.mixins.top_toggle import TopToggleMixin
 from app.mixins.tray import TrayMixin
 from app.mixins.updates import UpdateMixin
@@ -47,6 +48,7 @@ class AppController(
     ClipTaskMixin,
     TopToggleMixin,
     RemindersMixin,
+    TrayHideMixin,
     BackupSyncMixin,
     MailBridgeMixin,
     UpdateMixin,
@@ -483,6 +485,10 @@ class AppController(
         # 6d. NY v7-fix64: påminnelsetjänst (förfallna + dagens uppgifter)
         with suppress(Exception):
             self._init_reminder_service()
+
+        # 6d-2. 'Starta minimerad i tray': göm fönstret strax efter att det visats
+        with suppress(Exception):
+            self._QTimer.singleShot(3000, self._apply_start_minimized)
 
         # 6e-2. NY v8: automatisk säkerhetskopia av uppgifter + inställningar
         with suppress(Exception):

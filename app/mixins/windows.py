@@ -196,6 +196,9 @@ class WindowsMixin:
                         # Högerklicksmenyn "📌 Alltid överst" → samma växling som Ctrl+Alt+T/tray
                         with suppress(Exception):
                             w.top_toggle_requested.connect(self._toggle_always_on_top)
+                        # Knapparna – / ✕ + stäng-förfrågan → göm till systemfältet
+                        with suppress(Exception):
+                            w.hide_to_tray_requested.connect(self._hide_to_tray)
                         self._log.info(
                             f"{LOG_PREFIX} widget {wid!r}: steg 2/4 — TodoWidget "
                             f"skapad utan krasch"
@@ -485,6 +488,8 @@ class WindowsMixin:
         att widget-barnet är synligt.
         """
         try:
+            with suppress(Exception):
+                self._clear_tray_hidden()   # explicit visning → inte längre gömd till tray
             with self._widget_lock:
                 widgets = list(self._widgets.values())
             for w in widgets:
@@ -955,6 +960,9 @@ class WindowsMixin:
                     with suppress(Exception):
                         icon_rects = get_icons() or []
 
+            with suppress(Exception):
+                if self._is_hidden_to_tray():
+                    self._restore_from_tray()
             with self._widget_lock:
                 widgets = list(self._widgets.values())
             for w in widgets:

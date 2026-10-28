@@ -73,6 +73,7 @@ class WindowOpsMixin:
             # NY v8: backup av uppgifter
             act_backup = menu.addAction("💾 Backup av uppgifter…")
             act_help = menu.addAction("⌨️ Tangentöversikt (F1)")
+            act_hide = menu.addAction("🗕 Minimera till systemfältet")
             act_dock = menu.addAction("↔ Docka vid skärmkant")
             act_dock.setCheckable(True)
             act_dock.setChecked(bool(getattr(self.settings, "edge_dock_enabled", lambda: True)()))
@@ -113,6 +114,8 @@ class WindowOpsMixin:
                     self._edge_dock_release()
             elif chosen is act_titles:
                 self.settings.set_links_fetch_titles(act_titles.isChecked())
+            elif chosen is act_hide:
+                self._on_hide_to_tray_clicked()
             elif chosen is act_help:
                 self._on_show_shortcut_help()
             elif chosen is act_donate:
@@ -370,6 +373,8 @@ class WindowOpsMixin:
         # FIX v7-fix29: barn → skalet hanterar fokus
         if self._is_child():
             return
+        if getattr(self, "_hidden_to_tray", False):
+            return   # gömd till tray
         try:
             import ctypes
             if not self._native_window_ok():

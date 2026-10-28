@@ -193,6 +193,14 @@ fönstret tillbaka till det läge du hade förut (Bakom ikonerna / På skrivbord
 **Högerklicka på fönstret → Visa över andra appar** (kryssruta) – samma sak med musen, fungerar på alla system.
 På macOS/Linux finns inga globala tangenter – kryssa i *Visa över andra appar* i tray-menyn.
 
+## 🗕 Stäng och minimera → systemfältet
+
+Knapparna **–** (minimera) och **✕** (stäng) uppe till höger, högerklicksmenyn (*Minimera till systemfältet*) och en
+stäng-förfrågan (Alt+F4) **gömmer fönstret till tray**. Ledgebord fortsätter köra (påminnelser, mailbrygga,
+snabbtangenter). Tillbaka: klicka på **tray-ikonen**, tray-menyn → *Visa*, snabbtangenten för ny uppgift eller starta
+appen igen. **Avsluta** helt: tray-menyn → ❌ Avsluta. Win+D gömmer fortfarande inte fönstret — bara dessa knappar.
+Finns ingen tray-ikon göms inget (så du aldrig blir utelåst). Tray → *Starta minimerad i tray* gömmer fönstret vid start.
+
 ## 🔔 Påminnelser med knappar + siffra på ikonen
 
 När en uppgift är **försenad eller förfaller idag** visas ett litet kort nere till höger (tar inte fokus, så du kan

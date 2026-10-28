@@ -232,9 +232,11 @@ class QtEventsMixin:
                     f"(win_id={self.win_id!r}) — stängs"
                 )
                 return
-            event.ignore()  # BUGG 19: normal close = stanna synlig
+            event.ignore()  # stäng = göm till tray (fönstret förstörs aldrig)
             self._setup_bugg19_zorder()
             self._audit.add("close_event_ignored")
+            with __import__("contextlib").suppress(Exception):
+                self.hide_to_tray_requested.emit()
             logger.debug(
                 f"{LOG_PREFIX} closeEvent ignorerad (BUGG 19: "
                 f"widget stannar synlig pa skrivbordet)"
@@ -695,6 +697,8 @@ class QtEventsMixin:
         # FIX v7-fix29: barn → skalet hanterar native events
         if self._is_child():
             return False, 0
+        if getattr(self, "_hidden_to_tray", False):
+            return False, 0   # användaren gömde fönstret till tray → släpp igenom hide/minimera
         try:
             import ctypes
             from ctypes import wintypes

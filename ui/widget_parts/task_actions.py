@@ -602,6 +602,14 @@ class TaskActionsMixin:
                 exc_info=True,
             )
 
+    def _on_hide_to_tray_clicked(self) -> None:
+        """Knapparna – och ✕: göm fönstret till systemfältet (appen fortsätter köra)."""
+        try:
+            self._audit.add("hide_to_tray_clicked")
+            self.hide_to_tray_requested.emit()
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} _on_hide_to_tray_clicked misslyckades: {_describe_widget_error(e)}")
+
     def _on_close_clicked(self) -> None:
         """BUGG 19/26: close = satt z-order."""
         try:
