@@ -48,6 +48,7 @@ COPYRIGHT_YEARS: Final[str] = "2025–2026"
 APP_DESCRIPTION: Final[str] = "Desktop todo-widget med glasmorphism, pin-funktion och stabilitet-system"
 
 
+AUTOSTART_FLAG: Final[str] = "--autostart"  # på autostart-kommandot → start minimerad i systemfältet
 LOG_PREFIX: Final[str] = "[MAIN]"  # NY v6.4 — 10000% loggning
 
 

@@ -93,8 +93,43 @@ class TrayHideMixin:
         self._clear_tray_hidden()
         return True
 
-    def _apply_start_minimized(self) -> None:
-        """'Starta minimerad i tray' (tray-menyn): göm fönstret strax efter start."""
-        with suppress(Exception):
-            if self.settings.start_minimized():
-                self._hide_to_tray(notice=False)
+    def _remember_hidden_for_restart(self) -> None:
+        """Före tyst omstart: ligger fönstret i tray ska nya versionen också starta gömd (i 3 min)."""
+        import time as _time
+        if self._is_hidden_to_tray():
+            self.settings.set_restart_hidden_until(_time.time() + 180)
+
+    def _started_by_autostart(self) -> bool:
+        """Startades appen med datorn (autostart-kommandot har --autostart)?"""
+        from app.constants import AUTOSTART_FLAG
+        import sys
+        return AUTOSTART_FLAG in sys.argv[1:]
+
+    def _apply_start_minimized(self, attempt: int = 0) -> None:
+        """
+        Göm fönstret till tray strax efter start när appen startats MED DATORN (--autostart)
+        eller 'Starta minimerad i tray' är ikryssat (tray-menyn). Manuell start visar fönstret som vanligt.
+        Tray-ikonen kan dyka upp sent vid inloggning → några försök (annars göms inget).
+        """
+        try:
+            import time as _time
+            want = self._started_by_autostart()
+            if not want:
+                with suppress(Exception):
+                    want = bool(self.settings.start_minimized())
+            if not want:
+                # tyst omstart efter uppdatering medan fönstret låg i tray → fortsätt gömd
+                with suppress(Exception):
+                    if _time.time() < float(self.settings.restart_hidden_until()):
+                        want = True
+            with suppress(Exception):
+                if float(self.settings.restart_hidden_until()) and attempt == 0:
+                    self.settings.set_restart_hidden_until(0)   # gäller bara en omstart
+            if not want:
+                return
+            if self._hide_to_tray(notice=False):
+                self._log.info(f"{LOG_PREFIX} startade minimerad i tray ({'med datorn' if self._started_by_autostart() else 'inställning'})")
+            elif attempt < 4:
+                self._QTimer.singleShot(5000, lambda: self._apply_start_minimized(attempt + 1))
+        except Exception as e:
+            self._log.debug(f"{LOG_PREFIX} _apply_start_minimized: {e}")

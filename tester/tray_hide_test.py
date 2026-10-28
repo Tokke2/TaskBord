@@ -188,6 +188,67 @@ def child() -> None:
     c4._apply_start_minimized()
     ck("avstängd inställning → fönstret visas som vanligt", c4.sh.vis is True)
 
+    # ----- start med datorn (--autostart) → minimerad -----
+    saved_argv = list(sys.argv)
+    try:
+        sys.argv = ["main.pyw", "--autostart"]
+        c5 = Ctl()
+        ck("startad med datorn (--autostart) → känns igen", c5._started_by_autostart() is True)
+        c5._apply_start_minimized()
+        ck("start med datorn: fönstret göms till tray (utan notis)", c5.sh.vis is False and c5._tray.msgs == [])
+        sys.argv = ["main.pyw"]
+        c6 = Ctl()
+        ck("vanlig start → inte autostart", c6._started_by_autostart() is False)
+        c6._apply_start_minimized()
+        ck("vanlig (manuell) start visar fönstret", c6.sh.vis is True and not c6._is_hidden_to_tray())
+        # tray-ikonen saknas först vid inloggning → nytt försök senare
+        sys.argv = ["main.pyw", "--autostart"]
+        c7 = Ctl(visible=False)
+        shots = []
+        c7._QTimer = type("Q", (), {"singleShot": staticmethod(lambda ms, f: shots.append((ms, f)))})
+        c7._apply_start_minimized()
+        ck("ingen tray-ikon ännu → fönstret visas men nytt försök schemaläggs", c7.sh.vis is True and len(shots) == 1 and shots[0][0] == 5000)
+        c7._tray.visible = True
+        shots[0][1]()
+        ck("när tray-ikonen kommit göms fönstret", c7.sh.vis is False)
+        # tyst omstart efter uppdatering
+        import time as _t
+        sys.argv = ["main.pyw"]
+        store_ts = {"v": 0.0}
+
+        class St:
+            def start_minimized(self):
+                return False
+
+            def restart_hidden_until(self):
+                return store_ts["v"]
+
+            def set_restart_hidden_until(self, ts):
+                store_ts["v"] = ts
+        c8 = Ctl()
+        c8.settings = St()
+        c8._remember_hidden_for_restart()
+        ck("inget märke när fönstret inte är gömt", store_ts["v"] == 0.0)
+        c8._hide_to_tray(notice=False)
+        c8._remember_hidden_for_restart()
+        ck("gömt före tyst omstart → märke ~3 min framåt", 150 < store_ts["v"] - _t.time() <= 181)
+        c9 = Ctl()
+        c9.settings = St()
+        c9._apply_start_minimized()
+        ck("omstarten efter uppdatering startar gömd", c9.sh.vis is False)
+        ck("märket gäller bara EN omstart (nollas)", store_ts["v"] == 0.0)
+        c10 = Ctl()
+        c10.settings = St()
+        c10._apply_start_minimized()
+        ck("nästa start visar fönstret", c10.sh.vis is True)
+        store_ts["v"] = _t.time() - 5
+        c11 = Ctl()
+        c11.settings = St()
+        c11._apply_start_minimized()
+        ck("utgånget märke ignoreras", c11.sh.vis is True)
+    finally:
+        sys.argv = saved_argv
+
     # ----- att inget visar fönstret av sig själv medan det är gömt (källkodskontroll) -----
     src = app_source(ROOT)
     for name, guard in (
@@ -243,6 +304,15 @@ else:
             check("barnprocessen körde klart", False, (r.stdout + r.stderr)[-2200:])
     shutil.rmtree(work, ignore_errors=True)
     src = app_source(ROOT)
+    asrc = (ROOT / "app/mixins/autostart.py").read_text(encoding="utf-8")
+    check("autostart-kommandot får --autostart", "{AUTOSTART_FLAG}" in asrc and "AUTOSTART_FLAG" in asrc.split("def _autostart_build_command")[1][:900])
+    cons = (ROOT / "app/constants.py").read_text(encoding="utf-8")
+    check("flaggan heter --autostart", 'AUTOSTART_FLAG: Final[str] = "--autostart"' in cons)
+    from app.config import parse_args
+    cfg, _mode = parse_args(["main.pyw", "--autostart", "--no-splash"])
+    check("--autostart förstås av argumentläsaren (ingen SystemExit → övriga flaggor gäller)", cfg.show_splash is False)
+    usrc = (ROOT / "app/mixins/updates.py").read_text(encoding="utf-8")
+    check("tyst omstart minns gömt läge före omstarten", usrc.index("_remember_hidden_for_restart()") < usrc.index('_flush_window_state("före tyst omstart")'))
     check("TrayHideMixin ingår i AppController", "TrayHideMixin,\n    BackupSyncMixin" in (ROOT / "app/controller.py").read_text(encoding="utf-8"))
     check("signalen kopplas till _hide_to_tray", "hide_to_tray_requested.connect(self._hide_to_tray)" in src)
     check("'Starta minimerad' används vid start", "_apply_start_minimized" in (ROOT / "app/controller.py").read_text(encoding="utf-8"))

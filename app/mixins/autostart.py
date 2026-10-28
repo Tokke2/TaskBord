@@ -9,7 +9,7 @@ from contextlib import suppress
 from pathlib import Path
 from typing import Dict
 
-from app.constants import APP_NAME, LOG_PREFIX, SCRIPT_DIR
+from app.constants import APP_NAME, AUTOSTART_FLAG, LOG_PREFIX, SCRIPT_DIR
 from app.platform_utils import _is_windows
 
 
@@ -80,7 +80,9 @@ class AutostartMixin:
         script = SCRIPT_DIR / "main.pyw"
         if not script.is_file():
             script = SCRIPT_DIR / "main.py"
-        cmd = f'"{exe}" "{script}"'
+        # --autostart: appen startar minimerad i systemfältet när den startas med datorn
+        # (befintliga poster skrivs om automatiskt av _autostart_health_check)
+        cmd = f'"{exe}" "{script}" {AUTOSTART_FLAG}'
         self._log.debug(f"{LOG_PREFIX} autostart-kommando: {cmd}")
         return cmd
 

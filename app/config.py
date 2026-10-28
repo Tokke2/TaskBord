@@ -109,6 +109,8 @@ def parse_args(argv: List[str]) -> Tuple[AppConfig, AppMode]:
     parser.add_argument("--no-tray", action="store_true", help="Inaktivera system tray")
     parser.add_argument("--no-splash", action="store_true", help="Inaktivera splash-screen")
     parser.add_argument("--no-stability", action="store_true", help="Inaktivera stability-system")
+    parser.add_argument("--autostart", action="store_true",
+                        help="Startad med datorn (Windows-inloggning): starta minimerad i systemfältet")
     parser.add_argument("--no-async", action="store_true", help="Inaktivera async runner")
     parser.add_argument("--no-pwm", action="store_true", help="Inaktivera PWM (adaptive throttle)")
     parser.add_argument("--no-force-show", action="store_true", help="INAKTIVERA force-show (default PÅ)")

@@ -317,6 +317,8 @@ class UpdateMixin:
         if silent:
             # Tyst omstart: inga dialoger. Uppgifter och fönsterläge sparas, väktaren startar den nya
             # versionen (och återställer den gamla om den inte kommer igång inom 60 s).
+            with suppress(Exception):
+                self._remember_hidden_for_restart()   # låg fönstret i tray → nya versionen startar också gömd
             self._flush_window_state("före tyst omstart")
             if updater.schedule_restart(SCRIPT_DIR, backup_root=payload):
                 self._log.info(f"{LOG_PREFIX} tyst omstart efter uppdatering")

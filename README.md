@@ -199,7 +199,13 @@ Knapparna **–** (minimera) och **✕** (stäng) uppe till höger, högerklicks
 stäng-förfrågan (Alt+F4) **gömmer fönstret till tray**. Ledgebord fortsätter köra (påminnelser, mailbrygga,
 snabbtangenter). Tillbaka: klicka på **tray-ikonen**, tray-menyn → *Visa*, snabbtangenten för ny uppgift eller starta
 appen igen. **Avsluta** helt: tray-menyn → ❌ Avsluta. Win+D gömmer fortfarande inte fönstret — bara dessa knappar.
-Finns ingen tray-ikon göms inget (så du aldrig blir utelåst). Tray → *Starta minimerad i tray* gömmer fönstret vid start.
+Finns ingen tray-ikon göms inget (så du aldrig blir utelåst).
+
+**Start med datorn → minimerad:** när Ledgebord startar med Windows (tray → *Starta med datorn*) startar den direkt
+i systemfältet, utan fönster (kommandot får flaggan `--autostart`; befintliga autostart-poster skrivs om automatiskt
+vid nästa start). Startar du appen själv visas fönstret som vanligt. Tray → *Starta minimerad i tray* gör det även
+vid manuell start. Ligger fönstret i tray när en tyst uppdatering startar om appen kommer den nya versionen också
+upp gömd.
 
 ## 🔔 Påminnelser med knappar + siffra på ikonen
 

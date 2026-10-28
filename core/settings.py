@@ -2930,6 +2930,21 @@ class Settings(QObject):
         return True
 
     @_log_call
+    def restart_hidden_until(self) -> float:
+        """Epoch-sekunder: tyst omstart efter uppdatering → starta gömd till tray till dess."""
+        with self._lock:
+            try:
+                return float(self._data.get("restart_hidden_until", 0) or 0)
+            except (TypeError, ValueError):
+                return 0.0
+
+    def set_restart_hidden_until(self, ts: float) -> bool:
+        with self._lock:
+            self._data["restart_hidden_until"] = float(ts or 0)
+        self._dirty = True
+        self._save_async_worker(self._data)
+        return True
+
     def update_auto_fp(self) -> str:
         """Fingeravtryck för den uppdatering som senast installerades automatiskt."""
         with self._lock:
