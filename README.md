@@ -212,8 +212,22 @@ upp gömd.
 När en uppgift är **försenad eller förfaller idag** visas ett litet kort nere till höger (tar inte fokus, så du kan
 skriva vidare i en annan app). Varje rad har knapparna **✓ Klar** (bockar av uppgiften) och **Skjut 1 h**
 (uppgiften döljs en timme och påminner igen när tiden gått). Dessutom **Öppna listan** och **Stäng**.
-Kortet försvinner av sig självt efter ca 30 s (står kvar medan musen är över det), flera påminnelser slås ihop
-och varje uppgift påminns en gång per session. Av/på: tray → påminnelser.
+Kortet försvinner av sig självt efter ca 30 s (står kvar medan musen är över det) och flera påminnelser slås ihop.
+Av/på: tray → påminnelser.
+
+**När kommer påminnelserna?** Har uppgiften ett datum (t.ex. `261030` = 2026-10-30) visas kortet **på förfallodagens
+morgon kl 08:00** och sedan **var 30:e minut tills händelsen** — klockslaget om du angett ett (`261030 15:00`, sista
+påminnelsen exakt då), annars till 18:00. Startas appen senare på dagen kommer första påminnelsen direkt. Försenade
+uppgifter från tidigare dagar påminns en gång per dag. *Skjut 1 h* och ✓ Klar stoppar påminnelserna för uppgiften.
+
+**Datum utan streck:** `ÅÅMMDD` (`261030`) och `ÅÅÅÅMMDD` (`20261030`) funkar i fönstrets inmatningsfält, i
+snabbuppgiften (Ctrl+Alt+N) och i datumrutan (”Sätt datum…”) — även med klockslag, `!prio` och `#tagg`:
+`Fakturera Andreas 261030 15:00 !hög #jobb`. Ett vanligt nummer (fakturanummer o.d.) tolkas inte som datum om det inte
+är ett riktigt datum i rimligt år.
+
+**Ctrl+Alt+N** öppnar dialogen för ny uppgift **överst över alla andra fönster** med fokus direkt. Fönstret flyttas
+inte när uppgiften lagts till (positionen behålls) — listan lyfts bara en stund över andra appar. Ligger fönstret i
+tray förblir det där.
 
 **Tray-ikonen** visar antalet försenade + dagens uppgifter som en siffra (röd om något är försenat, annars orange).
 Inga uppgifter att bevaka → ren ikon.

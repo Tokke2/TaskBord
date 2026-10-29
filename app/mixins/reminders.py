@@ -20,11 +20,12 @@ class RemindersMixin:
         Kollar var 60:e sekund (QTimer på GUI-tråden):
           - Förfallna (due < idag) → "⚠ N uppgifter har passerat datum"
           - Dagens (due == idag)  → "📅 N uppgifter förfaller idag"
-        Dedup: varje uppgift påminns EN gång per session.
+        Förfallodag: första påminnelsen 08:00, sedan var 30:e minut tills händelsen
+        (klockslaget, annars 18:00); försenade från tidigare dagar en gång per dag.
         Snoozade uppgifter exkluderas. Av/på i tray-menyn.
         """
         try:
-            self._reminded_ids = set()
+            self._reminder_last = {}
             self._reminder_timer = self._QTimer()
             self._reminder_timer.setInterval(60000)  # 60 sek
             self._reminder_timer.timeout.connect(self._check_reminders)
@@ -40,6 +41,11 @@ class RemindersMixin:
             self._log.warning(
                 f"{LOG_PREFIX} _init_reminder_service: {e}", exc_info=True
             )
+
+    def _reminder_now(self) -> Any:
+        """Nuvarande tid för påminnelselogiken (egen metod så tester kan styra klockan)."""
+        from datetime import datetime as _dt
+        return _dt.now()
 
     def _check_reminders(self) -> None:
         """Kontrollera förfallna/dagens uppgifter → kort med knapparna Klar / Skjut 1 h (varje uppgift en gång/session)."""
@@ -60,25 +66,27 @@ class RemindersMixin:
                 return
 
             from core import reminder_logic as _rl
-            if not hasattr(self, "_reminded_ids"):
-                self._reminded_ids = set()
+            if not hasattr(self, "_reminder_last"):
+                self._reminder_last = {}
+            now = self._reminder_now()
 
+            # Förfallodag: första påminnelsen 08:00, sedan var 30:e minut tills händelsen (se reminder_logic)
             new_items = []
             if hasattr(self.store, "active_tasks"):
-                for task, kind, days in _rl.due_items(self.store.active_tasks()):
-                    if task.get("id") in self._reminded_ids:
-                        continue
-                    new_items.append((task, kind, days))
+                for task, kind, days in _rl.due_items(self.store.active_tasks(), now):
+                    if _rl.reminder_due(task, now, self._reminder_last.get(task.get("id"))):
+                        new_items.append((task, kind, days))
             if not new_items:
                 return
             for task, _k, _d in new_items:
-                self._reminded_ids.add(task.get("id"))
+                self._reminder_last[task.get("id")] = now
             n_over = sum(1 for _t, k, _d in new_items if k == _rl.OVERDUE)
             self._log.info(
                 f"{LOG_PREFIX} PÅMINNELSE: {n_over} förfallna, {len(new_items) - n_over} förfaller idag"
             )
             if not self._reminder_popup_show(
-                [(str(t.get("id")), str(t.get("title", "?")), k, d) for t, k, d in new_items]
+                [(str(t.get("id")), str(t.get("title", "?")), k, d, _rl.detail_text(t, k, d, now))
+                 for t, k, d in new_items]
             ):
                 self._reminder_tray_fallback(new_items)
         except Exception as e:
@@ -128,11 +136,11 @@ class RemindersMixin:
     def _reminder_snooze(self, task_id: str, hours: int = 1) -> None:
         """Knappen ⏰ 1 h: uppgiften senareläggs en timme och påminner igen när tiden gått."""
         try:
-            from datetime import datetime as _dt, timedelta as _td
-            until = (_dt.now() + _td(hours=hours)).replace(microsecond=0).isoformat()
+            from datetime import timedelta as _td
+            until = (self._reminder_now() + _td(hours=hours)).replace(microsecond=0).isoformat()
             self.store.snooze_task(task_id, until)
-            if hasattr(self, "_reminded_ids"):
-                self._reminded_ids.discard(task_id)   # får en ny påminnelse när snoozen gått ut
+            if hasattr(self, "_reminder_last"):
+                self._reminder_last.pop(task_id, None)   # får en ny påminnelse när snoozen gått ut
             self._log.info(f"{LOG_PREFIX} PÅMINNELSE: {task_id!r} skjuten till {until}")
             self._QTimer.singleShot(0, self._update_tray_badge)
         except Exception as e:

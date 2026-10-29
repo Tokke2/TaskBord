@@ -417,8 +417,33 @@ def _due_label_short(due_date: Any) -> str:
     return d.strftime("%d/%m")
 
 
+def parse_compact_date(token: str, today: Any = None) -> Any:
+    """
+    Kompakt datum utan streck: ÅÅMMDD (261030 = 2026-10-30) eller ÅÅÅÅMMDD (20261030). None om det inte
+    är ett riktigt datum i rimligt år (förra året … 20 år fram) — så vanliga nummer i en titel
+    (fakturanummer m.m.) inte tolkas som datum.
+    """
+    import re
+    from datetime import date as _d
+
+    t = str(token or "").strip()
+    if not re.fullmatch(r"\d{6}|\d{8}", t):
+        return None
+    today = today or _d.today()
+    if len(t) == 6:
+        yr, mo, da = 2000 + int(t[0:2]), int(t[2:4]), int(t[4:6])
+    else:
+        yr, mo, da = int(t[0:4]), int(t[4:6]), int(t[6:8])
+    if not (today.year - 1 <= yr <= today.year + 20):
+        return None
+    try:
+        return _d(yr, mo, da)
+    except ValueError:
+        return None
+
+
 _START_DAY_EXPR = (
-    r"\d{4}-\d{2}-\d{2}|\d{1,2}/\d{1,2}(?:-\d{2,4})?|i\s+övermorgon|övermorgon|imorgon|idag"
+    r"\d{4}-\d{2}-\d{2}|\d{1,2}/\d{1,2}(?:-\d{2,4})?|\d{8}|\d{6}|i\s+övermorgon|övermorgon|imorgon|idag"
     r"|nästa\s+vecka|om\s+\d{1,3}\s+(?:dagar|dag|veckor|vecka)"
     r"|måndag|tisdag|onsdag|torsdag|fredag|lördag|söndag"
 )
@@ -435,6 +460,8 @@ def _resolve_day_expr(expr: str, today: Any) -> Any:
     from datetime import date as _d, timedelta as _td
 
     e = re.sub(r"\s+", " ", str(expr or "").strip().lower())
+    if re.fullmatch(r"\d{6}|\d{8}", e):
+        return parse_compact_date(e, today)
     m = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", e)
     if m:
         try:
@@ -487,7 +514,7 @@ def parse_natural_input(text: str) -> Dict[str, Any]:
 
     Syntax som tolkas (allt valfritt, resten blir titeln):
       Datum:  idag | imorgon | övermorgon | måndag..söndag |
-              ÅÅÅÅ-MM-DD | 15/3 | 15/3-26
+              ÅÅÅÅ-MM-DD | ÅÅMMDD (261030) | ÅÅÅÅMMDD | 15/3 | 15/3-26
       Tid:    15:00 | 15.30 | kl 15 | kl. 15.30
       Prio:   !hög !h !high → hög | !medel !m → medel | !låg !l !low → låg
       Tagg:   #hem #jobb (flera möjliga)
@@ -561,6 +588,14 @@ def parse_natural_input(text: str) -> Dict[str, Any]:
             s = s.replace(dm.group(0), " ", 1)
         except ValueError:
             dm = None
+    # Kompakt: ÅÅMMDD (261030) / ÅÅÅÅMMDD (20261030)
+    if due_day is None:
+        for cm in re.finditer(r"(?<![\d-])(\d{8}|\d{6})(?![\d-])", s):
+            cd = parse_compact_date(cm.group(1), today)
+            if cd is not None:
+                due_day = cd
+                s = s[:cm.start()] + " " + s[cm.end():]
+                break
     # d/m eller d/m-ÅÅ
     if due_day is None:
         dm = re.search(r"\b(\d{1,2})/(\d{1,2})(?:-(\d{2,4}))?\b", s)

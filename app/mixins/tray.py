@@ -952,19 +952,10 @@ class TrayMixin:
         Bra nar man snabbt vill lagga till nagot utan att oppna appen.
         """
         try:
-            from PySide6.QtGui import QCursor
-            from PySide6.QtWidgets import QInputDialog
             self._log.info(
                 f"{LOG_PREFIX} _tray_quick_add_task: startar input-dialog"
             )
-            # QInputDialog vid markoren
-            cursor_pos = QCursor.pos()
-            text, ok = QInputDialog.getText(
-                None,
-                "➕ Snabbuppgift",
-                "Ny uppgift:",
-                text="",
-            )
+            text, ok = self._ask_quick_task_text()   # ligger ÖVER alla andra fönster
             if not ok or not text or not text.strip():
                 self._log.info(
                     f"{LOG_PREFIX} _tray_quick_add_task: avbruten "
@@ -986,14 +977,29 @@ class TrayMixin:
                         "Store ar inte tillganglig. Oppna appen forst.",
                     )
                 return
-            new_id = self.store.add_task(text)
+            # Samma tolkning som i fönstrets inmatningsfält: datum (261030, 2026-10-30, 30/10, imorgon …),
+            # klockslag, !prioritet och #taggar
+            _nl = {}
+            with suppress(Exception):
+                from ui.widget_base import parse_natural_input
+                _nl = parse_natural_input(text) or {}
+            _title = _nl.get("title") or text
+            new_id = self.store.add_task(
+                _title,
+                priority=_nl.get("priority") or "none",
+                due_date=_nl.get("due_date"),
+                tags=_nl.get("tags") or [],
+            )
+            if new_id and _nl.get("start_date") and hasattr(self.store, "set_start_date"):
+                with suppress(Exception):
+                    self.store.set_start_date(new_id, _nl["start_date"])
             if new_id:
                 self._log.info(
                     f"{LOG_PREFIX} _tray_quick_add_task: ny task skapad "
-                    f"id={new_id!r} text={text[:30]!r}"
+                    f"id={new_id!r} text={_title[:30]!r} due={_nl.get('due_date')}"
                 )
-                # Visa widget vid markoren sa man ser den nya uppgiften
-                self._show_window_at_cursor()
+                # Visa fönstret där det står (flyttas ALDRIG) så man ser den nya uppgiften
+                self._show_after_quick_add()
                 # Uppdatera tray-tooltip med nya antalet
                 self._update_tray_tooltip()
                 # Visa kort balloon-notis (om tillgangligt)
@@ -1019,6 +1025,51 @@ class TrayMixin:
                 f"{LOG_PREFIX} _tray_quick_add_task misslyckades: {e}",
                 exc_info=True,
             )
+
+    def _ask_quick_task_text(self) -> "tuple[str, bool]":
+        """
+        Dialogen för ny uppgift (Ctrl+Alt+N / tray). Ligger ÖVER alla andra fönster (always-on-top),
+        får tangentbordsfokus direkt och öppnas mitt på skärmen där musen är.
+        """
+        from PySide6.QtCore import Qt
+        from PySide6.QtGui import QCursor, QGuiApplication
+        from PySide6.QtWidgets import QDialog, QInputDialog
+
+        dlg = QInputDialog(None)
+        dlg.setInputMode(QInputDialog.InputMode.TextInput)
+        dlg.setWindowTitle("➕ Snabbuppgift")
+        dlg.setLabelText("Ny uppgift  (t.ex.  Fakturera 261030 15:00 !hög #jobb):")
+        dlg.setTextValue("")
+        dlg.setOkButtonText("Lägg till")
+        dlg.setCancelButtonText("Avbryt")
+        dlg.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
+        dlg.setMinimumWidth(480)
+        dlg.adjustSize()
+        with suppress(Exception):
+            scr = QGuiApplication.screenAt(QCursor.pos()) or QGuiApplication.primaryScreen()
+            g = scr.availableGeometry()
+            dlg.move(g.center().x() - dlg.width() // 2, g.center().y() - dlg.height() // 2)
+        dlg.show()
+        dlg.raise_()
+        dlg.activateWindow()
+        with suppress(Exception):
+            if sys.platform == "win32":
+                import ctypes
+                ctypes.windll.user32.SetForegroundWindow(int(dlg.winId()))
+        ok = dlg.exec() == QDialog.DialogCode.Accepted
+        text = dlg.textValue()
+        with suppress(Exception):
+            dlg.deleteLater()
+        return text, ok
+
+    def _show_after_quick_add(self) -> None:
+        """
+        Efter 'ny uppgift': visa listan en stund över andra appar — utan att flytta fönstret.
+        Ligger fönstret gömt i tray lämnas det gömt (tray-notisen bekräftar).
+        """
+        with suppress(Exception):
+            if not self._is_hidden_to_tray():
+                self._lift_on_top_temporarily()
 
     def _update_tray_tooltip(self) -> None:
         """Uppdatera tray-tooltip med live-data (cachas i 1s)."""

@@ -567,6 +567,21 @@ class HotkeysMixin:
                 f"{LOG_PREFIX} _push_show_release: {e}", exc_info=True
             )
 
+    def _any_window_not_visible(self) -> bool:
+        """Finns något fönster (skal) som inte är synligt just nu?"""
+        try:
+            with self._widget_lock:
+                widgets = list(self._widgets.values())
+            if not widgets:
+                return True
+            for w in widgets:
+                target = getattr(w, "_shell", None) or w
+                if not target.isVisible():
+                    return True
+            return False
+        except Exception:
+            return True
+
     def _global_quick_add(self) -> None:
         """
         NY v7-fix41: global snabbinput triggad (köad på GUI-tråden).
@@ -574,7 +589,9 @@ class HotkeysMixin:
         Visar befintligt fönster (enbart-läge) + öppnar snabbinput-dialogen.
         """
         try:
-            if self._single_window_enabled():
+            # Visa bara fönstret om det FAKTISKT är gömt/minimerat — att köra om skrivbordslagret
+            # på ett synligt fönster kan flytta det. Ligger det i tray lämnas det där.
+            if self._single_window_enabled() and not self._is_hidden_to_tray() and self._any_window_not_visible():
                 self._show_existing_window()
             self._tray_quick_add_task()
         except Exception as e:

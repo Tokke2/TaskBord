@@ -9,7 +9,7 @@ Tar inte fokus (du kan skriva vidare i en annan app), försvinner av sig själv 
 """
 from __future__ import annotations
 
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QGuiApplication
@@ -17,7 +17,7 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLay
 
 from core.reminder_logic import OVERDUE, status_text
 
-Item = Tuple[str, str, str, int]  # (task_id, titel, kind, dagar)
+Item = Tuple[Any, ...]  # (task_id, titel, kind, dagar[, rad under titeln])
 
 # Färger (WCAG ≥ 4,5:1 mot kortets bakgrund)
 BG = "#1e1b4b"
@@ -110,8 +110,8 @@ class ReminderPopup(QWidget):
         head = QLabel("Ledgebord — " + " • ".join(parts), card)
         head.setObjectName("head")
         lay.addWidget(head)
-        for tid, title, kind, days in items[: self.MAX_ROWS]:
-            lay.addLayout(self._row(card, tid, title, kind, days))
+        for it in items[: self.MAX_ROWS]:
+            lay.addLayout(self._row(card, it[0], it[1], it[2], it[3], it[4] if len(it) > 4 else ""))
         if len(items) > self.MAX_ROWS:
             more = QLabel(f"+ {len(items) - self.MAX_ROWS} till", card)
             more.setObjectName("more")
@@ -133,7 +133,7 @@ class ReminderPopup(QWidget):
         self._card = card
         self.adjustSize()
 
-    def _row(self, parent: QWidget, tid: str, title: str, kind: str, days: int) -> QHBoxLayout:
+    def _row(self, parent: QWidget, tid: str, title: str, kind: str, days: int, detail: str = "") -> QHBoxLayout:
         row = QHBoxLayout()
         row.setSpacing(8)
         col = QVBoxLayout()
@@ -141,7 +141,7 @@ class ReminderPopup(QWidget):
         t = QLabel(title if len(title) <= 40 else title[:39] + "…", parent)
         t.setObjectName("title")
         t.setToolTip(title)
-        sub = QLabel(status_text(kind, days), parent)
+        sub = QLabel(detail or status_text(kind, days), parent)
         sub.setObjectName("sub")
         sub.setStyleSheet(f"color: {SUB_OVERDUE if kind == OVERDUE else SUB_TODAY}; font-size: 11px; font-weight: 600;")
         col.addWidget(t)

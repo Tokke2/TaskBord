@@ -343,17 +343,19 @@ class TaskMenuMixin:
             text, ok = QInputDialog.getText(
                 self,
                 "📅 Förfallodatum",
-                "Datum (ÅÅÅÅ-MM-DD):",
+                "Datum (ÅÅÅÅ-MM-DD eller ÅÅMMDD, t.ex. 261030):",
                 text=datetime.now().date().isoformat(),
             )
             if not ok or not text.strip():
                 return
             try:
-                iso = datetime.fromisoformat(text.strip()).date().isoformat()
+                from ui.widget_base import parse_compact_date
+                _cd = parse_compact_date(text.strip())
+                iso = _cd.isoformat() if _cd else datetime.fromisoformat(text.strip()).date().isoformat()
             except ValueError:
                 _show_widget_error(
                     "Ogiltigt datum",
-                    f"{text.strip()!r} förstods inte — använd ÅÅÅÅ-MM-DD.",
+                    f"{text.strip()!r} förstods inte — använd ÅÅÅÅ-MM-DD eller ÅÅMMDD.",
                 )
                 return
             self._store_call("set_due_date", task_id, iso, _what="datum")

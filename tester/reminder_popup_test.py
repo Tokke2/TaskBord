@@ -194,6 +194,11 @@ def child(work: str) -> None:
             self.lifted = 0
         def _lift_on_top_temporarily(self): self.lifted += 1
 
+        def _reminder_now(self):
+            # alltid efter 08:00 så testet inte beror på vilken tid på dygnet det körs
+            n = datetime.now()
+            return n if n.hour >= 9 else n.replace(hour=9, minute=0, second=0, microsecond=0)
+
     c = Ctl()
     c._check_reminders()
     pp = c._reminder_popup
@@ -207,7 +212,7 @@ def child(work: str) -> None:
     ck("Klar på kortet bockar av uppgiften i store", store.find_task(t_over) is None or store.find_task(t_over).get("done"))
     ck("…och den är inte längre aktiv", t_over not in [t["id"] for t in store.active_tasks()])
     # Skjut 1 h
-    before = datetime.now()
+    before = c._reminder_now()
     c._reminder_snooze(t_today)
     sn = store.find_task(t_today).get("snoozed_until")
     dt = datetime.fromisoformat(sn)
@@ -217,7 +222,7 @@ def child(work: str) -> None:
     c._check_reminders()
     ck("under snoozen kommer ingen ny påminnelse", pp.items() == [])
     # snoozen går ut → påminner igen
-    store.snooze_task(t_today, (datetime.now() - timedelta(minutes=1)).replace(microsecond=0).isoformat())
+    store.snooze_task(t_today, (c._reminder_now() - timedelta(minutes=1)).replace(microsecond=0).isoformat())
     c._check_reminders()
     ck("när snoozen gått ut påminns uppgiften igen", [i[0] for i in pp.items()] == [t_today], [i[0] for i in pp.items()])
     pp.dismiss()
