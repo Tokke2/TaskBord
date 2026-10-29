@@ -216,13 +216,15 @@ Kortet försvinner av sig självt efter ca 30 s (står kvar medan musen är öve
 Av/på: tray → påminnelser.
 
 **När kommer påminnelserna?** Har uppgiften ett datum (t.ex. `261030` = 2026-10-30) visas kortet **på förfallodagens
-morgon kl 08:00** och sedan **var 30:e minut tills händelsen** — klockslaget om du angett ett (`261030 15:00`, sista
-påminnelsen exakt då), annars till 18:00. Startas appen senare på dagen kommer första påminnelsen direkt. Försenade
-uppgifter från tidigare dagar påminns en gång per dag. *Skjut 1 h* och ✓ Klar stoppar påminnelserna för uppgiften.
+morgon kl 08:00** och sedan **var 30:e minut tills du markerat uppgiften som klar** (✓ Klar på kortet eller i listan).
+Har du angett ett klockslag kommer dessutom en påminnelse exakt då, och kortet fortsätter efteråt. Nattro: inga
+påminnelser från 22:00 (de fortsätter nästa morgon). Startas appen senare på dagen kommer första påminnelsen direkt.
+Försenade uppgifter påminns på samma sätt varje dag tills de är klara. *Skjut 1 h* pausar uppgiften en timme.
 
 **Datum utan streck:** `ÅÅMMDD` (`261030`) och `ÅÅÅÅMMDD` (`20261030`) funkar i fönstrets inmatningsfält, i
 snabbuppgiften (Ctrl+Alt+N) och i datumrutan (”Sätt datum…”) — även med klockslag, `!prio` och `#tagg`:
-`Fakturera Andreas 261030 15:00 !hög #jobb`. Ett vanligt nummer (fakturanummer o.d.) tolkas inte som datum om det inte
+`Fakturera Andreas 261030 15:00 !hög #jobb`. Klockslaget kan skrivas `15:00`, `15.30`, `kl 15`, `klockan 15` eller bara
+`15` direkt efter datumet (`261030 15`, `imorgon 15`) — ett ensamt tal utan datum räknas aldrig som tid. Ett vanligt nummer (fakturanummer o.d.) tolkas inte som datum om det inte
 är ett riktigt datum i rimligt år.
 
 **Ctrl+Alt+N** öppnar dialogen för ny uppgift **överst över alla andra fönster** med fokus direkt. Fönstret flyttas

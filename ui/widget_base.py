@@ -515,7 +515,7 @@ def parse_natural_input(text: str) -> Dict[str, Any]:
     Syntax som tolkas (allt valfritt, resten blir titeln):
       Datum:  idag | imorgon | övermorgon | måndag..söndag |
               ÅÅÅÅ-MM-DD | ÅÅMMDD (261030) | ÅÅÅÅMMDD | 15/3 | 15/3-26
-      Tid:    15:00 | 15.30 | kl 15 | kl. 15.30
+      Tid:    15:00 | 15.30 | kl 15 | kl. 15.30 | klockan 15 | bara 15 efter ett datum (261030 15)
       Prio:   !hög !h !high → hög | !medel !m → medel | !låg !l !low → låg
       Tagg:   #hem #jobb (flera möjliga)
       Start:  "start nästa vecka" | "start måndag" | "start 19/10" | "från 2026-10-19" |
@@ -554,11 +554,26 @@ def parse_natural_input(text: str) -> Dict[str, Any]:
 
     # --- Tid: 15:00 / 15.30 / kl 15 ---
     time_part = None
-    tm = re.search(r"\bkl\.?\s*(\d{1,2})(?:(?::|\.)\s*(\d{2}))?\b", s, re.I)
+    tm = re.search(r"\bkl(?:ockan)?\.?\s*(\d{1,2})(?:(?::|\.)\s*(\d{2}))?\b", s, re.I)
     if not tm:
         tm = re.search(r"\b(\d{1,2}):([0-5]\d)\b", s)
         if not tm:
             tm = re.search(r"\b(\d{1,2})\.([0-5]\d)\b", s)
+    if not tm:
+        # Bara timmen: "261030 15" / "imorgon 15" / "30/10 15" — ett tal 0–23 DIREKT efter ett datum
+        # och sist i texten räknas som klockslag (ett ensamt tal utan datum är aldrig en tid)
+        tm = re.search(
+            r"(?:(?<![\d/.-])(?:\d{8}|\d{6}|\d{4}-\d{2}-\d{2}|\d{1,2}/\d{1,2}(?:-\d{2,4})?)(?![\d/.-])"
+            r"|\b(?:i\s+övermorgon|övermorgon|imorgon|idag|måndag|tisdag|onsdag|torsdag|fredag|lördag|söndag)\b)"
+            r"\s+(\d{1,2})(?=\s*[,.]?\s*$)(?![\d:./-])", s, re.I)
+        if tm and int(tm.group(1)) <= 23:
+            # ersätt bara själva timtalet (datumet ska finnas kvar för datumtolkningen)
+            hh = int(tm.group(1))
+            time_part = f"{hh:02d}:00"
+            s = s[:tm.start(1)].rstrip() + " " + s[tm.end(1):]
+            tm = None
+        else:
+            tm = None
     if tm:
         hh = min(int(tm.group(1)), 23)
         mm = min(int(tm.group(2) or 0), 59)

@@ -48,41 +48,36 @@ def schedule_tests() -> None:
     check("…inte efter 29 min", rl.reminder_due(t_date, at(8, 29), at(8, 0)) is None)
     check("…igen efter 30 min (kontrollen går varje minut → 29:30 räcker)", rl.reminder_due(t_date, at(8, 30), at(8, 0)) is not None)
     # hela dagen simulerad med en kontroll per minut
-    last, shown = None, []
-    for minute in range(0, 24 * 60):
-        now = day + timedelta(minutes=minute)
-        if rl.reminder_due(t_date, now, last):
-            shown.append(now.strftime("%H:%M"))
-            last = now
-    check("datum utan tid: 08:00, 08:30 … 18:00 (var 30:e minut, sedan slut)", shown[0] == "08:00" and shown[-1] == "18:00" and len(shown) == 21, shown)
-    gaps = {(datetime.strptime(b, "%H:%M") - datetime.strptime(a, "%H:%M")).seconds // 60 for a, b in zip(shown, shown[1:])}
-    check("avståndet mellan påminnelserna är 30 min (±1 pga minutkontroll)", gaps <= {29, 30, 31} and 30 in gaps | {30}, gaps)
-    check("ingen påminnelse efter slutet", rl.reminder_due(t_date, at(18, 1), at(18, 0)) is None and rl.reminder_due(t_date, at(22, 0), at(18, 0)) is None)
+    def simulate(task, day0=day):
+        last, shown = None, []
+        for minute in range(0, 24 * 60):
+            now = day0 + timedelta(minutes=minute)
+            if rl.reminder_due(task, now, last):
+                shown.append(now.strftime("%H:%M"))
+                last = now
+        return shown
 
-    last, shown = None, []
-    for minute in range(0, 24 * 60):
-        now = day + timedelta(minutes=minute)
-        if rl.reminder_due(t_time, now, last):
-            shown.append(now.strftime("%H:%M"))
-            last = now
-    check("med klockslag 15:00: börjar 08:00, slutar exakt 15:00", shown[0] == "08:00" and shown[-1] == "15:00", shown)
-    check("…och inget efter klockslaget", "15:30" not in shown and all(x <= "15:00" for x in shown))
-    check("klockslag: en sista påminnelse vid 15:00 även när förra var 14:50",
-          rl.reminder_due(t_time, at(15, 0), at(14, 50)) is not None)
-    # appen startas mitt på dagen
+    shown = simulate(t_date)
+    check("datum utan tid: 08:00, 08:30 … 21:30 (fortsätter tills klar, nattro från 22:00)", shown[0] == "08:00" and shown[-1] == "21:30" and len(shown) == 28, shown)
+    gaps = {(datetime.strptime(b, "%H:%M") - datetime.strptime(a, "%H:%M")).seconds // 60 for a, b in zip(shown, shown[1:])}
+    check("avståndet mellan påminnelserna är 30 min (±1 pga minutkontroll)", gaps <= {29, 30, 31}, gaps)
+    shown = simulate(t_time)
+    check("klockslag 15:00: börjar 08:00 och FORTSÄTTER efter klockslaget (15:30, 16:00 …)", shown[0] == "08:00" and "15:00" in shown and "15:30" in shown and "20:00" in shown, shown)
+    shown = simulate({"id": "d", "title": "x", "due_date": "2026-10-30T15:10"})
+    check("klockslag 15:10: en påminnelse exakt 15:10 (utöver var 30:e minut)", "15:10" in shown and "14:30" in shown, shown)
+    check("ingen påminnelse från 22:00", rl.reminder_due(t_date, at(22, 0), at(21, 30)) is None and rl.reminder_due(t_date, at(23, 30), None) is None)
     check("appen startas 11:12 → direkt påminnelse, sedan 30 min senare", rl.reminder_due(t_date, at(11, 12), None) is not None
           and rl.reminder_due(t_date, at(11, 20), at(11, 12)) is None and rl.reminder_due(t_date, at(11, 42), at(11, 12)) is not None)
-    check("appen startas efter händelsen (20:00) → en enda påminnelse", rl.reminder_due(t_date, at(20, 0), None) is not None
-          and rl.reminder_due(t_date, at(20, 1), at(20, 0)) is None)
-    check("tidig händelse 07:30: fönstret börjar en timme före", rl.day_window({"due_date": "2026-10-30T07:30"}, at(6, 0)) == (at(6, 30), at(7, 30)))
-    # försenad
+    check("klar → inga fler påminnelser", rl.reminder_due(dict(t_date, done=True), at(11, 42), at(11, 12)) is None)
+    check("tidig händelse 07:30: fönstret börjar en timme före", rl.day_window({"due_date": "2026-10-30T07:30"}, at(6, 0))[0] == at(6, 30))
+    # försenad: samma takt varje dag tills klar
     od = {"id": "c", "title": "Gammal", "due_date": "2026-10-28"}
-    check("försenad (tidigare dag): direkt, en gång per dag", rl.reminder_due(od, at(9, 0), None) == (rl.OVERDUE, 2)
-          and rl.reminder_due(od, at(9, 30), at(9, 0)) is None and rl.reminder_due(od, at(9, 0), at(9, 0) - timedelta(days=1)) is not None)
-    check("klar/snoozad/framtida → inget", rl.reminder_due(dict(t_date, done=True), at(9), None) is None
-          and rl.reminder_due(dict(t_date, snoozed_until=at(10).isoformat()), at(9), None) is None
+    check("försenad: 08:00 och var 30:e minut tills klar", rl.reminder_due(od, at(9, 0), None) == (rl.OVERDUE, 2)
+          and rl.reminder_due(od, at(9, 10), at(9, 0)) is None and rl.reminder_due(od, at(9, 30), at(9, 0)) is not None
+          and rl.reminder_due(od, at(7, 0), None) is None)
+    check("första påminnelsen en ny dag", rl.reminder_due(od, at(8, 0), at(8, 0) - timedelta(days=1)) is not None)
+    check("snoozad/framtida → inget", rl.reminder_due(dict(t_date, snoozed_until=at(10).isoformat()), at(9), None) is None
           and rl.reminder_due({"id": "z", "due_date": "2026-11-02"}, at(9), None) is None)
-    check("första påminnelsen en ny dag trots att den visades igår", rl.reminder_due(t_date, at(8, 5), at(8, 5) - timedelta(days=1)) is not None)
     # texter
     check("kort: tid → 'förfaller idag kl 15:00'", rl.detail_text(t_time, rl.TODAY, 0, at(9)) == "förfaller idag kl 15:00")
     check("kort: tiden har gått → 'tiden har passerat (kl 15:00)'", rl.detail_text(t_time, rl.TODAY, 0, at(16)) == "tiden har passerat (kl 15:00)")
@@ -116,6 +111,22 @@ def parsing_tests() -> None:
     check("natural: start 261101 → startdatum", n["start_date"] == "2026-11-01", n)
     n = parse_natural_input("Fakturor 2026-10-30")
     check("natural: ISO-datum fungerar som förut", n["due_date"] == "2026-10-30")
+    for txt, want in (("Fakturera 261030 kl 15", "2026-10-30T15:00"), ("Fakturera 261030 klockan 15", "2026-10-30T15:00"),
+                      ("Fakturera 261030 15", "2026-10-30T15:00"), ("261030 15 Fakturera", "2026-10-30"),
+                      ("Fakturera 261030 kl 15.30", "2026-10-30T15:30"), ("Fakturera 261030 15:00", "2026-10-30T15:00"),
+                      ("Fakturera 2026-10-30 9", "2026-10-30T09:00"), ("Fakturera 30/10 15", None)):
+        n = parse_natural_input(txt)
+        if want is None:
+            check(f"natural: {txt!r} → datum + timme 15", str(n["due_date"]).endswith("-10-30T15:00"), n)
+        else:
+            check(f"natural: {txt!r} → {want}", n["due_date"] == want or (txt.startswith("261030 15 ") and n["due_date"] == want), n)
+    n = parse_natural_input("Fakturera 261030 15")
+    check("natural: 'bara 15' tas bort ur rubriken", n["title"] == "Fakturera", n)
+    n = parse_natural_input("Fakturera imorgon 15")
+    check("natural: 'imorgon 15' → imorgon kl 15", str(n["due_date"]).endswith("T15:00"), n)
+    for txt in ("Köp 2 påsar", "Köp 15", "Order 261030 2 fakturor", "Boka 15 personer imorgon"):
+        n = parse_natural_input(txt)
+        check(f"natural: ett tal som inte är en tid ({txt!r}) ger ingen klocktid", "T" not in str(n["due_date"] or ""), n)
     n = parse_natural_input("Telefon 070-123456")
     check("natural: telefonnummer med streck lämnas ifred", n["due_date"] is None, n)
 
@@ -256,7 +267,7 @@ def child(work: str) -> None:
 
     r = Ctl2()
     log = []
-    for minute in range(7 * 60, 19 * 60):
+    for minute in range(7 * 60, 23 * 60):
         clock["now"] = datetime(2026, 10, 30, 0, 0) + timedelta(minutes=minute)
         r._check_reminders()
         pop = getattr(r, "_reminder_popup", None)
@@ -269,8 +280,18 @@ def child(work: str) -> None:
     ck("kortet visar klockslaget", log and "förfaller idag kl 15:00" in log[0][2], log[:1])
     ck("sedan var 30:e minut (08:30, 09:00 …)", "08:30" in times and "09:00" in times and "08:45" not in times, times[:6])
     only_time = [t for t, n, _d in log if n == ["Dagens kl 15"]]
-    ck("uppgiften med klockslag påminns sista gången kl 15:00", "15:00" in times and "15:30" not in [t for t, n, _d in log if "Dagens kl 15" in n], [t for t, n, _d in log if "Dagens kl 15" in n][-3:])
-    ck("uppgiften utan klockslag påminns till 18:00", times[-1] == "18:00", times[-3:])
+    kl15 = [t for t, n, _d in log if "Dagens kl 15" in n]
+    ck("uppgiften med klockslag påminns även efter 15:00 (tills klar)", "15:00" in kl15 and "15:30" in kl15 and "17:00" in kl15, kl15[-4:])
+    ck("påminnelserna fortsätter till nattro (sista 21:30)", times[-1] == "21:30", times[-3:])
+    # markera den ena som klar → bara den andra fortsätter
+    done_id = [t["id"] for t in st2.active_tasks() if t["title"] == "Dagens kl 15"][0]
+    st2.toggle_task(done_id)
+    clock["now"] = datetime(2026, 10, 31, 8, 0) - timedelta(days=1) + timedelta(hours=1)
+    r._reminder_last = {}
+    clock["now"] = datetime(2026, 10, 30, 9, 0)
+    r._check_reminders()
+    pop = getattr(r, "_reminder_popup", None)
+    ck("efter ✓ Klar påminns uppgiften inte mer", pop is not None and [i[1] for i in pop.items()] == ["Dagens utan tid"], [i[1] for i in pop.items()] if pop else None)
     _ = only_time
 
     bad = [n for n, ok in res if not ok]

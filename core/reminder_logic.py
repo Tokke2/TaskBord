@@ -14,8 +14,8 @@ TODAY = "today"
 
 # Påminnelsetider på själva förfallodagen
 MORNING_HOUR = 8            # första påminnelsen på morgonen (08:00)
-REPEAT_MINUTES = 30         # därefter var 30:e minut …
-DAY_END_HOUR = 18           # … tills händelsen — utan klockslag: tills 18:00
+REPEAT_MINUTES = 30         # därefter var 30:e minut … tills uppgiften markerats som klar
+NIGHT_HOUR = 22             # nattro: inga påminnelser från 22:00 (de fortsätter nästa morgon)
 
 
 def classify(task: Dict[str, Any], now: Optional[datetime] = None) -> Optional[Tuple[str, int]]:
@@ -81,15 +81,17 @@ def event_time(task: Dict[str, Any]) -> Optional[Tuple[int, int]]:
 
 def day_window(task: Dict[str, Any], now: datetime) -> Tuple[datetime, datetime]:
     """
-    (start, slut) för påminnelserna på förfallodagen: från 08:00 var 30:e minut tills händelsen
-    (klockslaget om det finns — annars 18:00). Ligger klockslaget före 08:00 börjar fönstret en timme före.
+    (start, slut) för dagens påminnelser: från 08:00 (ligger klockslaget tidigare börjar fönstret en timme före)
+    till nattron 22:00. Påminnelserna fortsätter hela fönstret — även efter klockslaget — tills uppgiften är klar.
     """
     day = now.replace(hour=0, minute=0, second=0, microsecond=0)
     start = day + timedelta(hours=MORNING_HOUR)
+    end = day + timedelta(hours=NIGHT_HOUR)
     et = event_time(task)
-    end = day + (timedelta(hours=et[0], minutes=et[1]) if et else timedelta(hours=DAY_END_HOUR))
-    if end <= start:
-        start = max(day, end - timedelta(hours=1))
+    if et:
+        ev = day + timedelta(hours=et[0], minutes=et[1])
+        if ev < start:
+            start = max(day, ev - timedelta(hours=1))
     return start, end
 
 
@@ -97,26 +99,23 @@ def reminder_due(task: Dict[str, Any], now: datetime, last_shown: Optional[datet
     """
     Ska uppgiften påminnas NU? → (kind, dagar) eller None.  ``last_shown`` = när den senast visades.
 
-    * Försenad (tidigare dag): en gång per dag.
-    * Förfaller idag: första påminnelsen kl 08:00 (eller direkt om appen startas senare), sedan var 30:e minut
-      tills händelsen (klockslaget — annars 18:00); en sista exakt vid klockslaget. Startas appen efter att
-      tiden gått visas den en gång.
+    På förfallodagen (och för försenade uppgifter varje dag): första påminnelsen kl 08:00 (eller direkt om appen
+    startas senare), sedan var 30:e minut TILLS UPPGIFTEN MARKERATS SOM KLAR (eller skjutits upp). Har uppgiften
+    ett klockslag kommer dessutom en påminnelse exakt då. Nattro från 22:00.
     """
     c = classify(task, now)
     if c is None:
         return None
-    kind, days = c
-    if kind == OVERDUE:
-        return c if (last_shown is None or last_shown.date() < now.date()) else None
-    start, end = day_window(task, now)
-    if now < start:
+    start, end = day_window(task if c[0] == TODAY else {}, now)
+    if now < start or now >= end:
         return None
     if last_shown is None or last_shown.date() < now.date():
         return c                                   # första påminnelsen i dag
-    if last_shown >= end:
-        return None                                # redan påmint vid/efter händelsen
-    if now >= end:
-        return c                                   # sista påminnelsen vid händelsen
+    et = event_time(task)
+    if et and c[0] == TODAY:
+        ev = now.replace(hour=et[0], minute=et[1], second=0, microsecond=0)
+        if last_shown < ev <= now:
+            return c                               # exakt vid klockslaget
     if now - last_shown >= timedelta(minutes=REPEAT_MINUTES) - timedelta(seconds=30):
         return c
     return None
