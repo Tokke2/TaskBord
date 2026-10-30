@@ -284,6 +284,37 @@ class LifecycleMixin:
         self.close_btn.clicked.connect(self._on_hide_to_tray_clicked)
         handle_row.addWidget(self.close_btn)
         root.addLayout(handle_row)
+        # Röd-dag-ruta HÖGST UPP: kommande röd dag på en vardag i samma vecka (core/holidays_se.py).
+        # Dold när veckan saknar röda dagar. ✕ döljer den för resten av dagen.
+        self.holiday_banner = QFrame(self)
+        self.holiday_banner.setObjectName("holidayBanner")
+        self.holiday_banner.setStyleSheet(
+            "QFrame#holidayBanner { background: #7f1d1d; border: 1px solid #fca5a5; border-radius: 8px; }"
+            "QFrame#holidayBanner QLabel { color: #ffffff; background: transparent; font-size: 12px; font-weight: 600; }"
+            "QFrame#holidayBanner QPushButton { color: #ffffff; background: transparent; border: none; font-size: 12px; }"
+            "QFrame#holidayBanner QPushButton:hover { background: rgba(255,255,255,0.18); border-radius: 4px; }"
+        )
+        _hb = QHBoxLayout(self.holiday_banner)
+        _hb.setContentsMargins(10, 5, 6, 5)
+        _hb.setSpacing(6)
+        self.holiday_label = QLabel("", self.holiday_banner)
+        self.holiday_label.setWordWrap(True)
+        _hb.addWidget(self.holiday_label, 1)
+        self.holiday_close_btn = QPushButton("✕", self.holiday_banner)
+        self.holiday_close_btn.setFixedSize(22, 22)
+        self.holiday_close_btn.setToolTip("Dölj för idag")
+        self.holiday_close_btn.setAccessibleName("Dölj röd-dag-rutan för idag")
+        self.holiday_close_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.holiday_close_btn.clicked.connect(self._dismiss_holiday_banner)
+        _hb.addWidget(self.holiday_close_btn)
+        self.holiday_banner.setVisible(False)
+        root.addWidget(self.holiday_banner)
+        self._holiday_dismissed = ""
+        self._holiday_timer = QTimer(self)          # dygnsskifte / ny vecka → uppdatera rutan
+        self._holiday_timer.setInterval(15 * 60 * 1000)
+        self._holiday_timer.timeout.connect(self._update_holiday_banner)
+        self._holiday_timer.start()
+        self._update_holiday_banner()
         # NY v7-fix86: tunn progress-bar under headern — % klara av
         # aktiva uppgifter (visuell feedback i samma design-språk som
         # PDF-checklistan). Uppdateras i _update_stats_chip.

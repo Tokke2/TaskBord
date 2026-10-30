@@ -533,6 +533,38 @@ class RenderMixin:
         except Exception:
             pass  # design-får ALDRIG krascha appen
 
+    def _holiday_today(self):
+        """Dagens datum för röd-dag-rutan (egen metod så att tester kan styra klockan)."""
+        from datetime import date as _date
+        return _date.today()
+
+    def _update_holiday_banner(self) -> None:
+        """Visa/dölj rutan högst upp: kommande röd dag på en vardag i samma vecka."""
+        box = getattr(self, "holiday_banner", None)
+        if box is None:
+            return
+        try:
+            from core import holidays_se
+            today = self._holiday_today()
+            text = holidays_se.banner_text(today)
+            key = f"{today.isoformat()}|{text}"
+            if not text or key == getattr(self, "_holiday_dismissed", ""):
+                box.setVisible(False)
+                return
+            self.holiday_label.setText(text)
+            box.setToolTip("Kommande röda dagar den här veckan (mån–fre). ✕ döljer rutan för idag.")
+            self._holiday_key = key
+            box.setVisible(True)
+        except Exception as e:  # noqa: BLE001
+            logger.debug(f"{LOG_PREFIX} _update_holiday_banner: {e}")
+
+    def _dismiss_holiday_banner(self) -> None:
+        """✕: dölj rutan för resten av dagen (kommer tillbaka nästa dag om veckan fortfarande har en röd dag)."""
+        self._holiday_dismissed = getattr(self, "_holiday_key", "")
+        box = getattr(self, "holiday_banner", None)
+        if box is not None:
+            box.setVisible(False)
+
     def _update_stats_chip(
         self, n_active: int, n_done: int, n_snoozed: int = 0
     ) -> None:

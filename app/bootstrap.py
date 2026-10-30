@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from app.central_log import add_central_log_listener, format_central_log_stats_swedish, format_event_log_swedish, get_central_log_stats, get_recent_app_events, install_central_log_handler
+from app import startup_timing as _startup
 from app.config import parse_args
 from app.constants import APP_NAME, APP_VERSION_DISPLAY, DATA_DIR, JS_DIR, LOG_FILE, LOG_PREFIX, RELEASE_VERSION, SCRIPT_DIR, Timeouts
 from app.controller import AppController
@@ -743,9 +744,11 @@ def run() -> int:
 
     # 5. Visa splash (om aktiverat)
     splash_start = time.time()
+    splash_shown = False
     if config.show_splash and not is_pyw:
         with suppress(Exception):
             show_splash()
+            splash_shown = True
 
     # 6. Skapa subsystem-infrastruktur
     registry = SubsystemRegistry()
@@ -759,6 +762,7 @@ def run() -> int:
     # 7. Importera dependencies
     log.info(f"{LOG_PREFIX} Importerar dependencies...")
     imports = import_all_dependencies()
+    _startup.mark("beroenden")
 
     # Kontrollera kritiska imports
     critical = ["PySide6.QtCore", "PySide6.QtWidgets"]
@@ -956,6 +960,8 @@ def run() -> int:
         show_pre_flight_error_dialog(f"Kunde inte initiera app:\n\n{e}")
         return 1
 
+    _startup.mark("controller + fönster")
+
     # 13. Setup signal handlers
     setup_signal_handlers(controller)
     atexit.register(controller.shutdown)
@@ -980,11 +986,15 @@ def run() -> int:
     except Exception as _si_e:
         log.debug(f"{LOG_PREFIX} instans-kanal ej aktiv: {_si_e}")
 
+    _startup.mark("instans-kanal")
+
     # 14. Vänta på splash minimum-tid (UX)
     elapsed = time.time() - splash_start
-    if elapsed < Timeouts.SPLASH_MIN_DURATION:
+    # (väntar bara om en splash faktiskt visas — tidigare sov appen här i onödan även utan splash, t.ex. under pythonw)
+    if splash_shown and elapsed < Timeouts.SPLASH_MIN_DURATION:
         time.sleep(Timeouts.SPLASH_MIN_DURATION - elapsed)
     hide_splash()
+    _startup.mark("splash")
 
     # 15. Kör event loop (NY v6.4.1 v7: forbattrade svenska meddelanden)
     start_time = time.time()

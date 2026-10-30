@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, ClassVar, Dict, List, Optional, Tuple
 
 from app.config import AppConfig, error_boundary
+from app import startup_timing as _st
 from app.constants import APP_NAME, AppMode, GlassStyle, LOG_PREFIX, SCRIPT_DIR, StartupError, Timeouts
 from app.formatting import format_uptime
 from app.mixins.addon_update import AddonUpdateMixin
@@ -37,6 +38,9 @@ from app.performance import AsyncTaskRunner, PerformanceMonitor
 from app.plugins import offer_install_missing_plugins
 from app.splash import hide_splash
 from app.subsystems import SubsystemRegistry
+
+
+DIAGNOSTICS_DELAY_MS = 2500  # startdiagnostiken körs så här länge efter att händelseloopen startat
 
 
 class AppController(
@@ -906,11 +910,30 @@ class AppController(
         if self._app is None:
             self._log.error("Kan inte starta event loop (QApplication saknas)")
             return 1
-        # NY v6.4.1: Kör diagnostik vid start (efter Qt-init)
+        # Diagnostik/städning (hälsokoll, backup-arkivering, cache- och loggstädning, autostart-reparation) tar
+        # ~0,6 s — den körs EFTER att fönstret kommit upp i stället för före (snabbare start).
+        _st.mark("klar att köra")
+        self._QTimer.singleShot(DIAGNOSTICS_DELAY_MS, self._run_diagnostics_deferred)
+        # första varvet i händelseloopen = fönstret är på väg upp → logga + spara starttiden
+        self._QTimer.singleShot(0, self._startup_first_loop)
+        return self._app.exec()
+
+    def _run_diagnostics_deferred(self) -> None:
+        """Startdiagnostiken (se run) — körs en liten stund efter start, fel loggas bara."""
         try:
+            t0 = time.perf_counter()
             self._run_diagnostics_on_startup()
+            self._log.info(f"{LOG_PREFIX} ⏱ diagnostik/städning efter start: {time.perf_counter() - t0:.2f} s")
         except Exception as e:
             self._log.warning(
                 f"{LOG_PREFIX} diagnostik vid start misslyckades: {e}"
             )
-        return self._app.exec()
+
+    def _startup_first_loop(self) -> None:
+        """Mäter hela starten (processstart → första händelseloopen) och sparar den i data/startup_times.json."""
+        with suppress(Exception):
+            from app.constants import DATA_DIR
+            _st.mark("första händelseloopen")
+            slow = _st.slowest()
+            self._log.info(f"{LOG_PREFIX} ⏱ {_st.summary()} — långsammast: {slow[0]} ({slow[1]:.2f} s)")
+            _st.record(DATA_DIR, autostart=_st.AUTOSTART_FLAG in sys.argv[1:])

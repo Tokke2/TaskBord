@@ -207,6 +207,27 @@ vid nästa start). Startar du appen själv visas fönstret som vanligt. Tray →
 vid manuell start. Ligger fönstret i tray när en tyst uppdatering startar om appen kommer den nya versionen också
 upp gömd.
 
+**Fördröjd autostart:** med `--autostart` (alltså bara när appen startas med datorn) väntar Ledgebord **ca 45 s** innan
+den laddar något, så att inloggning, skrivbord och nätverk hinner bli klara och datorn känns snabb. (Windows väntar
+dessutom själv ~10 s med genvägar i Startup-mappen.) Har datorn redan kört i 20 min blir pausen bara 8 s. Manuell start
+väntar aldrig. Under väntan finns ingen tray-ikon och inga snabbtangenter. Ändra tiden med miljövariabeln
+`LEDGEBORD_AUTOSTART_DELAY=<sekunder>` (0 = ingen fördröjning).
+
+**Startmätning:** varje start loggas (`⏱ Start 0.46 s: importer … → beroenden … → controller + fönster …`, långsammaste
+steget anges) och sparas — de senaste 30 — i `data\startup_times.json` med tid per steg. Fördröjningen räknas inte
+med. Själva starten blev snabbare: diagnostik/städning körs 2,5 s *efter* att fönstret kommit upp i stället för före,
+och appen sover inte längre i onödan vid start utan splash (t.ex. under pythonw).
+
+## 🔴 Röda dagar i veckan
+
+Högst upp i fönstret (under titelraden) visas en **röd ruta** när veckan (mån–sön) har en röd dag på en **vardag** som
+inte redan passerat: `🔴 Röd dag: Kristi himmelsfärdsdag torsdag 14 maj (om 3 dagar)` — *imorgon* respektive *idag* när
+det är dags. Flera dagar radas upp (t.ex. nyårsafton + nyårsdagen). Lördags-/söndagshelger visas inte, och veckor utan
+röd vardag har ingen ruta. **✕** döljer rutan för resten av dagen. Dagarna räknas ut i appen (`core/holidays_se.py`,
+påsk enligt gregorianska algoritmen, inget nätverk): nyårsdagen, trettondedag jul, långfredag, annandag påsk, första maj,
+Kristi himmelsfärd, nationaldagen, juldagen, annandag jul — samt midsommarafton, julafton och nyårsafton, som inte är
+lagstadgade men lediga för de flesta (märkta *ledig för de flesta*).
+
 ## 🔔 Påminnelser med knappar + siffra på ikonen
 
 När en uppgift är **försenad eller förfaller idag** visas ett litet kort nere till höger (tar inte fokus, så du kan

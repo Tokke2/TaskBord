@@ -119,9 +119,17 @@ from core.no_console import install as _no_console  # noqa: E402
 
 _no_console()
 
+# Startmätning + fördröjd autostart (ren stdlib, före Qt): med --autostart väntar appen ~45 s innan den laddar något
+from app import startup_timing as _startup  # noqa: E402
+
+if __name__ == "__main__":
+    _startup.wait_for_autostart()
+
 from app.bootstrap import _self_test_central_log, run  # noqa: E402
 from app.constants import AppMode  # noqa: E402,F401
 from app.controller import AppController  # noqa: E402,F401
+
+_startup.mark("importer")
 
 
 if __name__ == "__main__":
