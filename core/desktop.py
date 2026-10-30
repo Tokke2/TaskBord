@@ -37,6 +37,7 @@ NYTT I v6.4.0 (5000% bättre):
 from __future__ import annotations
 
 import ctypes
+import json
 import logging
 import os
 import platform
@@ -4273,8 +4274,22 @@ def is_autostart_enabled() -> bool:
     return False
 
 
+def _autostart_lnk_mod():
+    """core/autostart_lnk.py (Startup-genväg med appens ikon) — importeras tolerant (core/ kan ligga på sys.path)."""
+    try:
+        from core import autostart_lnk as _m
+    except ImportError:
+        import autostart_lnk as _m  # type: ignore
+    return _m
+
+
 def _is_autostart_enabled_windows() -> bool:
-    if not IS_WINDOWS or winreg is None:
+    if not IS_WINDOWS:
+        return False
+    with suppress(Exception):
+        if _autostart_lnk_mod().exists():
+            return True
+    if winreg is None:
         return False
     try:
         with _safe_call():
@@ -4344,9 +4359,15 @@ def enable_autostart_windows(
 ) -> bool:
     if not IS_WINDOWS:
         return False
-    if methods is None:
-        methods = ["registry", "startup"]
     cmd = _resolve_exe_command(executable_path=executable_path, args=args)
+    if methods is None:
+        # Genväg i Startup-mappen med Ledgebords EGEN ikon (en registerpost/.bat visar Pythons ikon);
+        # registret + .bat bara som reserv om genvägen inte går att skapa.
+        with suppress(Exception):
+            if _autostart_lnk_mod().install(cmd):
+                logger.info("Autostart aktiverat (Startup-genväg med appens ikon)")
+                return True
+        methods = ["registry", "startup"]
     results = []
     for method in methods:
         try:
@@ -4447,6 +4468,8 @@ def disable_autostart_windows() -> bool:
 def disable_autostart_startup() -> bool:
     if not IS_WINDOWS:
         return False
+    with suppress(Exception):
+        _autostart_lnk_mod().remove()
     appdata = os.environ.get("APPDATA")
     if not appdata:
         return False
@@ -4475,7 +4498,12 @@ def disable_autostart_schtasks() -> bool:
 
 def get_autostart_command() -> Optional[str]:
     if IS_WINDOWS:
-        if not IS_WINDOWS or winreg is None:
+        with suppress(Exception):
+            _m = _autostart_lnk_mod()
+            if _m.exists():
+                _w = json.loads(_m.marker_path().read_text(encoding="utf-8"))
+                return f'"{_w["target"]}" {_w["args"]}'.strip()
+        if winreg is None:
             return None
         try:
             with _safe_call():

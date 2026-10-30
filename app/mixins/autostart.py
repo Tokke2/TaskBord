@@ -1,20 +1,27 @@
 # -*- coding: utf-8 -*-
-"""Starta med datorn (registret + Startup-.bat) och minimerad start."""
+"""Starta med datorn (Startup-genväg med Ledgebords ikon) och minimerad start."""
 
 from __future__ import annotations
 
 import os
 import sys
+import threading
 from contextlib import suppress
 from pathlib import Path
 from typing import Dict
 
 from app.constants import APP_NAME, AUTOSTART_FLAG, LOG_PREFIX, SCRIPT_DIR
 from app.platform_utils import _is_windows
+from core import autostart_lnk as _lnk
 
 
 class AutostartMixin:
-    """Starta med datorn (registret + Startup-.bat) och minimerad start."""
+    """Starta med datorn och minimerad start.
+
+    Windows: en genväg ``Ledgebord.lnk`` i Startup-mappen med Ledgebords EGEN ikon (se core/autostart_lnk.py) —
+    en registerpost/.bat som pekar på pythonw.exe visar Pythons ikon i Autostart-listorna. Registret + .bat
+    används bara som reserv om genvägen inte går att skapa.
+    """
 
     def _is_autostart_active(self) -> bool:
         """
@@ -111,10 +118,18 @@ class AutostartMixin:
         except Exception as e:
             self._log.debug(f"{LOG_PREFIX} _autostart_repair_startup_bat: {e}")
 
-    def _autostart_enable_robust(self) -> Dict[str, bool]:
-        """NY v7-fix37: Aktivera autostart via multipla metoder + verifiering."""
+    def _autostart_enable_robust(self, allow_shortcut: bool = True) -> Dict[str, bool]:
+        """Aktivera autostart: Startup-genväg med appens ikon; reserv = registret + Startup-.bat (+ schtasks)."""
         results: Dict[str, bool] = {}
         cmd = self._autostart_build_command()
+        if sys.platform == "win32" and allow_shortcut:
+            try:
+                if _lnk.install(cmd, SCRIPT_DIR):
+                    results["startup-genväg (appens ikon)"] = True
+                    return results
+            except Exception as e:  # noqa: BLE001
+                self._log.warning(f"{LOG_PREFIX} autostart-genväg: {e}")
+            self._log.warning(f"{LOG_PREFIX} autostart-genväg kunde inte skapas — använder registret som reserv")
         if sys.platform != "win32":
             try:
                 import desktop as _desk
@@ -174,6 +189,8 @@ class AutostartMixin:
             with suppress(Exception):
                 removed += self._autostart_remove_legacy()
             return removed
+        with suppress(Exception):
+            removed += _lnk.remove(SCRIPT_DIR)
         try:
             import winreg
             kp = r"Software\Microsoft\Windows\CurrentVersion\Run"
@@ -287,9 +304,38 @@ class AutostartMixin:
         else:
             self._log.warning(f"{LOG_PREFIX} ★ AUTOSTART: kunde inte skapa ny post — behåller den gamla")
 
+    def _autostart_shortcuts_heal(self, autostart_on: bool) -> None:
+        """Windows (bakgrundstråd, PowerShell kan ta någon sekund): Startup-genväg med appens ikon + genväg i appmappen."""
+        try:
+            cmd = self._autostart_build_command()
+            with suppress(Exception):
+                _lnk.ensure_folder_shortcut(_lnk.split_command(cmd)[0], SCRIPT_DIR)
+            if not autostart_on:
+                return
+            if _lnk.is_current(cmd, SCRIPT_DIR):
+                if _lnk.old_entries_present():
+                    n = _lnk.cleanup_old_entries()
+                    self._log.info(f"{LOG_PREFIX} ★ AUTOSTART: tog bort {n} gammal(a) post(er) (Pythons ikon)")
+                return
+            if _lnk.install(cmd, SCRIPT_DIR):
+                self._log.info(f"{LOG_PREFIX} ★ AUTOSTART: Startup-genväg med appens ikon skapad/uppdaterad")
+            else:
+                self._log.warning(f"{LOG_PREFIX} ★ AUTOSTART: genväg misslyckades — reserv via registret")
+                self._autostart_enable_robust(allow_shortcut=False)
+        except Exception as e:  # noqa: BLE001
+            self._log.debug(f"{LOG_PREFIX} _autostart_shortcuts_heal: {e}")
+
     def _autostart_health_check(self) -> None:
         """NY v7-fix37: Självreparation — om autostart borde vara på men inte är → fixa."""
         try:
+            if sys.platform == "win32":
+                _on = bool(getattr(self.settings, "is_autostart_enabled", lambda: False)())
+                with suppress(Exception):
+                    if _on:
+                        self._autostart_migrate_legacy()
+                threading.Thread(target=self._autostart_shortcuts_heal, args=(_on,),
+                                 name="autostart-heal", daemon=True).start()
+                return
             settings_on = bool(
                 getattr(self.settings, "is_autostart_enabled", lambda: False)()
             )

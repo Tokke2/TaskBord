@@ -416,7 +416,7 @@ class TrayMixin:
             autostart_action.setChecked(autostart_on)
             autostart_action.setToolTip(
                 "När aktiverad: appen startar automatiskt vid inloggning "
-                + ("i Windows (via HKCU\\...\\Run, pythonw.exe — ingen konsol)"
+                + ("i Windows (genväg i Startup-mappen med Ledgebords ikon — ingen konsol)"
                    if sys.platform == "win32" else
                    "(macOS: LaunchAgent, Linux: ~/.config/autostart)")
             )

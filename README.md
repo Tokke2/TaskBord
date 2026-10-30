@@ -112,7 +112,7 @@ kör du `./starta.sh` igen installeras nya paket bara om kraven ändrats. Debian
 | Funktion | Windows | macOS | Linux |
 |---|---|---|---|
 | Uppgifter, backup, mail-brygga, kalender, uppdatering | ✅ | ✅ | ✅ |
-| Start med datorn | Registret/Startup | LaunchAgent | `~/.config/autostart` |
+| Start med datorn | Startup-genväg med ikon | LaunchAgent | `~/.config/autostart` |
 | "Visa över andra appar" (kryssruta) / på skrivbordet | Win32 (på skrivbordet) | Qt-flaggor (överst; "bakom" ignoreras av macOS) | Qt-flaggor (X11 fullt, Wayland beroende på skrivbord) |
 | Globala snabbtangenter (Ctrl+Alt+…) | ✅ | ❌ (använd tray-menyn) | ❌ (använd tray-menyn) |
 | Google-nyckel (`token.json`) | krypterad (DPAPI) | filrättighet 0600 | filrättighet 0600 |
@@ -241,6 +241,11 @@ uppgiftskort – ligger i `icon\\ledgebord.ico` och används överallt: fönster
 genvägen som `INSTALLERA.bat` skapar och Thunderbird-tillägget. Appen ger sig själv ett eget *AppUserModelID*
 (annars visar Windows Pythons ikon för `pythonw.exe`). Saknas ikonfilen ritas samma ikon om automatiskt
 (`core/icon_art.py`, bara standardbiblioteket; `python core/icon_art.py` skriver om filerna i `icon\\`).
+* **Autostart med rätt ikon:** *Starta med datorn* skapar en genväg `Ledgebord.lnk` i Startup-mappen med Ledgebords ikon
+  (inte en registerpost/`.bat` som pekar på `pythonw.exe` – de visar Pythons ikon i Aktivitetshanterarens *Autostart*-flik
+  och i Inställningar → Appar → Autostart). De gamla posterna tas bort automatiskt vid nästa start; går det inte att
+  skapa genvägen används registret som reserv. Dessutom skapas `Ledgebord.lnk` i själva appmappen – starta därifrån i
+  stället för från `main.pyw` (som Windows visar med Pythons filikon).
 * **Autostart följer med:** posten "Starta med datorn" flyttas till nya namnet vid första start (den gamla
   tas bort först när den nya är skapad). Gamla backupfiler (`taskbord-…zip`) hittas och rensas som förut.
 * **Oförändrat med flit** (så att inget går sönder): HTTP-huvudet `X-TaskBord-Token`, Thunderbird-tilläggets id,

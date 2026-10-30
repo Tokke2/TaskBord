@@ -16,3 +16,6 @@ client_secret*.json
 
 # Lokal Python-miljö (starta.sh)
 .venv/
+
+# Genvägen Ledgebord.lnk skapas lokalt av appen (Windows)
+/Ledgebord.lnk
