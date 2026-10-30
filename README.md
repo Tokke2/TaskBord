@@ -304,6 +304,21 @@ håller, och **återställer det som låg i urklippet**. Är inget markerat anv�
 i urklippet. En tray-notis visar vad som skapades. Ändra/stäng av: tray → **⌨️ Snabbkommandon →
 📋 Lägg till från urklipp…**. Utan snabbtangent: tray → *📋 Ny uppgift från urklipp*.
 
+## 🧯 Felloggen — alla fel på ett ställe (`data\fel.log`)
+
+Felen låg tidigare utspridda (`todo_app.log` med tusentals rader, `update_watchdog.log` från uppdateringsväktaren,
+`window_failure_report.txt`, äldre dagsfiler). Nu samlas allt som gått fel i **en** fil — börja alltid där:
+
+* tray → **🧯 Öppna felloggen** (öppnas i Anteckningar), eller öppna `data\fel.log` direkt;
+* **live:** varje varning/fel/krasch från *alla* moduler skrivs direkt, med tid, modul (fil:rad) och stacktrace;
+  likadana fel i följd samlas ("ovanstående upprepades N gånger");
+* **import:** 10 s efter start och varje gång du öppnar filen hämtas fel ur de andra loggarna — nya felrader ur
+  `update_watchdog.log` (återställning, appen avslutades …), nödrapporten `window_failure_report.txt` och, första gången,
+  ERROR/CRITICAL ur `todo_app.log` + de roterade dagsfilerna (rader märkta `IMPORT`). Samma rad tas aldrig två gånger
+  (`data\fel_import.json` håller reda på var vi är);
+* token och mailadresser maskas; filen roteras vid ca 1,5 MB (`fel.log.1` behålls); inget skrivs utanför appmappen;
+* den ingår också i **felrapporten** (ZIP) som `fel.log`.
+
 ## 🩺 Felrapport
 
 tray → **🩺 Skapa felrapport…** packar en ZIP i `data\felrapporter\` (de 10 senaste behålls) och öppnar

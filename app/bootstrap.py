@@ -713,6 +713,13 @@ def run() -> int:
         setup_logging(config.log_level, config.log_file)
         log = logging.getLogger("Main")
         log.warning(f"{LOG_PREFIX} logger_setup ej tillgängligt: {e}, använder fallback")
+    # 2b. Felloggen data/fel.log: samlar alla varningar/fel från alla moduler (live) + de andra loggarna (importeras)
+    try:
+        from core import error_log
+        error_log.install(SCRIPT_DIR / "data")
+        error_log.import_in_background(SCRIPT_DIR / "data", delay=10.0)
+    except Exception as e:
+        log.debug(f"{LOG_PREFIX} felloggen kunde inte startas: {e}")
     # 3. Installera global exception hook (extra Qt-specifik)
     try:
         install_global_exception_hook()

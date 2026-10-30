@@ -688,6 +688,14 @@ class TrayMixin:
             bug_action.triggered.connect(self._create_bug_report)
             self._tray_menu.addAction(bug_action)
 
+            errlog_action = self._QAction("🧯  Öppna felloggen", self._tray_menu)
+            errlog_action.setToolTip(
+                "data\\fel.log — alla fel och varningar från hela appen (och uppdateringsväktaren) på ett ställe,\n"
+                "i tidsordning. Bra att börja med vid felsökning."
+            )
+            errlog_action.triggered.connect(self._open_error_log)
+            self._tray_menu.addAction(errlog_action)
+
             about_action = self._QAction("ℹ  Om…", self._tray_menu)
             about_action.triggered.connect(self.show_about)
             self._tray_menu.addAction(about_action)

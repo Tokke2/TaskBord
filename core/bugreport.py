@@ -124,6 +124,7 @@ README = (
     "Den innehåller:\n"
     "  info.txt         version, Python, Windows\n"
     "  filer.txt        kort fingeravtryck för varje programfil (visar exakt vilken kod som körs)\n"
+    "  fel.log          alla fel/varningar samlade (börja läsa här)\n"
     "  todo_app.log     de senaste raderna ur loggen (token och mailadresser maskade)\n"
     "  settings.json    inställningar (alla hemligheter ersatta med ***)\n"
     "  update_watchdog.log  om en uppdatering skett\n\n"
@@ -156,6 +157,9 @@ def create_report(app_dir: Path, settings_file: Optional[Path] = None,
         z.writestr("info.txt", info_text(app_dir, extra))
         z.writestr("filer.txt", file_table(app_dir))
         z.writestr("todo_app.log", redact_text(tail_lines(data / "todo_app.log")))
+        fl = data / "fel.log"
+        if fl.is_file():
+            z.writestr("fel.log", redact_text(tail_lines(fl, 1500)))
         z.writestr("settings.json", settings_text)
         wl = data / "update_watchdog.log"
         if wl.is_file():

@@ -290,6 +290,17 @@ class DiagnosticsMixin:
                 category="code_bug",
             )
 
+    def _open_error_log(self) -> None:
+        """🧯 Öppna data/fel.log (alla fel samlade). Importerar först det nya ur de andra loggarna."""
+        try:
+            from core import error_log
+            path = error_log.prepare_for_open(SCRIPT_DIR / "data")
+            if not error_log.open_in_viewer(path):
+                from core import addon_watch
+                addon_watch.reveal_in_folder(path)
+        except Exception as e:
+            self._log.error(f"{LOG_PREFIX} kunde inte öppna felloggen: {e}", exc_info=True)
+
     def _create_bug_report(self) -> None:
         """🩺 Skapa felrapport: ZIP med logg/inställningar/versioner (utan uppgifter), visas i Utforskaren."""
         try:
