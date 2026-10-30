@@ -77,6 +77,13 @@ Stäng av hela kollen med tray → *Sök ny version automatiskt*.
 filerna med din installation (innehållet, inte versionsnumret — releasen kan heta v1.0.0 och
 ändå ha ny kod). Finns skillnader visas vilka filer, och du väljer **Uppdatera nu**.
 
+**Knappen i fönstret:** i titelraden (mellan statistiken och 🔒) sitter en uppdateringsknapp.
+`⟳` = sök ny version (tooltip visar *Senast kollat*), `⏳` = söker/installerar, `✓` = du har senaste i 8 s efter en manuell koll,
+och `⬆` (grön) = ny version finns. Då visas också en grön rad under titeln — **🆕 Ny version finns (N filer) [Uppdatera nu]**.
+Klick på `⬆`/Uppdatera nu inom 30 min efter att uppdateringen hittades frågar direkt och installerar utan ny nätverkskoll;
+annars görs en ny manuell koll. Tysta bakgrundskollar blinkar aldrig i knappen — den lyser bara grönt om en uppdatering
+väntar (t.ex. när `requirements.txt` ändrats och tyst installation därför inte sker).
+
 * **Förlopp hela vägen:** ett förloppsfönster visar sökning och nedladdning (MB, kan avbrytas)
   och sedan installationen ("Installerar filer… 3 av 14"), så det aldrig ser ut som att det hängt sig.
 * **Dina uppgifter rörs inte:** `js\` (uppgifter, inställningar, Google-koppling) och `data\`

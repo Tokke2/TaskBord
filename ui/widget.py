@@ -82,6 +82,7 @@ if _QT_AVAILABLE:
         task_action = Signal(str, str)  # (action, task_id)
         widget_closed = Signal(str)     # win_id
         hide_to_tray_requested = Signal()  # knapparna – / ✕, Stäng-förfrågan: göm till systemfältet
+        update_requested = Signal()  # uppdateringsknappen i titelraden (appen söker/installerar)
         top_toggle_requested = Signal()  # högerklicksmenyn: "📌 Alltid överst" (appen växlar läget)
 
         # === KLASS-KONSTANTER ===

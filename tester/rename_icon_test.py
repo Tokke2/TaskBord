@@ -48,7 +48,7 @@ ALLOWED = (
     # medvetna hänvisningar till det GAMLA namnet (migrering/kompatibilitet):
     '_LEGACY_AUTOSTART_NAMES = ("TaskBord",)', 'LEGACY_AUTOSTART_NAMES: Tuple[str, ...] = ("TaskBord",)',
     "Namnbyte TaskBord → Ledgebord", '(äldre versioner: "TaskBord")', '_LEGACY_DIR_NAME: Final[str] = "TaskBord"',
-    "TaskBord.lnk", "(tidigare TaskBord)",
+    "TaskBord.lnk", "(tidigare TaskBord)", 'LEGACY_NAMES = ("TaskBord",)',
 )
 
 

@@ -42,6 +42,7 @@ NAMES = {
     "_notify_update_available", "_on_tray_message_clicked", "_toggle_auto_update",
     "_update_failed_fp", "_begin_install", "_auto_install_blocker", "_update_busy_reason",
     "_auto_install_when_idle", "_toggle_auto_install",
+    "_confirm_and_install", "_update_ui_state", "_push_update_state", "_on_update_button",
 }
 methods = {}
 for node in (n for t in trees for n in ast.walk(t)):
@@ -138,6 +139,8 @@ class FakeWidget:
 class Stub:
     _mode = "normal"
     AUTO_INSTALL_MAX_WAIT = 3
+    UPDATE_INFO_FRESH_SEC = 1800
+    UPDATE_CURRENT_FLASH_SEC = 8
     def __init__(self):
         self.settings = FakeSettings()
         self._widget_lock = FakeLock()
@@ -489,6 +492,85 @@ t._toggle_auto_install()
 check("_toggle_auto_install slår av och på", t.settings.auto is False)
 t._toggle_auto_install()
 check("…och på igen", t.settings.auto is True)
+
+# --- knappen i titelraden (⟳ → ⬆ Uppdatera → ⏳ Installerar…) ----------------------------------------------
+class ButtonWidget(FakeWidget):
+    def __init__(self):
+        super().__init__()
+        self.calls = []
+    def set_update_state(self, state, tooltip="", count=0): self.calls.append((state, tooltip, count))
+
+
+def btn_stub():
+    b = Stub()
+    b.rw = ButtonWidget()
+    b._widgets = {"w": b.rw}
+    return b
+
+
+reset_app()
+STATE["zip"] = make_zip({"main.pyw": b"print('v2')\n", "core/x.py": b"A=1\n"})
+b = btn_stub()
+st0 = b._update_ui_state()
+check("knapp: vilande läge = idle med tooltip om senaste koll", st0[0] == "idle" and "Senast kollat: ännu inte" in st0[1])
+b.ask_answer = False                      # första klicket: sök, men avböj installationen
+b._on_update_button()
+check("knapp: klick utan känd uppdatering söker (förloppsfönster)", len(b.pds) == 1 and b.rw.calls and b.rw.calls[-1][0] == "checking")
+run(b)
+asks = [d for d in b.dialogs if d[0] == "ask"]
+check("knapp: sökningen visar frågan 'Ny version finns'", len(asks) == 1 and asks[0][1] == "Ny version finns")
+check("knapp: efter avböjd installation står knappen som ⬆ med antal filer", b._update_ui_state()[0] == "available" and b._update_ui_state()[2] == 2)
+check("knapp: fönstret fick läget 'available' + tooltip med release/commit", b.rw.calls[-1][0] == "available" and "abc1234" in b.rw.calls[-1][1] and "2 fil" in b.rw.calls[-1][1])
+check("knapp: inget installerades än", (APP / "main.pyw").read_bytes() == b"print('v1')\n" and b._update_busy is False)
+STATE["fail"] = True                      # ingen nätverkskoll ska behövas för att installera en redan hittad uppdatering
+b.ask_answer = True
+n_pds = len(b.pds)
+b._on_update_button()
+check("knapp: nytt klick installerar direkt (ingen ny sökning, bara en fråga till)", len([d for d in b.dialogs if d[0] == "ask"]) == 2 and len(b.pds) == n_pds + 1)
+check("knapp: under installationen visas ⏳ Installerar", any(c[0] == "installing" for c in b.rw.calls))
+run(b)
+STATE["fail"] = False
+check("knapp: filerna uppdaterades från den hittade uppdateringen", (APP / "main.pyw").read_bytes() == b"print('v2')\n" and (APP / "core" / "x.py").exists())
+check("knapp: appen startade om (shutdown) efter lyckad installation", b.shut == [1])
+check("knapp: efter installationen är läget idle igen", b._update_ui_state()[0] == "idle" and b.rw.calls[-1][0] == "idle")
+
+# redan aktuell → ✓ Aktuell en kort stund
+b2 = btn_stub()
+b2._on_update_button()
+run(b2)
+check("knapp: manuell koll utan nyheter → '✓ Aktuell'", b2._update_ui_state()[0] == "current" and b2.rw.calls[-1][0] == "current")
+check("knapp: texten återställs automatiskt efter några sekunder", any(ms >= 8000 for ms, _f in FakeTimer.shots))
+b2._update_current_until = 0.0
+b2._refresh_update_action()
+check("knapp: … tillbaka till ⟳", b2.rw.calls[-1][0] == "idle")
+
+# gammal träff (> 30 min) → ny sökning i stället för direktinstallation
+reset_app()
+b3 = btn_stub()
+b3.ask_answer = False
+b3._on_update_button(); run(b3)
+b3._update_last_info_ts -= 3600
+n_pds = len(b3.pds)
+b3._on_update_button()
+check("knapp: gammal träff → söker på nytt", len(b3.pds) == n_pds + 1 and b3.rw.calls[-1][0] == "checking")
+run(b3)
+
+# pågår redan → klicket ignoreras
+b4 = btn_stub()
+b4._update_busy = True
+n_d = len(b4.dialogs)
+b4._on_update_button()
+check("knapp: klick under pågående sökning ignoreras", len(b4.pds) == 0 and len(b4.dialogs) == n_d)
+
+# tyst koll ska inte blinka med 'Söker…'
+reset_app()
+STATE["zip"] = make_zip({"main.pyw": b"print('v9')\n"})
+b5 = btn_stub()
+b5._auto_update_check()
+check("knapp: tyst koll visar aldrig 'Söker…'", all(c[0] != "checking" for c in b5.rw.calls))
+run(b5)
+check("knapp: tyst koll som hittar uppdatering (ej auto-installerad) → ⬆", b5._update_ui_state()[0] == "available")
+reset_app()
 
 print(f"\nupdater_flow_test: {ok} lyckades, {fail} misslyckades")
 sys.exit(1 if fail else 0)

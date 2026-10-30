@@ -95,6 +95,7 @@ class Ctl(DesktopShellMixin):
         self._widgets = {}
 
     def _desktop_mode(self): return self.mode
+    def _is_hidden_to_tray(self): return False
 
 
 def topmost_calls(u: FakeUser32, after: int) -> list:

@@ -102,12 +102,75 @@ class UpdateMixin:
                 pd.setRange(0, 0)
 
     def _refresh_update_action(self) -> None:
-        """Tray-texten markerar när en ny version väntar."""
+        """Tray-texten och knappen i fönstrets titelrad markerar när en ny version väntar."""
+        with suppress(Exception):
+            self._push_update_state()
         act = getattr(self, "_update_action", None)
         if act is None:
             return
         with suppress(Exception):   # QAction kan ha raderats när menyn byggdes om
             act.setText(self._update_action_text())
+
+    UPDATE_INFO_FRESH_SEC = 1800     # en hittad uppdatering kan installeras direkt från knappen i 30 min
+    UPDATE_CURRENT_FLASH_SEC = 8     # "✓ Aktuell" visas så här länge efter en manuell koll utan nyheter
+
+    def _update_ui_state(self) -> Tuple[str, str, int]:
+        """(state, tooltip, antal filer) för uppdateringsknappen i titelraden."""
+        from datetime import datetime
+        silent = bool(getattr(self, "_update_silent", False))
+        busy = bool(getattr(self, "_update_busy", False))
+        info = getattr(self, "_update_last_info", None)
+        last = 0
+        with suppress(Exception):
+            last = int(self.settings.update_last_check())
+        if last > 0:
+            dt = datetime.fromtimestamp(last)
+            when = f"idag {dt:%H:%M}" if dt.date() == datetime.now().date() else f"{dt:%Y-%m-%d %H:%M}"
+        else:
+            when = "ännu inte"
+        stage = getattr(self, "_update_stage", "check")
+        if busy and not silent and stage != "confirm":     # "confirm" = frågedialogen är öppen → knappen står kvar som ⬆
+            if stage == "apply":
+                return "installing", "Installerar uppdateringen — appen startar om strax.", 0
+            return "checking", "Kontaktar GitHub och jämför filerna…", 0
+        if getattr(self, "_update_available", False) and info is not None:
+            n = len(getattr(info, "changed", []) or [])
+            return "available", (
+                f"Ny version finns: {n} fil(er) skiljer sig (release {info.tag}, commit {(info.commit or '?')[:7]}).\n"
+                "Klicka för att uppdatera — dina uppgifter rörs inte och appen startar om."), n
+        if time.monotonic() < getattr(self, "_update_current_until", 0.0):
+            return "current", f"Du har senaste versionen (kollat {when}). Klicka för att kolla igen.", 0
+        return "idle", (f"Sök ny version — jämför dina filer mot senaste releasen.\n"
+                        f"Senast kollat: {when}. Appen kollar själv 2 gånger per dygn."), 0
+
+    def _push_update_state(self) -> None:
+        """Skicka knappens läge till alla fönster."""
+        state, tip, n = self._update_ui_state()
+        with self._widget_lock:
+            widgets = list(self._widgets.values())
+        for w in widgets:
+            with suppress(Exception):
+                w.set_update_state(state, tip, n)
+
+    def _on_update_button(self) -> None:
+        """Knappen i titelraden: hittad uppdatering → bekräfta + installera direkt; annars sök ny version."""
+        if getattr(self, "_update_busy", False):
+            return
+        info = getattr(self, "_update_last_info", None)
+        fresh = (time.monotonic() - getattr(self, "_update_last_info_ts", -1e9)) < self.UPDATE_INFO_FRESH_SEC
+        if getattr(self, "_update_available", False) and info is not None and info.changed and fresh:
+            self._update_busy = True
+            self._update_silent = False
+            self._update_cancel = False
+            self._update_stage = "confirm"
+            self._update_result = None
+            self._update_timer = self._QTimer(self._app)
+            self._update_timer.setInterval(120)
+            self._update_timer.timeout.connect(self._poll_update_check)
+            self._refresh_update_action()
+            self._confirm_and_install(info)
+            return
+        self._check_for_updates()
 
     def _update_action_text(self) -> str:
         if getattr(self, "_update_available", False):
@@ -132,6 +195,7 @@ class UpdateMixin:
         self._update_info = None
         if not silent:
             self._update_progress_open("Kontaktar GitHub…", cancelable=True)
+            self._refresh_update_action()
 
         def _work() -> None:
             try:
@@ -155,6 +219,7 @@ class UpdateMixin:
         self._update_progress_close()
         self._update_result = None
         self._update_busy = False
+        self._refresh_update_action()
 
     def _poll_update_check(self) -> None:
         """GUI-tråd, ticker medan en koll/installation pågår."""
@@ -179,7 +244,6 @@ class UpdateMixin:
                     self._update_dialog("warn", "Uppdatering misslyckades", str(e))
 
     def _finish_check(self, res: Tuple[str, Any]) -> None:
-        from core import updater
         kind, payload = res
         silent = getattr(self, "_update_silent", False)
         self._update_progress_close()
@@ -196,6 +260,12 @@ class UpdateMixin:
         with suppress(Exception):
             self.settings.set_update_last_check(int(time.time()))
         self._update_available = not info.up_to_date
+        self._update_last_info = info
+        self._update_last_info_ts = time.monotonic()
+        if info.up_to_date and not silent:
+            # knappen visar "✓ Aktuell" en kort stund efter en manuell koll
+            self._update_current_until = time.monotonic() + self.UPDATE_CURRENT_FLASH_SEC
+            self._QTimer.singleShot(int(self.UPDATE_CURRENT_FLASH_SEC * 1000) + 200, self._refresh_update_action)
         self._refresh_update_action()
         if silent:
             self._update_finish()
@@ -215,6 +285,12 @@ class UpdateMixin:
                 f"commit {info.commit[:7] or '?'} — inga filer skiljer sig.)",
             )
             return
+        self._confirm_and_install(info)
+
+    def _confirm_and_install(self, info: Any) -> None:
+        """Visa vad som ändras, fråga och installera. (Anropas efter en koll eller direkt från knappen.)"""
+        from core import updater
+        self._update_stage = "confirm"
         extra = ""
         if info.requirements_changed:
             extra = ("\n\n⚠️ requirements.txt har ändrats. Efter uppdateringen: kör "
@@ -256,6 +332,7 @@ class UpdateMixin:
         self._update_progress = ("install", 0, n)
         self._update_result = None
         self._update_progress_refresh()
+        self._refresh_update_action()
 
         def _apply() -> None:
             try:

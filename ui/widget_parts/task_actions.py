@@ -602,6 +602,69 @@ class TaskActionsMixin:
                 exc_info=True,
             )
 
+    _UPDATE_BTN_STYLES = {
+        "available": "QPushButton#winBtn { background: #15803d; color: #ffffff; border: 1px solid #86efac; }"
+                     " QPushButton#winBtn:hover { background: #166534; }",
+        "current": "QPushButton#winBtn { color: #86efac; }",
+        "installing": "QPushButton#winBtn { background: #b45309; color: #ffffff; border: 1px solid #fcd34d; }",
+    }
+    _UPDATE_BTN_TEXTS = {"idle": "⟳", "checking": "⏳", "available": "⬆", "installing": "⏳", "current": "✓"}
+    _UPDATE_BAR_STYLES = {
+        "available": ("#14532d", "#bbf7d0"),   # (bakgrund, kant) — vit text, vit knapp med mörkgrön text
+        "installing": ("#92400e", "#fcd34d"),
+    }
+
+    def set_update_state(self, state: str, tooltip: str = "", count: int = 0) -> None:
+        """
+        Uppdateringsknappen (ikon) i titelraden + raden "Ny version finns — Uppdatera nu" under den.
+        state: idle | checking | available | installing | current.
+        """
+        btn = getattr(self, "update_btn", None)
+        if btn is None:
+            return
+        try:
+            state = state if state in self._UPDATE_BTN_TEXTS else "idle"
+            btn.setText(self._UPDATE_BTN_TEXTS[state])
+            btn.setStyleSheet(self._UPDATE_BTN_STYLES.get(state, ""))
+            btn.setEnabled(state not in ("checking", "installing"))
+            btn.setAccessibleName({
+                "idle": "Sök ny version", "checking": "Söker efter ny version", "available": "Ny version finns — uppdatera",
+                "installing": "Installerar uppdatering", "current": "Du har senaste versionen",
+            }[state])
+            if tooltip:
+                btn.setToolTip(tooltip)
+            bar = getattr(self, "update_bar", None)
+            if bar is not None:
+                if state in self._UPDATE_BAR_STYLES:
+                    bg, edge = self._UPDATE_BAR_STYLES[state]
+                    bar.setStyleSheet(
+                        f"QFrame#updateBar {{ background: {bg}; border: 1px solid {edge}; border-radius: 8px; }}"
+                        "QFrame#updateBar QLabel { color: #ffffff; background: transparent; font-size: 12px; font-weight: 600; }"
+                        f"QFrame#updateBar QPushButton {{ background: #ffffff; color: {bg}; border: none; border-radius: 6px;"
+                        " font-size: 12px; font-weight: 700; padding: 0 12px; }"
+                        "QFrame#updateBar QPushButton:hover { background: #e5e7eb; }"
+                    )
+                    if state == "available":
+                        self.update_label.setText(
+                            f"🆕 Ny version finns ({count} fil{'er' if count != 1 else ''})" if count else "🆕 Ny version finns")
+                    else:
+                        self.update_label.setText("⏳ Installerar uppdateringen — Ledgebord startar om strax…")
+                    self.update_now_btn.setVisible(state == "available")
+                    if tooltip:
+                        bar.setToolTip(tooltip)
+                bar.setVisible(state in self._UPDATE_BAR_STYLES)
+            self._update_state = state
+        except Exception as e:
+            logger.debug(f"{LOG_PREFIX} set_update_state: {_describe_widget_error(e)}")
+
+    def _on_update_clicked(self) -> None:
+        """Klick på uppdateringsknappen → appen söker eller (om en ny version redan hittats) installerar."""
+        try:
+            self._audit.add("update_clicked")
+            self.update_requested.emit()
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} _on_update_clicked misslyckades: {_describe_widget_error(e)}")
+
     def _on_hide_to_tray_clicked(self) -> None:
         """Knapparna – och ✕: göm fönstret till systemfältet (appen fortsätter köra)."""
         try:
