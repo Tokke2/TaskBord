@@ -110,6 +110,7 @@ class UpdateMixin:
             return
         with suppress(Exception):   # QAction kan ha raderats när menyn byggdes om
             act.setText(self._update_action_text())
+            act.setEnabled(self._update_ui_state()[0] not in ("checking", "installing"))
 
     UPDATE_INFO_FRESH_SEC = 1800     # en hittad uppdatering kan installeras direkt från knappen i 30 min
     UPDATE_CURRENT_FLASH_SEC = 8     # "✓ Aktuell" visas så här länge efter en manuell koll utan nyheter
@@ -173,9 +174,20 @@ class UpdateMixin:
         self._check_for_updates()
 
     def _update_action_text(self) -> str:
-        if getattr(self, "_update_available", False):
-            return "🆕  Ny version finns — uppdatera…"
-        return "🔄  Sök ny version…"
+        """Texten på uppdaterings-raden överst i tray-menyn (följer samma läge som ⟳-knappen i fönstret)."""
+        try:
+            state, _tip, n = self._update_ui_state()
+        except Exception:
+            state, n = ("available" if getattr(self, "_update_available", False) else "idle"), 0
+        if state == "available":
+            return f"🆕  Ny version finns — uppdatera nu ({n} fil{'er' if n != 1 else ''})" if n else "🆕  Ny version finns — uppdatera nu"
+        if state == "checking":
+            return "⏳  Söker ny version…"
+        if state == "installing":
+            return "⏳  Installerar uppdateringen…"
+        if state == "current":
+            return "✓  Du har senaste versionen (klicka för att kolla igen)"
+        return "🔄  Uppdatera appen… (sök ny version)"
 
     def _check_for_updates(self, silent: bool = False) -> None:
         """

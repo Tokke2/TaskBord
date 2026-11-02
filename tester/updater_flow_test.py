@@ -572,5 +572,30 @@ run(b5)
 check("knapp: tyst koll som hittar uppdatering (ej auto-installerad) → ⬆", b5._update_ui_state()[0] == "available")
 reset_app()
 
+# --- uppdaterings-raden överst i tray-menyn -----------------------------------------------------------------------
+m1 = btn_stub()
+check("tray-rad: vilande 'Uppdatera appen…'", m1._update_action_text().startswith("🔄") and "Uppdatera appen" in m1._update_action_text())
+STATE["zip"] = make_zip({"main.pyw": b"print('v7')\n", "core/x.py": b"A=1\n"})
+m1.ask_answer = False
+m1._on_update_button()
+check("tray-rad: under sökning 'Söker…'", m1._update_action_text().startswith("⏳") and "Söker" in m1._update_action_text())
+run(m1)
+check("tray-rad: ny version → '🆕 … uppdatera nu (2 filer)'", m1._update_action_text().startswith("🆕") and "uppdatera nu (2 filer)" in m1._update_action_text())
+class _Act:
+    def __init__(self): self.t, self.en = "", True
+    def setText(self, t): self.t = t
+    def setEnabled(self, e): self.en = e
+m1._update_action = _Act()
+m1._refresh_update_action()
+check("tray-rad: _refresh_update_action uppdaterar text och aktivt läge", m1._update_action.t.startswith("🆕") and m1._update_action.en is True)
+m1._update_busy, m1._update_silent, m1._update_stage = True, False, "apply"
+m1._refresh_update_action()
+check("tray-rad: under installation 'Installerar…' och grånad", "Installerar" in m1._update_action.t and m1._update_action.en is False)
+m1._update_busy = False
+tray_src = (ROOT / "app" / "mixins" / "tray.py").read_text(encoding="utf-8")
+check("tray-menyn: uppdaterings-raden ligger överst (före huvudaktionerna) och använder _on_update_button",
+      0 < tray_src.index("=== UPPDATERA (överst") < tray_src.index("=== HUVUDAKTIONER ===") and "_on_update_button()" in tray_src)
+reset_app()
+
 print(f"\nupdater_flow_test: {ok} lyckades, {fail} misslyckades")
 sys.exit(1 if fail else 0)

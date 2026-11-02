@@ -86,6 +86,20 @@ class TrayMixin:
             mem_action.setEnabled(False)
             self._tray_menu.addSeparator()
 
+            # === UPPDATERA (överst, lätt att hitta) ===
+            # Idle: "🔄 Uppdatera appen…" (söker). Ny version finns: "🆕 Ny version finns — uppdatera nu (N filer)" och ett
+            # klick frågar + installerar direkt. Söker/installerar: grånad rad med status. Samma logik som ⟳-knappen i fönstret.
+            self._update_action = self._QAction(self._update_action_text(), self._tray_menu)
+            self._update_action.setToolTip(
+                "Hämtar senaste releasen från GitHub, jämför filerna och byter ut programfilerna.\n"
+                "Dina uppgifter och inställningar (js\\ och data\\) rörs inte; appen startar om."
+            )
+            with suppress(Exception):
+                self._update_action.setEnabled(self._update_ui_state()[0] not in ("checking", "installing"))
+            self._update_action.triggered.connect(lambda _c=False: self._on_update_button())
+            self._tray_menu.addAction(self._update_action)
+            self._tray_menu.addSeparator()
+
             # === HUVUDAKTIONER ===
             # NY v6.4: "Visa vid markören" — placerar fönster där muspekaren är
             show_action = self._QAction("👁  Visa fönster vid markören", self._tray_menu)
@@ -201,15 +215,7 @@ class TrayMixin:
             )
             self._tray_menu.addAction(self._google_calendar_action)
 
-            # NY v8 (2026-10-13): uppdatera appen inifrån (GitHub-releasen Latest)
-            self._update_action = self._QAction(self._update_action_text(), self._tray_menu)
-            self._update_action.setToolTip(
-                "Hämtar senaste releasen från GitHub och byter ut programfilerna.\n"
-                "Dina uppgifter och inställningar (js\\ och data\\) rörs inte."
-            )
-            self._update_action.triggered.connect(lambda _c=False: self._check_for_updates())
-            self._tray_menu.addAction(self._update_action)
-
+            # (Uppdatera-raden ligger överst i menyn — se "UPPDATERA" ovan.)
             _auto_upd_on = bool(self.settings.update_check_enabled())
             _auto_upd = self._QAction(
                 f"{'✅' if _auto_upd_on else '⚪'}  Sök ny version automatiskt (2 gånger/dygn)",

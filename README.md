@@ -73,7 +73,7 @@ Vill du själv godkänna varje uppdatering: tray → avkryssa **Installera nya v
 du bara en tray-notis (klicka för att uppdatera) och menyraden **🆕 Ny version finns — uppdatera…**.
 Stäng av hela kollen med tray → *Sök ny version automatiskt*.
 
-**Manuellt:** tray-menyn → **🔄 Sök ny version…** hämtar GitHub-releasen *Latest* och jämför
+**Manuellt:** tray-menyn (högerklick) → översta raden **🔄 Uppdatera appen…** (blir **🆕 Ny version finns — uppdatera nu (N filer)** när det finns något; ett klick då frågar och installerar direkt; grånad med status medan den söker/installerar) — hämtar GitHub-releasen *Latest* och jämför
 filerna med din installation (innehållet, inte versionsnumret — releasen kan heta v1.0.0 och
 ändå ha ny kod). Finns skillnader visas vilka filer, och du väljer **Uppdatera nu**.
 
