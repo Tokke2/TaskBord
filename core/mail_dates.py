@@ -12,15 +12,14 @@ och har uppgiften inget förfallodatum får den det tidigaste (väljer användar
 
 Igenkänt:  15/11   15/11-2026   15/11/26   2026-11-15   15.11.2026   15 november   15:e november   15 nov
            november 15   samt enbart månadsnamn ("i november", "december")
-Månadsnamn utan dag: samma dag i månaden som närmast föregående datum i texten (15/11 … december → 15/12),
-finns inget föregående datum: den 1:a (är månaden redan igång och dagen passerad: idag).
+Månadsnamn utan dag ("i november", "december"): månadens FÖRSTA VARDAG (måndag–fredag, ej röd dag). Är månaden redan
+igång och den dagen passerad: idag.
 Ignoreras: "2/3" direkt efter ett månadsnamn ("november 2/3" = betalning 2 av 3, inte 2 mars), "1 av 3",
 klockslag, belopp, citerade rader (> …) och datum som redan passerat. Årslösa datum hamnar i år; ligger de mer än
 5 månader bakåt tolkas de som nästa år.
 """
 from __future__ import annotations
 
-import calendar
 import logging
 import re
 from datetime import date, timedelta
@@ -76,6 +75,19 @@ def _resolve(m: int, d: int, y: Optional[int], today: date) -> Optional[date]:
     return cand
 
 
+def first_weekday(year: int, month: int) -> date:
+    """Månadens första vardag: måndag–fredag som inte är en röd dag (t.ex. 1 jan → 4 jan 2027)."""
+    try:
+        from core.holidays_se import holidays as _hol
+        red = {d for d, (_n, is_red) in _hol(year).items() if is_red}
+    except Exception:
+        red = set()
+    d = date(year, month, 1)
+    while d.weekday() >= 5 or d in red:
+        d += timedelta(days=1)
+    return d
+
+
 def _snippet(lines: List[str], idx: int, start: int = 99) -> str:
     """Raden med datumet. Är raden kort, eller börjar den med datumet, tas raden före med (rubriken, t.ex. 'Betalning 2')."""
     line = re.sub(r"\s+", " ", lines[idx]).strip()
@@ -95,7 +107,6 @@ def extract_dates(text: str, today: Optional[date] = None) -> List[Tuple[date, s
     today = today or date.today()
     lines = (text or "")[:MAX_SCAN_CHARS].splitlines()
     found: List[Tuple[date, str]] = []
-    last_day: Optional[int] = None                      # dag i månaden på närmast föregående datum i texten
     for idx, raw in enumerate(lines):
         line = raw.rstrip()
         if not line.strip() or line.lstrip().startswith(">"):
@@ -133,13 +144,10 @@ def extract_dates(text: str, today: Optional[date] = None) -> List[Tuple[date, s
             if kind == "ymd":
                 y, mon, d = g
                 dt = _mk(y, mon, d) if (y and y > 1000) else _resolve(mon, d, y, today)
-                if dt is not None:
-                    last_day = d
             else:
                 mon = g[0]
-                d = last_day or 1
-                d = min(d, calendar.monthrange(today.year, mon)[1])
-                dt = _resolve(mon, d, None, today)
+                base = _resolve(mon, 1, None, today)    # rätt år för månaden
+                dt = first_weekday(base.year, mon) if base is not None else None
                 if dt is not None and dt < today and (dt.year, dt.month) == (today.year, today.month):
                     dt = today                          # månaden är redan igång och dagen passerad → idag
             if dt is None or dt < today or (dt - today).days > HORIZON_DAYS:

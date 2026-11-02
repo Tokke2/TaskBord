@@ -242,8 +242,8 @@ Står det ett datum eller en månad i mailet läggs en påminnelse på det datum
 
 * igenkänns: `15/11`, `15/11-2026`, `2026-11-15`, `15.11.2026`, `15 november`, `15:e nov`, `november 15` och enbart
   månadsnamn (`i november`, `december`);
-* månadsnamn utan dag får samma dag som närmast föregående datum i mailet (`15/11 … december` → 15/12), annars den 1:a
-  (är månaden redan igång och dagen passerad: idag);
+* månadsnamn utan dag (`i november`, `december`) → månadens **första vardag** (måndag–fredag, ej röd dag; t.ex. december
+  2026 → tis 1/12, januari 2027 → mån 4/1). Är månaden redan igång och den dagen passerad: idag;
 * ignoreras: `november 2/3` och `1 av 3` (delbetalning, inte 2 mars), klockslag, belopp, citerade rader (`>`) och datum som
   redan passerat;
 * alla datum sparas på uppgiften (`remind_dates`) och raden ur mailet visas på kortet (*📅 idag: Betalning 2 · 15/11 …*);

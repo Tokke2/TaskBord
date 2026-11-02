@@ -58,11 +58,12 @@ och december 3/3 - likadent i denna, om månadsnamn står så ska påminnelse ko
 
 # --- 1. extraktion: användarens exempelmail ---------------------------------------------------------------------
 f = MD.extract_dates(MAIL, T)
-check("exempelmailet: 15/11 och 15/12 (november/december efter 15/11 = samma dag)", [d for d, _ in f] == [date(2026, 11, 15), date(2026, 12, 15)], f)
+check("exempelmailet: 'november' = månadens första vardag (mån 2/11 = idag), 15/11, 'december' = tis 1/12",
+      [d for d, _ in f] == [date(2026, 11, 2), date(2026, 11, 15), date(2026, 12, 1)], f)
 check("'2/3' efter 'november' blir INTE 2 mars", date(2027, 3, 2) not in [d for d, _ in f])
-check("'1 av 3' ignoreras", len(f) == 2)
-check("raden ur mailet följer med (rubrik + datumrad)", f[0][1].startswith("Betalning 2 · 15/11"), f[0][1])
-check("december-raden med", "december 3/3" in f[1][1], f[1][1])
+check("'1 av 3' ignoreras", len(f) == 3)
+check("raden ur mailet följer med (rubrik + datumrad)", f[1][1].startswith("Betalning 2 · 15/11"), f[1][1])
+check("december-raden med", "december 3/3" in f[2][1], f[2][1])
 
 # --- 2. olika format ---------------------------------------------------------------------------------------------
 def dates(txt, today=T):
@@ -76,10 +77,14 @@ check("15 november", dates("senast 15 november") == [date(2026, 11, 15)])
 check("15:e november / 5:e januari", dates("15:e november och 5:e januari") == [date(2026, 11, 15), date(2027, 1, 5)])
 check("15 nov (förkortning)", dates("senast 15 nov") == [date(2026, 11, 15)])
 check("november 15", dates("senast november 15") == [date(2026, 11, 15)])
-check("bara 'december' utan föregående datum → 1:a", dates("faktureras i december") == [date(2026, 12, 1)])
+check("bara 'december' → månadens första vardag (tis 1/12 2026)", dates("faktureras i december") == [date(2026, 12, 1)])
+check("första vardagen hoppar över helg: augusti 2027 (1/8 = söndag) → mån 2/8", MD.first_weekday(2027, 8) == date(2027, 8, 2))
+check("…och röd dag: januari 2027 (1/1 = fredag, röd) → mån 4/1", MD.first_weekday(2027, 1) == date(2027, 1, 4))
+check("…och påskmåndag/1 maj: maj 2026 (1/5 = fredag, röd) → mån 4/5", MD.first_weekday(2026, 5) == date(2026, 5, 4))
+check("månadsnamn efter 15/11 → 1/12, inte 15/12", dates("15/11 och sedan december") == [date(2026, 11, 15), date(2026, 12, 1)])
 check("bara 'november' (månaden pågår, dagen passerad) → idag", dates("betalas i november") == [T])
-check("bara 'januari' → nästa år", dates("i januari") == [date(2027, 1, 1)])
-check("månadsnamn efter datum tar datumets dag", dates("3 dec och sedan januari") == [date(2026, 12, 3), date(2027, 1, 3)])
+check("bara 'januari' → nästa år, första vardagen (4/1)", dates("i januari") == [date(2027, 1, 4)])
+check("månadsnamn efter datum använder INTE datumets dag", dates("3 dec och sedan januari") == [date(2026, 12, 3), date(2027, 1, 4)])
 check("passerade datum ignoreras", dates("betalades 20/10 och 1/11") == [])
 check("årslöst datum långt bakåt → nästa år", dates("15/3") == [date(2027, 3, 15)])
 check("klockslag/belopp/telefon ignoreras", dates("kl 10.30, 1.500 kr, tel 08-123 45 67, 12:30") == [])
