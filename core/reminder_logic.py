@@ -18,17 +18,37 @@ REPEAT_MINUTES = 30         # därefter var 30:e minut … tills uppgiften marke
 NIGHT_HOUR = 22             # nattro: inga påminnelser från 22:00 (de fortsätter nästa morgon)
 
 
+def _day(value: Any) -> Optional[date]:
+    try:
+        s = str(value or "")
+        if not s:
+            return None
+        return datetime.fromisoformat(s[:19]).date() if len(s) > 10 else date.fromisoformat(s[:10])
+    except (ValueError, TypeError):
+        return None
+
+
+def remind_days(task: Dict[str, Any]) -> List[date]:
+    """Extra påminnelsedatum (ur datum i importerade mail, se core/mail_dates.py), sorterade."""
+    out = []
+    for v in task.get("remind_dates") or []:
+        d = _day(v)
+        if d is not None:
+            out.append(d)
+    return sorted(set(out))
+
+
 def classify(task: Dict[str, Any], now: Optional[datetime] = None) -> Optional[Tuple[str, int]]:
     """
-    ("overdue", dagar_sen) / ("today", 0) för en aktiv uppgift med förfallodatum idag eller tidigare.
-    None för klara, datumlösa, framtida och senarelagda (snoozed) uppgifter.
+    ("overdue", dagar_sen) / ("today", 0) för en aktiv uppgift med förfallodatum (eller extra påminnelsedatum)
+    idag eller tidigare. None för klara, datumlösa, framtida och senarelagda (snoozed) uppgifter.
     """
     now = now or datetime.now()
     try:
         if not task.get("id") or task.get("done"):
             return None
-        due = task.get("due_date")
-        if not due:
+        days = [d for d in [_day(task.get("due_date"))] + remind_days(task) if d is not None]
+        if not days:
             return None
         sn = task.get("snoozed_until")
         if sn:
@@ -37,10 +57,9 @@ def classify(task: Dict[str, Any], now: Optional[datetime] = None) -> Optional[T
                     return None
             except (ValueError, TypeError):
                 pass
-        d = datetime.fromisoformat(str(due)[:19]).date() if len(str(due)) > 10 else date.fromisoformat(str(due)[:10])
     except (ValueError, TypeError):
         return None
-    delta = (now.date() - d).days
+    delta = max((now.date() - d).days for d in days)       # äldsta obesvarade datumet styr "försenad N dagar"
     if delta > 0:
         return (OVERDUE, delta)
     if delta == 0:
@@ -121,9 +140,57 @@ def reminder_due(task: Dict[str, Any], now: datetime, last_shown: Optional[datet
     return None
 
 
+def triggering_date(task: Dict[str, Any], now: datetime) -> Optional[date]:
+    """Det datum som just nu utlöser påminnelsen (äldsta datumet som är idag eller passerat)."""
+    cands = [d for d in [_day(task.get("due_date"))] + remind_days(task) if d is not None and d <= now.date()]
+    return min(cands) if cands else None
+
+
+def mail_note(task: Dict[str, Any], now: datetime) -> str:
+    """Raden ur mailet som hör till det utlösande datumet ('Betalning 2 · 15/11 …'), annars ''."""
+    d = triggering_date(task, now)
+    info = task.get("remind_info")
+    if d is None or not isinstance(info, dict):
+        return ""
+    return str(info.get(d.isoformat()) or "")
+
+
+def next_remind_date(task: Dict[str, Any], today: date) -> Optional[date]:
+    """Nästa kommande extra påminnelsedatum (efter idag), annars None."""
+    fut = [d for d in remind_days(task) if d > today]
+    return fut[0] if fut else None
+
+
+def plan_done(task: Dict[str, Any], today: date) -> Dict[str, Any]:
+    """
+    Vad knappen ✓ Klar på påminnelsekortet ska göra. Mail med flera datum (delbetalningar: 15/11, 15/12 …) är EN
+    uppgift: Klar = den här gången är avklarad → uppgiften väntar på nästa datum och bockas av först efter sista.
+
+    {"complete": bool, "set_due": iso|None, "remind_dates": [iso…], "next": date|None}
+    """
+    rem_future = [d for d in remind_days(task) if d > today]
+    due = _day(task.get("due_date"))
+    next_d = rem_future[0] if rem_future else None
+    out: Dict[str, Any] = {"complete": False, "set_due": None, "remind_dates": [d.isoformat() for d in rem_future], "next": next_d}
+    if due is not None and due <= today:               # förfallodatumet utlöste
+        if next_d is not None:
+            out["set_due"] = next_d.isoformat()
+        else:
+            out["complete"] = True
+    else:                                              # ett extra datum utlöste (förfallodatumet ligger framåt/saknas)
+        out["complete"] = next_d is None and due is None
+    return out
+
+
 def detail_text(task: Dict[str, Any], kind: str, days: int, now: Optional[datetime] = None) -> str:
     """Raden under titeln på påminnelsekortet ('förfaller idag kl 15:00', 'tiden har passerat', 'försenad 2 dagar')."""
     now = now or datetime.now()
+    note = mail_note(task, now)
+    if note:
+        nxt = next_remind_date(task, now.date())
+        base = status_text(kind, days) if kind == OVERDUE else "idag"
+        tail = f"  ·  Klar → nästa {nxt.day}/{nxt.month}" if nxt else ""
+        return f"📅 {base}: {note}{tail}"
     if kind == TODAY:
         et = event_time(task)
         if not et:

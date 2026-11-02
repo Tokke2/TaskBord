@@ -727,6 +727,13 @@ def create_task_from_payload(
                 except Exception as e:
                     logger.debug(f"{LOG_PREFIX} metadata {k} misslyckades: {e}")
 
+    # --- Datum i mailet ("15/11", "november") → påminnelser (core/mail_dates.py) ---
+    try:
+        from core import mail_dates
+        mail_dates.apply_to_task(store, task_id, subject, body)
+    except Exception as e:
+        logger.debug(f"{LOG_PREFIX} datum i mail: {e}")
+
     # --- Dedup-registret (JSON) -----------------------------------------
     registry.register(
         key,

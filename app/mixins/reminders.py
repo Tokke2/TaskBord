@@ -125,10 +125,32 @@ class RemindersMixin:
             self._tray.showMessage(APP_NAME, head.format(n=len(sel)) + f"\n{titles}{extra}", icon, 8000)
 
     def _reminder_done(self, task_id: str) -> None:
-        """Knappen ✓ Klar: samma som att bocka av uppgiften i listan."""
+        """
+        Knappen ✓ Klar: bockar av uppgiften i listan. Har uppgiften flera datum från ett mail (delbetalningar,
+        core/mail_dates.py) betyder Klar "den här gången är avklarad": uppgiften flyttas till nästa datum och
+        bockas av först efter sista.
+        """
         try:
-            self.store.toggle_task(task_id)
-            self._log.info(f"{LOG_PREFIX} PÅMINNELSE: {task_id!r} avbockad från kortet")
+            from core import reminder_logic as _rl
+            task = self.store.find_task(task_id) if hasattr(self.store, "find_task") else None
+            plan = _rl.plan_done(task, self._reminder_now().date()) if task else {"complete": True}
+            if plan["complete"]:
+                self.store.toggle_task(task_id)
+                self._log.info(f"{LOG_PREFIX} PÅMINNELSE: {task_id!r} avbockad från kortet")
+            else:
+                if plan.get("set_due"):
+                    self.store.set_due_date(task_id, plan["set_due"])
+                self.store.set_task_metadata(task_id, "remind_dates", plan["remind_dates"])
+                if hasattr(self, "_reminder_last"):
+                    self._reminder_last.pop(task_id, None)
+                self._log.info(f"{LOG_PREFIX} PÅMINNELSE: {task_id!r} klar för idag — nästa {plan.get('next')}")
+                nxt = plan.get("next")
+                if nxt is not None and self._tray is not None:
+                    with suppress(Exception):
+                        self._tray.showMessage(
+                            APP_NAME, f"Klart för idag. Nästa påminnelse: {nxt.day}/{nxt.month}.",
+                            self._QSystemTrayIcon.MessageIcon.Information, 5000,
+                        )
             self._QTimer.singleShot(0, self._update_tray_badge)
         except Exception as e:
             self._log.warning(f"{LOG_PREFIX} _reminder_done: {e}")

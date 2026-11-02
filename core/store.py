@@ -1077,6 +1077,29 @@ MAX_LINKS_PER_TASK: Final[int] = 20
 MAX_ATTACHMENTS_PER_TASK: Final[int] = 50
 
 
+def _coerce_remind_dates(raw: Any) -> List[str]:
+    """Extra påminnelsedatum ur importerade mail (core/mail_dates.py): sorterad lista med ISO-datum (YYYY-MM-DD)."""
+    out: Set[str] = set()
+    if isinstance(raw, list):
+        for v in raw:
+            s = str(v)[:10]
+            if re.fullmatch(r"\d{4}-\d\d-\d\d", s):
+                out.add(s)
+    return sorted(out)[:24]
+
+
+def _coerce_remind_info(raw: Any) -> Dict[str, str]:
+    """Raden ur mailet per påminnelsedatum: {ISO-datum: text}."""
+    out: Dict[str, str] = {}
+    if isinstance(raw, dict):
+        for k, v in raw.items():
+            if isinstance(k, str) and re.fullmatch(r"\d{4}-\d\d-\d\d", k) and isinstance(v, str) and v.strip():
+                out[k] = v.strip()[:200]
+            if len(out) >= 24:
+                break
+    return out
+
+
 def _coerce_links(raw: Any) -> List[Dict[str, str]]:
     """Länkar på en uppgift: ``[{url, title}]`` (bara http/https, utan dubbletter)."""
     out: List[Dict[str, str]] = []
@@ -1183,6 +1206,13 @@ def _coerce_task(raw: Any, idx: int = 0) -> Optional[Dict[str, Any]]:
         val = raw.get(key)
         if isinstance(val, str) and val.strip():
             out[key] = val[:_EXTRA_TASK_MAX_LEN]
+    # Påminnelsedatum från datum i importerade mail (listor) — sparas bara om de finns
+    rdates = _coerce_remind_dates(raw.get("remind_dates"))
+    if rdates:
+        out["remind_dates"] = rdates
+        rinfo = _coerce_remind_info(raw.get("remind_info"))
+        if rinfo:
+            out["remind_info"] = rinfo
     # Länkar och bilagor (listor) — sparas bara om de finns
     links = _coerce_links(raw.get("links"))
     if links:

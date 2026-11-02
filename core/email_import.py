@@ -560,6 +560,13 @@ def import_email(
                 ", ".join(data["attachments"]),
             )
 
+    # 8b. Datum i mailet ("15/11", "november", "december") → påminnelser på de datumen (core/mail_dates.py)
+    try:
+        from core import mail_dates
+        mail_dates.apply_to_task(store, task_id, data.get("subject", ""), data.get("body", ""))
+    except Exception as e:
+        logger.debug(f"{LOG_PREFIX} datum i mail: {e}")
+
     # 9. NY v7-fix85: registrera importen (dedup)
     with _REGISTRY_LOCK:
         registry = _load_registry(data_dir)

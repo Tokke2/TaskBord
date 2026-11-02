@@ -143,6 +143,7 @@ class ReminderPopup(QWidget):
         t.setToolTip(title)
         sub = QLabel(detail or status_text(kind, days), parent)
         sub.setObjectName("sub")
+        sub.setWordWrap(True)
         sub.setStyleSheet(f"color: {SUB_OVERDUE if kind == OVERDUE else SUB_TODAY}; font-size: 11px; font-weight: 600;")
         col.addWidget(t)
         col.addWidget(sub)
