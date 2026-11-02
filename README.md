@@ -249,8 +249,9 @@ Står det ett datum eller en månad i mailet läggs en påminnelse på det datum
 * alla datum sparas på uppgiften (`remind_dates`) och raden ur mailet visas på kortet (*📅 idag: Betalning 2 · 15/11 …*);
 * har uppgiften inget förfallodatum får den det tidigaste datumet — väljer du själv ett datum i Thunderbird vinner ditt, och
   mailets datum påminner ändå;
-* **✓ Klar** på kortet betyder "den här gången är klar": uppgiften väntar på nästa datum (*Klar → nästa 15/12*) och
-  bockas av först efter det sista. Bockar du av den i listan är den förstås klar direkt.
+* **✓ Klar** på kortet betyder "det här datumet är klart" — ett datum i taget, äldsta först (inget obesvarat datum sväljs
+  i smyg). Uppgiften väntar sedan på nästa datum (*Klar → nästa 15/12*) och bockas av först när inga datum återstår. Bockar
+  du av den i listan är den förstås klar direkt.
 
 ## 🔔 Påminnelser med knappar + siffra på ikonen
 

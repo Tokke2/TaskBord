@@ -110,23 +110,30 @@ check("due_date i framtiden + remind idag → påminner", RL.classify(dict(t, du
 check("vanlig uppgift utan remind_dates oförändrad", RL.classify({"id": "z", "due_date": "2026-11-15"}, at(date(2026, 11, 15))) == (RL.TODAY, 0))
 check("kortets rad: mailraden + nästa datum", "Betalning 2 · 15/11" in RL.detail_text(t, RL.TODAY, 0, at(date(2026, 11, 15))) and "nästa 15/12" in RL.detail_text(t, RL.TODAY, 0, at(date(2026, 11, 15))),
       RL.detail_text(t, RL.TODAY, 0, at(date(2026, 11, 15))))
-check("sista datumet: ingen 'nästa'", "nästa" not in RL.detail_text(t, RL.TODAY, 0, at(date(2026, 12, 15))))
+check("sista datumet: ingen 'nästa'", "nästa" not in RL.detail_text(dict(t, remind_dates=["2026-12-15"]), RL.TODAY, 0, at(date(2026, 12, 15))))
 check("försenad: texten säger försenad", "försenad 1 dag" in RL.detail_text(t, RL.OVERDUE, 1, at(date(2026, 11, 16))))
 check("uppgift utan mailrad: gamla texten", RL.detail_text({"id": "q", "due_date": "2026-11-15"}, RL.TODAY, 0, at(date(2026, 11, 15))) == "förfaller idag")
 
-# Klar-planen
+# Klar-planen: ETT datum i taget (äldsta obesvarade först)
 p = RL.plan_done(dict(t, due_date="2026-11-15"), date(2026, 11, 15))
-check("Klar på första datumet: flytta förfallodatum till 15/12, bocka INTE av", p["complete"] is False and p["set_due"] == "2026-12-15" and p["next"] == date(2026, 12, 15), p)
-p = RL.plan_done(dict(t, due_date="2026-12-15"), date(2026, 12, 15))
+check("Klar på första datumet: förfallodatum → 15/12, bocka INTE av", p["complete"] is False and p["set_due"] == "2026-12-15" and p["next"] == date(2026, 12, 15) and p["remind_dates"] == ["2026-12-15"], p)
+p = RL.plan_done(dict(t, due_date="2026-12-15", remind_dates=["2026-12-15"]), date(2026, 12, 15))
 check("Klar på sista datumet: bocka av", p["complete"] is True and p["set_due"] is None, p)
 p = RL.plan_done(t, date(2026, 11, 15))
 check("Klar utan förfallodatum: väntar på nästa, bockas inte av", p["complete"] is False and p["next"] == date(2026, 12, 15) and p["remind_dates"] == ["2026-12-15"], p)
 p = RL.plan_done(dict(t, remind_dates=["2026-11-15"]), date(2026, 11, 15))
 check("Klar på enda extra-datumet utan förfallodatum: bocka av", p["complete"] is True, p)
 p = RL.plan_done(dict(t, remind_dates=["2026-11-15"], due_date="2027-01-01"), date(2026, 11, 15))
-check("Klar på extra-datum när egen förfallodag ligger framåt: bockas inte av", p["complete"] is False and p["set_due"] is None, p)
+check("Klar på extra-datum när egen förfallodag ligger framåt: bockas inte av, förfallodatum orört", p["complete"] is False and p["set_due"] is None and p["next"] == date(2027, 1, 1), p)
 p = RL.plan_done({"id": "v", "due_date": "2026-11-15"}, date(2026, 11, 15))
 check("vanlig uppgift: Klar bockar av som förut", p["complete"] is True)
+p = RL.plan_done({"id": "v", "due_date": "2027-01-01"}, date(2026, 11, 15))
+check("kort utan utlösande datum: bocka av som förut", p["complete"] is True)
+# obesvarade datum sväljs inte: 2/11 ignorerades, nu är det 15/11 → Klar tar ETT i taget
+t3 = {"id": "m", "due_date": "2026-11-02", "remind_dates": ["2026-11-02", "2026-11-15", "2026-12-01"]}
+p = RL.plan_done(t3, date(2026, 11, 15))
+check("två obesvarade: Klar tar bara det äldsta (2/11); 15/11 står kvar", p["complete"] is False and p["set_due"] == "2026-11-15" and p["remind_dates"] == ["2026-11-15", "2026-12-01"] and p["next"] == date(2026, 11, 15), p)
+check("…och kortet visar det äldsta datumets rad först", RL.triggering_date(dict(t3, remind_info={"2026-11-02": "A", "2026-11-15": "B"}), at(date(2026, 11, 15))) == date(2026, 11, 2))
 
 # --- 4. store: importvägarna + sparning ---------------------------------------------------------------------------
 from core.store import TaskStore  # noqa: E402

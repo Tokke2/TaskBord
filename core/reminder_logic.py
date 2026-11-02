@@ -155,30 +155,46 @@ def mail_note(task: Dict[str, Any], now: datetime) -> str:
     return str(info.get(d.isoformat()) or "")
 
 
+def trigger_days(task: Dict[str, Any]) -> List[date]:
+    """Alla datum som kan utlösa en påminnelse för uppgiften (förfallodatum + extra datum ur mail), sorterade."""
+    days = set(remind_days(task))
+    due = _day(task.get("due_date"))
+    if due is not None:
+        days.add(due)
+    return sorted(days)
+
+
 def next_remind_date(task: Dict[str, Any], today: date) -> Optional[date]:
-    """Nästa kommande extra påminnelsedatum (efter idag), annars None."""
-    fut = [d for d in remind_days(task) if d > today]
-    return fut[0] if fut else None
+    """Datumet som står på tur efter det som just utlöser påminnelsen (kan vara framtida eller ett äldre obesvarat), annars None."""
+    days = trigger_days(task)
+    cur = min((d for d in days if d <= today), default=None)
+    if cur is None:
+        return None
+    nxt = [d for d in days if d > cur]
+    return nxt[0] if nxt else None
 
 
 def plan_done(task: Dict[str, Any], today: date) -> Dict[str, Any]:
     """
-    Vad knappen ✓ Klar på påminnelsekortet ska göra. Mail med flera datum (delbetalningar: 15/11, 15/12 …) är EN
-    uppgift: Klar = den här gången är avklarad → uppgiften väntar på nästa datum och bockas av först efter sista.
+    Vad knappen ✓ Klar på påminnelsekortet ska göra. Mail med flera datum (delbetalningar: 15/11, 1/12 …) är EN
+    uppgift: Klar = det ÄLDSTA obesvarade datumet är avklarat (ett datum i taget — inget sväljs i smyg) → uppgiften
+    väntar på nästa datum och bockas av först när inga datum återstår.
 
     {"complete": bool, "set_due": iso|None, "remind_dates": [iso…], "next": date|None}
     """
-    rem_future = [d for d in remind_days(task) if d > today]
+    ack = min((d for d in trigger_days(task) if d <= today), default=None)
+    if ack is None:                                         # inget datum utlöste (t.ex. gammalt kort) → som förut: bocka av
+        return {"complete": True, "set_due": None, "remind_dates": [d.isoformat() for d in remind_days(task)], "next": None}
     due = _day(task.get("due_date"))
-    next_d = rem_future[0] if rem_future else None
-    out: Dict[str, Any] = {"complete": False, "set_due": None, "remind_dates": [d.isoformat() for d in rem_future], "next": next_d}
-    if due is not None and due <= today:               # förfallodatumet utlöste
-        if next_d is not None:
-            out["set_due"] = next_d.isoformat()
-        else:
-            out["complete"] = True
-    else:                                              # ett extra datum utlöste (förfallodatumet ligger framåt/saknas)
-        out["complete"] = next_d is None and due is None
+    remaining = [d for d in remind_days(task) if d != ack]
+    out: Dict[str, Any] = {"complete": False, "set_due": None, "remind_dates": [d.isoformat() for d in remaining], "next": None}
+    left = set(remaining)
+    if due is not None and due != ack:
+        left.add(due)
+    if due is not None and due == ack and remaining:
+        out["set_due"] = remaining[0].isoformat()          # förfallodatumet hoppar till nästa datum
+    out["complete"] = not left
+    out["next"] = min(left) if left else None
     return out
 
 

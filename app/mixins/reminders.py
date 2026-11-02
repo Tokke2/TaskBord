@@ -145,7 +145,7 @@ class RemindersMixin:
                     self._reminder_last.pop(task_id, None)
                 self._log.info(f"{LOG_PREFIX} PÅMINNELSE: {task_id!r} klar för idag — nästa {plan.get('next')}")
                 nxt = plan.get("next")
-                if nxt is not None and self._tray is not None:
+                if nxt is not None and nxt > self._reminder_now().date() and self._tray is not None:
                     with suppress(Exception):
                         self._tray.showMessage(
                             APP_NAME, f"Klart för idag. Nästa påminnelse: {nxt.day}/{nxt.month}.",
