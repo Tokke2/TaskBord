@@ -36,7 +36,7 @@ import urllib.request
 import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
 logger = logging.getLogger("Updater")
 LOG_PREFIX = "[UPDATE]"
@@ -55,6 +55,17 @@ PROTECTED_TOP = frozenset({"js", "data", ".git", "__pycache__", ".venv", "venv"}
 SKIP_SUFFIXES = (".pyc", ".pyo")
 RESTART_DELAY_SEC = 6
 
+# Filer som tagits bort i en release raderas även lokalt. Vilka filer som är programfiler vet vi från
+# data/installed_files.json (listan över filerna den senaste installationen/kontrollen lade dit). Innan den finns:
+# bara filer som bevisligen funnits i äldre releaser och sedan tagits bort ur repot.
+MANIFEST_NAME = "installed_files.json"
+LEGACY_REMOVED = (
+    "STARTA_TASKBORD.command", "TaskBord-Thunderbird.xpi", "core/app_icon.py", "core/rules.py",
+    "icon/app.ico", "tester/rules_test.py", "ui/rules_dialog.py",
+)
+MAX_REMOVE_ABS = 25          # skydd: fler än så här (och > 40 % av alla kända) tas inte bort automatiskt
+MAX_REMOVE_FRACTION = 0.4
+
 
 class UpdateError(Exception):
     """Fel med ett meddelande som kan visas för användaren (svenska)."""
@@ -70,11 +81,12 @@ class UpdateInfo:
     files: Dict[str, bytes] = field(default_factory=dict, repr=False)
     changed: List[str] = field(default_factory=list)   # nya + ändrade
     new_files: List[str] = field(default_factory=list)
+    removed: List[str] = field(default_factory=list)   # filer som releasen inte längre har och som tas bort lokalt
     requirements_changed: bool = False
 
     @property
     def up_to_date(self) -> bool:
-        return not self.changed
+        return not self.changed and not self.removed
 
 
 # ---------------------------------------------------------------------------
@@ -233,6 +245,75 @@ def compare(app_dir: Path, files: Dict[str, bytes]) -> Tuple[List[str], List[str
     return changed, new
 
 
+def manifest_path(app_dir: Path) -> Path:
+    return Path(app_dir) / "data" / MANIFEST_NAME
+
+
+def read_manifest(app_dir: Path) -> List[str]:
+    """Filerna som den senaste installationen/kontrollen känner till som programfiler (tom lista om manifest saknas)."""
+    try:
+        data = json.loads(manifest_path(app_dir).read_text(encoding="utf-8"))
+        return [str(x) for x in data.get("files", []) if isinstance(x, str)]
+    except (OSError, ValueError, AttributeError):
+        return []
+
+
+def write_manifest(app_dir: Path, files: Iterable[str], tag: str = "", commit: str = "") -> bool:
+    """Spara listan över programfiler (de som releasen innehåller). Skriver bara inuti data/."""
+    try:
+        p = manifest_path(app_dir)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        tmp = p.with_name(p.name + ".tmp")
+        tmp.write_text(json.dumps({
+            "tag": tag, "commit": commit, "stamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "files": sorted(set(files)),
+        }, ensure_ascii=False, indent=1), encoding="utf-8")
+        os.replace(tmp, p)
+        return True
+    except OSError as e:
+        logger.warning(f"{LOG_PREFIX} kunde inte skriva {MANIFEST_NAME}: {e}")
+        return False
+
+
+def seed_manifest(app_dir: Path, info: "UpdateInfo") -> bool:
+    """
+    Är installationen redan identisk med releasen (inget att uppdatera) och manifest saknas, så vet vi säkert vilka
+    filer som är programfiler → skriv manifestet nu, så att framtida borttagningar i releaser kan följas.
+    """
+    if info.changed or info.removed or manifest_path(app_dir).exists():
+        return False
+    return write_manifest(app_dir, info.files, info.tag, info.commit)
+
+
+def _removable(app_dir: Path, rel: str) -> Optional[Path]:
+    """Sökvägen till filen om den får raderas (inuti appmappen, inte skyddad, inte cache) annars None."""
+    parts = [p for p in str(rel).replace("\\", "/").split("/") if p not in ("", ".")]
+    if not parts or any(p == ".." or ":" in p for p in parts) or parts[0] in PROTECTED_TOP \
+            or "__pycache__" in parts or parts[-1].endswith(SKIP_SUFFIXES):
+        return None
+    target = Path(app_dir, *parts)
+    try:
+        target.resolve().relative_to(Path(app_dir).resolve())
+    except (ValueError, OSError):
+        return None
+    return target if target.is_file() else None
+
+
+def find_removed(app_dir: Path, files: Dict[str, bytes]) -> List[str]:
+    """
+    Lokala programfiler som releasen inte längre innehåller. Känner igen dem via manifestet (+ den fasta listan över
+    filer som tagits bort ur repot tidigare). Rör aldrig js/, data/, .git, venv. Orimligt många (> 25 och > 40 % av
+    alla kända) tas INTE bort — då är det troligare att releasen är trasig än att så mycket är borttaget.
+    """
+    known = set(read_manifest(app_dir)) | set(LEGACY_REMOVED)
+    out = [rel for rel in sorted(known) if rel not in files and _removable(app_dir, rel) is not None]
+    base = max(len(read_manifest(app_dir)), 1)
+    if len(out) > MAX_REMOVE_ABS and len(out) > MAX_REMOVE_FRACTION * base:
+        logger.warning(f"{LOG_PREFIX} {len(out)} filer skulle tas bort ({base} kända) — för många, hoppar över borttagningen")
+        return []
+    return out
+
+
 def validate(files: Dict[str, bytes], changed: List[str]) -> List[str]:
     """Kompilera alla nya/ändrade Python-filer. Returnerar felmeddelanden (tom = OK)."""
     errors: List[str] = []
@@ -278,6 +359,8 @@ def fingerprint(info: "UpdateInfo") -> str:
     for rel in sorted(info.changed):
         h.update(rel.encode("utf-8"))
         h.update(_sha(info.files.get(rel, b"")).encode("ascii"))
+    for rel in sorted(getattr(info, "removed", []) or []):
+        h.update(b"-" + rel.encode("utf-8"))
     return h.hexdigest()[:16]
 
 
@@ -318,6 +401,7 @@ def check_for_update(
     _p("compare", 0, 0)
     files, commit = read_release_zip(zip_bytes)
     changed, new = compare(app_dir, files)
+    removed = find_removed(app_dir, files)
     _p("validate", 0, 0)
     errors = validate(files, changed)
     if errors:
@@ -327,7 +411,7 @@ def check_for_update(
     return UpdateInfo(
         tag=meta["tag"], name=meta["name"], published_at=meta["published_at"],
         html_url=meta["html_url"], commit=commit, files=files, changed=changed,
-        new_files=new,
+        new_files=new, removed=removed,
         requirements_changed=any(r.startswith("requirements") for r in changed),
     )
 
@@ -348,13 +432,14 @@ def apply_update(app_dir: Path, info: UpdateInfo,
     Vid fel rullas allt tillbaka och UpdateError kastas.
     """
     app_dir = Path(app_dir)
-    if not info.changed:
+    if not info.changed and not info.removed:
         raise UpdateError("Inget att uppdatera.")
     stamp = time.strftime("%Y%m%d-%H%M%S")
     backup_root = app_dir / "data" / "backups" / "app-update" / stamp
     written: List[Tuple[Path, bool]] = []   # (sökväg, fanns innan)
     _p: ProgressCb = progress or (lambda *_a: None)
-    total = len(info.changed)
+    total = len(info.changed) + len(info.removed)
+    removed_done: List[Path] = []           # borttagna filer (finns i backupen → kan läggas tillbaka)
     # Väktaren (self-healing): en kopia av den NUVARANDE, fungerande koden läggs i backupen INNAN
     # något byts, så att den inte påverkas om den nya koden är trasig.
     guard_ok = False
@@ -376,9 +461,27 @@ def apply_update(app_dir: Path, info: UpdateInfo,
             tmp.write_bytes(info.files[rel])
             os.replace(tmp, target)
             written.append((target, existed))
+        # Filer som releasen inte längre har: kopiera till backupen, radera, städa tomma mappar
+        for j, rel in enumerate(info.removed, 1):
+            _p("install", len(info.changed) + j - 1, total)
+            target = _removable(app_dir, rel)
+            if target is None:
+                continue
+            bk = Path(backup_root, *rel.split("/"))
+            bk.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(target, bk)
+            target.unlink()
+            removed_done.append(target)
+            parent = target.parent
+            while parent != app_dir and app_dir in parent.parents and parent.is_dir():
+                shutil.rmtree(parent / "__pycache__", ignore_errors=True)
+                if any(parent.iterdir()):
+                    break
+                parent.rmdir()
+                parent = parent.parent
     except Exception as e:
         logger.error(f"{LOG_PREFIX} installation misslyckades: {e} — rullar tillbaka")
-        rollback(app_dir, backup_root, written)
+        rollback(app_dir, backup_root, written, removed_done)
         raise UpdateError(f"Installationen misslyckades och återställdes: {e}") from e
     (backup_root).mkdir(parents=True, exist_ok=True)
     if guard_ok:
@@ -386,7 +489,9 @@ def apply_update(app_dir: Path, info: UpdateInfo,
             _watchdog().write_manifest(backup_root, {
                 "tag": info.tag, "commit": info.commit, "fingerprint": fingerprint(info),
                 "stamp": stamp,
-                "replaced": [t.relative_to(app_dir).as_posix() for t, existed in written if existed],
+                "replaced": ([t.relative_to(app_dir).as_posix() for t, existed in written if existed]
+                             + [t.relative_to(app_dir).as_posix() for t in removed_done]),   # borttagna återställs ur backupen
+                "removed": [t.relative_to(app_dir).as_posix() for t in removed_done],
                 "new": [t.relative_to(app_dir).as_posix() for t, existed in written if not existed],
             })
         except Exception as e:
@@ -396,16 +501,27 @@ def apply_update(app_dir: Path, info: UpdateInfo,
     try:
         (backup_root / "UPPDATERING.txt").write_text(
             f"Release {info.tag} ({info.commit})\n"
-            f"Ändrade/nya filer: {len(info.changed)}\n" + "\n".join(info.changed) + "\n",
+            f"Ändrade/nya filer: {len(info.changed)}\n" + "\n".join(info.changed) + "\n"
+            + (f"\nBorttagna filer (releasen har dem inte längre): {len(removed_done)}\n"
+               + "\n".join(t.relative_to(app_dir).as_posix() for t in removed_done) + "\n" if removed_done else ""),
             encoding="utf-8",
         )
     except OSError:
         pass
-    logger.info(f"{LOG_PREFIX} uppdaterade {len(info.changed)} filer (backup: {backup_root})")
+    write_manifest(app_dir, info.files, info.tag, info.commit)     # nästa uppdatering vet vilka filer som är programfiler
+    logger.info(f"{LOG_PREFIX} uppdaterade {len(info.changed)} filer, tog bort {len(removed_done)} (backup: {backup_root})")
     return backup_root
 
 
-def rollback(app_dir: Path, backup_root: Path, written: List[Tuple[Path, bool]]) -> None:
+def rollback(app_dir: Path, backup_root: Path, written: List[Tuple[Path, bool]],
+             removed: Optional[List[Path]] = None) -> None:
+    for target in reversed(removed or []):            # lägg tillbaka borttagna filer ur backupen
+        try:
+            rel = target.relative_to(app_dir)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(Path(backup_root, *rel.parts), target)
+        except Exception as e:  # pragma: no cover
+            logger.error(f"{LOG_PREFIX} återställning av {target} misslyckades: {e}")
     for target, existed in reversed(written):
         try:
             if existed:
@@ -531,4 +647,9 @@ def describe(info: UpdateInfo, max_files: int = 12) -> str:
     lines += [f"  • {r}" for r in info.changed[:max_files]]
     if len(info.changed) > max_files:
         lines.append(f"  … och {len(info.changed) - max_files} till")
+    if info.removed:
+        lines += ["", f"{len(info.removed)} gammal(a) fil(er) som releasen inte längre har tas bort (backas upp först):"]
+        lines += [f"  – {r}" for r in info.removed[:5]]
+        if len(info.removed) > 5:
+            lines.append(f"  … och {len(info.removed) - 5} till")
     return "\n".join(lines)

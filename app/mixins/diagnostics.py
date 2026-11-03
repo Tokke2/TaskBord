@@ -295,6 +295,9 @@ class DiagnosticsMixin:
         try:
             from core import error_log
             path = error_log.prepare_for_open(SCRIPT_DIR / "data")
+            error_log.mark_seen(SCRIPT_DIR / "data")       # öppnat = sett → röda pricken släcks
+            self._tray_badge_key = None
+            self._QTimer.singleShot(0, self._update_tray_badge)
             if not error_log.open_in_viewer(path):
                 from core import addon_watch
                 addon_watch.reveal_in_folder(path)

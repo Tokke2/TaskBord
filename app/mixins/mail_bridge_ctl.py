@@ -224,6 +224,7 @@ class MailBridgeMixin:
                                     f"'{title}' finns redan i listan."
                                     if duplicate else
                                     f"'{title}' skapades och sparades."
+                                    + self._remind_note(res)
                                 ),
                                 self._QSystemTrayIcon.MessageIcon.Information,
                                 6000,
@@ -241,6 +242,16 @@ class MailBridgeMixin:
                 self._update_tray_tooltip()
         except Exception as e:
             self._log.debug(f"{LOG_PREFIX} _poll_mail_bridge: {e}")
+
+    @staticmethod
+    def _remind_note(res: Dict[str, Any]) -> str:
+        """Extra rad i notisen: vilka datum appen kommer att påminna om (ur datum i mailet)."""
+        try:
+            from core import reminder_logic as _rl
+            days = [_rl.short_day(d) for d in (res.get("remind_dates") or [])]
+            return ("\n🔔 Påminner: " + ", ".join(days)) if days else ""
+        except Exception:
+            return ""
 
     def _flash_task_in_widgets(self, task_id: str) -> None:
         """NY v7-fix90: visa uppgiften synligt i alla widgets (like fix77)."""
@@ -490,6 +501,7 @@ class MailBridgeMixin:
             from core.email_import import import_email
             data_dir = self._mail_bridge_data_dir()
             imported = duplicates = failed = 0
+            remind_lines: List[str] = []
             for fp in files:
                 info: Dict[str, Any] = {}
                 task_id = import_email(Path(fp), self.store, data_dir, info=info)
@@ -500,6 +512,11 @@ class MailBridgeMixin:
                     duplicates += 1
                 else:
                     imported += 1
+                    with suppress(Exception):
+                        from core import reminder_logic as _rl
+                        _t = self.store.find_task(task_id) or {}
+                        if _t.get("remind_dates"):
+                            remind_lines.append(f"🔔 {str(_t.get('title', ''))[:40]}: {_rl.remind_summary(_t)}")
                 self._flash_task_in_widgets(task_id)
             with suppress(Exception):
                 self.store.save()
@@ -513,7 +530,8 @@ class MailBridgeMixin:
                     "📧 E-postimport",
                     f"{imported} importerade, {duplicates} redan importerade, "
                     f"{failed} misslyckades.\n\nUppgifterna sparas i "
-                    f"data/active.json (kvar efter omstart).",
+                    f"data/active.json (kvar efter omstart)."
+                    + (("\n\nPåminnelser från datum i mailen:\n" + "\n".join(remind_lines[:8])) if remind_lines else ""),
                 )
         except Exception as e:
             self._log.warning(

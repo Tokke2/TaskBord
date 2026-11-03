@@ -49,6 +49,7 @@ ALLOWED = (
     '_LEGACY_AUTOSTART_NAMES = ("TaskBord",)', 'LEGACY_AUTOSTART_NAMES: Tuple[str, ...] = ("TaskBord",)',
     "Namnbyte TaskBord → Ledgebord", '(äldre versioner: "TaskBord")', '_LEGACY_DIR_NAME: Final[str] = "TaskBord"',
     "TaskBord.lnk", "(tidigare TaskBord)", 'LEGACY_NAMES = ("TaskBord",)',
+    "STARTA_TASKBORD.command", "TaskBord-Thunderbird.xpi",   # gamla filnamn som uppdateraren städar bort (LEGACY_REMOVED)
 )
 
 

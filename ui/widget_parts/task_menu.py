@@ -162,6 +162,10 @@ class TaskMenuMixin:
             menu.addSeparator()
             act = menu.addAction("✏️ Redigera titel…")
             act.triggered.connect(lambda _c: self._prompt_rename(tid))
+            if task.get("remind_dates"):
+                act = menu.addAction("🔔 Påminnelsedatum…")
+                act.setToolTip("Datum som appen hittade i mailet — ta bort eller lägg till")
+                act.triggered.connect(lambda _c: self._edit_remind_dates(tid))
             act = menu.addAction("🔗 Lägg till länk…")
             act.setToolTip("Klistra in en webbadress — den blir en klickbar länk med sidans titel")
             act.triggered.connect(lambda _c: self._prompt_add_link(tid))
@@ -314,6 +318,79 @@ class TaskMenuMixin:
                 f"{_describe_widget_error(e)}",
                 exc_info=True,
             )
+
+    def _edit_remind_dates(self, task_id: str) -> None:
+        """🔔 Dialog: bocka ur datum som inte ska påminna, lägg till egna. Tom lista = inga extra påminnelser."""
+        try:
+            get_throttle().notify_activity()
+            from PySide6.QtWidgets import (
+                QDialog, QHBoxLayout as _QH, QLabel as _QL, QListWidget, QListWidgetItem,
+                QPushButton as _QB, QVBoxLayout as _QV,
+            )
+            from core import reminder_logic as _rl
+            task = self.store.find_task(task_id) or {}
+            info = task.get("remind_info") if isinstance(task.get("remind_info"), dict) else {}
+            dlg = QDialog(self)
+            dlg.setWindowTitle("🔔 Påminnelsedatum")
+            dlg.setMinimumWidth(420)
+            lay = _QV(dlg)
+            lay.addWidget(_QL("Appen påminner på de här datumen.\nAvmarkera ett datum för att ta bort det:", dlg))
+            lst = QListWidget(dlg)
+            lay.addWidget(lst)
+            added: List[str] = []
+
+            def _add_item(iso: str, checked: bool = True) -> None:
+                d = _rl._day(iso)
+                if d is None:
+                    return
+                txt = str(info.get(iso) or "").strip()
+                it = QListWidgetItem(f"{d.day}/{d.month} {d.year}" + (f"   —   {txt[:70]}" if txt else ""))
+                it.setFlags(it.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                it.setCheckState(Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked)
+                it.setData(Qt.ItemDataRole.UserRole, iso)
+                lst.addItem(it)
+
+            for d in _rl.remind_days(task):
+                _add_item(d.isoformat())
+            row = _QH()
+            add_b = _QB("➕ Lägg till datum…", dlg)
+            row.addWidget(add_b)
+            row.addStretch(1)
+            lay.addLayout(row)
+
+            def _on_add() -> None:
+                iso = self._pick_date("🔔 Nytt påminnelsedatum", "")
+                if iso and iso not in added and all(lst.item(i).data(Qt.ItemDataRole.UserRole) != iso for i in range(lst.count())):
+                    added.append(iso)
+                    _add_item(iso)
+
+            add_b.clicked.connect(_on_add)
+            btns = _QH()
+            btns.addStretch(1)
+            cancel = _QB("Avbryt", dlg)
+            cancel.clicked.connect(dlg.reject)
+            ok_b = _QB("Spara", dlg)
+            ok_b.setDefault(True)
+            ok_b.clicked.connect(dlg.accept)
+            btns.addWidget(cancel)
+            btns.addWidget(ok_b)
+            lay.addLayout(btns)
+            if dlg.exec() != QDialog.DialogCode.Accepted:
+                return
+            keep = [lst.item(i).data(Qt.ItemDataRole.UserRole) for i in range(lst.count())
+                    if lst.item(i).checkState() == Qt.CheckState.Checked]
+            self._apply_remind_dates(task_id, keep, [a for a in added if a in keep])
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} _edit_remind_dates: {e}")
+
+    def _apply_remind_dates(self, task_id: str, keep: List[str], add: List[str]) -> None:
+        """Sparar resultatet av 🔔-dialogen (logik i core/reminder_logic.apply_remind_edit)."""
+        from core import reminder_logic as _rl
+        task = self.store.find_task(task_id) or {}
+        days, info = _rl.apply_remind_edit(task, keep, add)
+        self.store.set_task_metadata(task_id, "remind_info", info)
+        self.store.set_task_metadata(task_id, "remind_dates", days)
+        logger.info(f"{LOG_PREFIX} påminnelsedatum {task_id!r}: {', '.join(days) or 'inga'}")
 
     def _store_call(
         self, method: str, task_id: str, *args, _what: str = ""

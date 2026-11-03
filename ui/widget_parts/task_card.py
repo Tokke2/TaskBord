@@ -196,7 +196,12 @@ class TaskCardMixin:
                 if str(tg).strip()
             ][:6]
             _start = task.get("start_date")
-            if tags or due or _start or _is_snoozed(task):
+            _remind_txt = ""
+            if not archived:
+                with suppress(Exception):
+                    from core import reminder_logic as _rlg
+                    _remind_txt = _rlg.remind_summary(task)
+            if tags or due or _start or _remind_txt or _is_snoozed(task):
                 meta = QHBoxLayout()
                 meta.setSpacing(6)
                 meta.addSpacing(34)  # indrag i linje med titeln
@@ -222,6 +227,15 @@ class TaskCardMixin:
                     meta.addWidget(st_lbl)
                 if due:
                     meta.addWidget(DueDateLabel(str(due), container))
+                if _remind_txt:
+                    from core import reminder_logic as _rlg
+                    rb = QPushButton(f"🔔 {len(_rlg.remind_days(task))}", container)
+                    rb.setObjectName("emailBadge")
+                    rb.setFixedHeight(22)
+                    rb.setCursor(Qt.CursorShape.PointingHandCursor)
+                    rb.setToolTip(_rlg.remind_tooltip(task))
+                    rb.clicked.connect(lambda _c, _t=tid: self._edit_remind_dates(_t))
+                    meta.addWidget(rb)
                 meta.addStretch(1)
                 vbox.addLayout(meta)
 

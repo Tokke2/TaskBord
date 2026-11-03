@@ -160,6 +160,10 @@ def child(work: str) -> None:
 
     # ----- påminnelsetjänsten med riktig store ------------------------------------------------------------
     from app.mixins.reminders import RemindersMixin
+    import app.mixins.reminders as _RM
+    import tempfile as _tf
+    _fakeroot = Path(_tf.mkdtemp(prefix="ledgebord_rootfake_"))
+    _RM.SCRIPT_DIR = _fakeroot          # felloggen/fel_seen.txt hamnar inte i den riktiga data-mappen
     from core.store import TaskStore
     tmp = Path(work) / "store"
     store = TaskStore(data_dir_override=str(tmp))
@@ -263,6 +267,34 @@ def child(work: str) -> None:
     c5._app_icon = None
     c5._update_tray_badge()
     ck("utan ikon: ingen krasch", c5._tray.icons == [])
+    # ----- röd prick för nya fel ----------------------------------------------------------------------------
+    import time as _time
+    from core import error_log as _EL
+    ddir = _fakeroot / "data"
+    ddir.mkdir(exist_ok=True)
+    _EL.mark_seen(ddir, when=_time.time() - 10)
+    c6 = Ctl()
+    c6._app_icon = QIcon(str(ROOT / "icon" / "ledgebord.ico"))
+    acts = []
+    c6._errlog_action = type("A", (), {"setText": lambda s, t: acts.append(t)})()
+    c6._update_tray_badge()
+    ck("inga fel → ingen prick (ursprungsikon)", c6._tray.icons[-1] is c6._app_icon, c6._tray_err_n)
+    (ddir / "fel.log").write_text(f"{_time.strftime('%Y-%m-%d %H:%M:%S')} | FEL      | x (a.py:1) | trasigt\n", encoding="utf-8")
+    c6._update_tray_badge()
+    ck("nytt fel → räknas", c6._tray_err_n == 1, c6._tray_err_n)
+    img6 = c6._tray.icons[-1].pixmap(64, 64).toImage()
+    dot = QColor(img6.pixelColor(53, 11))
+    ck("röd prick uppe till höger", dot.red() > 200 and dot.green() < 110 and dot.blue() < 110, dot.getRgb())
+    ck("menyraden visar antalet", acts and "1 nya fel" in acts[-1], acts)
+    nic = len(c6._tray.icons)
+    c6._update_tray_badge()
+    ck("oförändrat → ikonen byts inte", len(c6._tray.icons) == nic)
+    _EL.mark_seen(ddir)
+    c6._tray_badge_key = None
+    c6._update_tray_badge()
+    ck("efter att loggen öppnats släcks pricken", c6._tray.icons[-1] is c6._app_icon and c6._tray_err_n == 0)
+    ck("menyraden återgår till grundtexten", acts[-1] == "🧯  Öppna felloggen", acts[-1])
+
     src = (ROOT / "app/mixins/backup_sync.py").read_text(encoding="utf-8")
     ck("siffran uppdateras när uppgifter ändras (GUI-tråden)", "_update_tray_badge()" in src)
     ck("QPixmap skapas aldrig utanför GUI-tråden (anropas bara från trådskyddade ställen)",

@@ -207,6 +207,23 @@ plain = store.add_task("Vanlig", due_date=today.isoformat())
 c3._reminder_done(plain)
 check("vanlig uppgift: Klar bockar av som förut", not any(a["id"] == plain for a in store.active_tasks()))
 
+# ---- 🔔 visa/redigera datum på uppgiften -------------------------------------------------------------------
+from core import reminder_logic as _rl  # noqa: E402
+_r = mail_bridge.create_task_from_payload(store, work / "data", {"subject": "Notis", "from": "k@x.se", "body": body, "message_id": "<m9@x>"})
+check("resultatet har remind_dates", _r.get("remind_dates") == [d1.isoformat(), d2.isoformat()], _r.get("remind_dates"))
+_r2 = mail_bridge.create_task_from_payload(store, work / "data", {"subject": "Notis utan", "body": "hej", "message_id": "<m10@x>"})
+check("utan datum: tom lista", not _r2.get("remind_dates"))
+_t = store.find_task(_r["task_id"])
+check("short_day: d/m", _rl.short_day("2026-11-15") == "15/11" and _rl.short_day("2026-12-01") == "1/12")
+check("remind_summary: 'd/m, d/m'", _rl.remind_summary(_t) == f"{d1.day}/{d1.month}, {d2.day}/{d2.month}", _rl.remind_summary(_t))
+check("remind_summary: tom när inga datum", _rl.remind_summary({"id": "x"}) == "")
+check("tooltip: datum + mailrad + hjälptext", all(x in _rl.remind_tooltip(_t) for x in ("Påminner: ", "Betalning 2", "Klicka")))
+_days, _info = _rl.apply_remind_edit(_t, [d2.isoformat()], [])
+check("apply_remind_edit: bara behållna datum", _days == [d2.isoformat()] and list(_info) == [d2.isoformat()] or _info == {}, (_days, _info))
+_days, _info = _rl.apply_remind_edit(_t, [d1.isoformat(), d2.isoformat()], ["2030-01-02", "skräp"])
+check("apply_remind_edit: eget datum läggs till, skräp ignoreras", _days == [d1.isoformat(), d2.isoformat(), "2030-01-02"] and _info["2030-01-02"] == "Eget datum", (_days, _info))
+check("apply_remind_edit: ingenting kvar = tom lista", _rl.apply_remind_edit(_t, [], []) == ([], {}))
+
 shutil.rmtree(work, ignore_errors=True)
 print(f"\nmail_dates_test: {ok} lyckades, {fail} misslyckades")
 sys.stdout.flush()

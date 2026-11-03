@@ -135,7 +135,7 @@ class UpdateMixin:
                 return "installing", "Installerar uppdateringen — appen startar om strax.", 0
             return "checking", "Kontaktar GitHub och jämför filerna…", 0
         if getattr(self, "_update_available", False) and info is not None:
-            n = len(getattr(info, "changed", []) or [])
+            n = len(getattr(info, "changed", []) or []) + len(getattr(info, "removed", []) or [])
             return "available", (
                 f"Ny version finns: {n} fil(er) skiljer sig (release {info.tag}, commit {(info.commit or '?')[:7]}).\n"
                 "Klicka för att uppdatera — dina uppgifter rörs inte och appen startar om."), n
@@ -159,7 +159,7 @@ class UpdateMixin:
             return
         info = getattr(self, "_update_last_info", None)
         fresh = (time.monotonic() - getattr(self, "_update_last_info_ts", -1e9)) < self.UPDATE_INFO_FRESH_SEC
-        if getattr(self, "_update_available", False) and info is not None and info.changed and fresh:
+        if getattr(self, "_update_available", False) and info is not None and (info.changed or info.removed) and fresh:
             self._update_busy = True
             self._update_silent = False
             self._update_cancel = False
@@ -272,6 +272,9 @@ class UpdateMixin:
         with suppress(Exception):
             self.settings.set_update_last_check(int(time.time()))
         self._update_available = not info.up_to_date
+        with suppress(Exception):      # identisk med releasen → vi vet säkert vilka filer som är programfiler (manifest)
+            from core import updater as _upd
+            _upd.seed_manifest(SCRIPT_DIR, info)
         self._update_last_info = info
         self._update_last_info_ts = time.monotonic()
         if info.up_to_date and not silent:
@@ -329,7 +332,7 @@ class UpdateMixin:
         silent=True (automatisk uppdatering): inga fönster alls — omstarten sker också tyst.
         """
         from core import updater
-        n = len(info.changed)
+        n = len(info.changed) + len(getattr(info, "removed", []) or [])
         self._update_busy = True
         self._update_silent = bool(silent)
         if not silent:
@@ -429,7 +432,9 @@ class UpdateMixin:
         )
         self._update_dialog(
             "info", "Uppdaterad",
-            f"{len(info.changed)} fil(er) uppdaterade. Ledgebord startar om nu." + _addon_note,
+            f"{len(info.changed)} fil(er) uppdaterade"
+            + (f", {len(info.removed)} gammal(a) borttagna" if getattr(info, "removed", None) else "")
+            + ". Ledgebord startar om nu." + _addon_note,
         )
         self._flush_window_state("före omstart")
         if updater.schedule_restart(SCRIPT_DIR, backup_root=payload):
@@ -546,7 +551,7 @@ class UpdateMixin:
                 return "ingen ny version"
             if not self.settings.update_auto_install():
                 return "automatisk installation är avstängd"
-            if not info.changed:
+            if not info.changed and not info.removed:
                 return "inga filer att byta"
             if info.requirements_changed:
                 return "requirements.txt har ändrats (kräver paketinstallation av dig)"
@@ -650,7 +655,7 @@ class UpdateMixin:
             self._update_balloon_ts = time.monotonic()
             self._tray.showMessage(
                 "🆕 Ny version av Ledgebord",
-                f"{len(info.changed)} fil(er) skiljer sig från din installation. "
+                f"{len(info.changed) + len(info.removed)} fil(er) skiljer sig från din installation. "
                 "Klicka här eller välj “Ny version finns” i tray-menyn.",
                 self._QSystemTrayIcon.MessageIcon.Information, 10000,
             )

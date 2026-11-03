@@ -694,7 +694,8 @@ class TrayMixin:
             bug_action.triggered.connect(self._create_bug_report)
             self._tray_menu.addAction(bug_action)
 
-            errlog_action = self._QAction("🧯  Öppna felloggen", self._tray_menu)
+            errlog_action = self._QAction(self._errlog_action_text(int(self._tray_err_n)), self._tray_menu)
+            self._errlog_action = errlog_action
             errlog_action.setToolTip(
                 "data\\fel.log — alla fel och varningar från hela appen (och uppdateringsväktaren) på ett ställe,\n"
                 "i tidsordning. Bra att börja med vid felsökning."
@@ -1102,6 +1103,8 @@ class TrayMixin:
                 f"{APP_NAME} v{APP_VERSION_DISPLAY}\n"
                 f"{active} uppgifter • {len(self._widgets)} fönster • {uptime}"
             )
+            if self._tray_err_n > 0:
+                tooltip += f"\n🧯 {self._tray_err_n} nya fel i felloggen"
             self._tray.setToolTip(tooltip)
         except Exception as e:
             self._log.debug(f"update_tray_tooltip misslyckades: {e}")

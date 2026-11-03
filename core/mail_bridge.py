@@ -730,7 +730,7 @@ def create_task_from_payload(
     # --- Datum i mailet ("15/11", "november") → påminnelser (core/mail_dates.py) ---
     try:
         from core import mail_dates
-        mail_dates.apply_to_task(store, task_id, subject, body)
+        result["remind_dates"] = list(mail_dates.apply_to_task(store, task_id, subject, body) or [])
     except Exception as e:
         logger.debug(f"{LOG_PREFIX} datum i mail: {e}")
 
@@ -942,6 +942,8 @@ def import_email_file(
             )
         result["title"] = str(task.get("title", filepath.name))
         result["priority"] = str(task.get("priority", "medium"))
+        if not duplicate and task.get("remind_dates"):
+            result["remind_dates"] = [str(x) for x in task.get("remind_dates") or []]
     except Exception as e:
         logger.debug(f"{LOG_PREFIX} dedup-registrering misslyckades: {e}")
 
@@ -1607,6 +1609,7 @@ class MailBridgeServer:
                                 "title": r.get("title", ""),
                                 "duplicate": bool(r.get("duplicate")),
                                 "error": r.get("error"),
+                                "remind_dates": list(r.get("remind_dates") or []),
                             }
                             for r in results
                         ],

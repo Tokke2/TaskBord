@@ -227,6 +227,42 @@ def status_text(kind: str, days: int) -> str:
     return f"försenad {days} dag" if days == 1 else f"försenad {days} dagar"
 
 
+def short_day(value: Any) -> str:
+    """'2026-11-15' → '15/11' (kort datum som i mailen)."""
+    d = _day(value)
+    return f"{d.day}/{d.month}" if d else str(value or "")
+
+
+def remind_summary(task: Dict[str, Any]) -> str:
+    """'2/11, 15/11, 1/12' — extra påminnelsedatum på uppgiften (tom sträng = inga)."""
+    return ", ".join(short_day(d) for d in remind_days(task))
+
+
+def remind_tooltip(task: Dict[str, Any]) -> str:
+    """Tooltip för 🔔-märket: datumen + raden ur mailet som hör till varje datum."""
+    info = task.get("remind_info") if isinstance(task.get("remind_info"), dict) else {}
+    lines = ["Påminner: " + remind_summary(task)]
+    for d in remind_days(task):
+        txt = str(info.get(d.isoformat()) or "").strip()
+        if txt:
+            lines.append(f"  {d.day}/{d.month}  {txt[:80]}")
+    lines.append("Klicka för att ta bort eller lägga till datum.")
+    return "\n".join(lines)
+
+
+def apply_remind_edit(task: Dict[str, Any], keep: Iterable[str], add: Iterable[str] = ()) -> Tuple[List[str], Dict[str, str]]:
+    """
+    Resultatet av dialogen "Påminnelsedatum": behåll `keep` (ISO), lägg till `add` (egna datum).
+    Returnerar (sorterade ISO-datum, remind_info bara för kvarvarande datum). Tom lista = inga extra påminnelser.
+    """
+    old = task.get("remind_info") if isinstance(task.get("remind_info"), dict) else {}
+    keep_set = {d.isoformat() for d in (_day(k) for k in keep) if d is not None}
+    add_set = {d.isoformat() for d in (_day(k) for k in add) if d is not None}
+    days = sorted(keep_set | add_set)
+    info = {iso: str(old.get(iso) or "Eget datum")[:200] for iso in days if iso in old or iso in add_set}
+    return days, info
+
+
 def badge_text(n: int) -> str:
     """Siffran på tray-ikonen ('' = ingen siffra)."""
     if n <= 0:

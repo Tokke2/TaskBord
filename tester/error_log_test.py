@@ -183,6 +183,34 @@ try:
 except Exception as e:  # pragma: no cover
     check("felrapport skapas", False, e)
 
+# ---- nya fel (röd prick) --------------------------------------------------------------------------------
+_d = Path(tempfile.mkdtemp(prefix="ledgebord_errseen_"))
+_t = time.time()
+_fmt = lambda ts: time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts))
+check("inget log → 0 nya fel", EL.count_unseen(_d, now=_t) == 0)
+check("första anropet sätter baslinjen (fel_seen.txt skapas)", EL.read_seen(_d) is not None)
+(_d / "fel.log").write_text(
+    f"{_fmt(_t - 500)} | FEL      | a (x.py:1) | gammalt fel\n"
+    f"{_fmt(_t + 5)} | FEL      | a (x.py:2) | nytt fel\n    följdrad\n"
+    f"{_fmt(_t + 6)} | KRASCH   | a (x.py:3) | krasch\n"
+    f"{_fmt(_t + 7)} | VARNING  | a (x.py:4) | varning räknas inte\n"
+    f"{_fmt(_t + 8)} | IMPORT   | update_watchdog | importerat räknas inte\n",
+    encoding="utf-8")
+check("endast FEL/KRASCH nyare än baslinjen räknas", EL.count_unseen(_d) == 2, EL.count_unseen(_d))
+check("cache ger samma svar", EL.count_unseen(_d) == 2)
+with open(_d / "fel.log", "a", encoding="utf-8") as _f:
+    _f.write(f"{_fmt(_t + 20)} | FEL      | b (y.py:9) | ett till\n")
+check("ny rad syns direkt trots cache", EL.count_unseen(_d) == 3)
+EL.mark_seen(_d, when=_t + 30)
+check("öppnat felloggen → 0 nya", EL.count_unseen(_d) == 0)
+with open(_d / "fel.log", "a", encoding="utf-8") as _f:
+    _f.write(f"{_fmt(_t + 60)} | FEL      | b (y.py:10) | efter öppnandet\n")
+check("fel efter öppnandet räknas igen", EL.count_unseen(_d) == 1)
+check("fel_seen.txt ligger i data-mappen", EL.seen_path(_d).parent == _d)
+(_d / "fel.log").write_text(EL.PLACEHOLDER, encoding="utf-8")
+check("platshållartexten ger 0", EL.count_unseen(_d) == 0)
+shutil.rmtree(_d, ignore_errors=True)
+
 print(f"\nerror_log_test: {ok} lyckades, {fail} misslyckades")
 sys.stdout.flush()
 os._exit(1 if fail else 0)

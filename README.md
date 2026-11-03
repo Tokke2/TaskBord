@@ -99,6 +99,14 @@ väntar (t.ex. när `requirements.txt` ändrats och tyst installation därför i
 * **Säkert:** hämtar bara från GitHub över https, kompilerar alla Python-filer först (en trasig
   release installeras aldrig), rullar tillbaka om något går fel och skriver inget utanför
   appmappen. Filer du själv lagt till tas inte bort.
+* **Borttagna filer städas:** raderar en release en programfil (t.ex. en gammal modul) tas den bort hos dig också —
+  men bara filer som appen *vet* är programfiler: listan `data\installed_files.json` som skrivs efter varje
+  installation (och första gången när en koll visar att allt är identiskt med releasen), plus en fast lista över
+  filer som tagits bort ur projektet förr (regelfunktionen m.fl.). Därför tar *första* uppdateringen efter att
+  funktionen kom bara bort den fasta listan; resten gäller från nästa uppdatering. `js\`, `data\`, `.git` och
+  venv rörs aldrig, tomma mappar städas, och en spärr (max 25 filer / 40 %) stoppar raderingen om en release-zip ser
+  trasig ut. Borttagna filer sparas i backupen först, återställs om installationen eller starten misslyckas och
+  räknas som en riktig uppdatering (”N filer”) även om inget annat ändrats.
 * Appen startar om automatiskt. Ändras `requirements.txt` ska du köra `FORSTA_START.bat`.
 * Uppdateringen hämtas alltid från den senaste **releasen** på GitHub – aldrig från `main` och aldrig via `git pull` – även om mappen är en git-mapp (`.git` lämnas orörd; filerna syns då som ändrade i git).
 
@@ -278,7 +286,16 @@ inte när uppgiften lagts till (positionen behålls) — listan lyfts bara en st
 tray förblir det där.
 
 **Tray-ikonen** visar antalet försenade + dagens uppgifter som en siffra (röd om något är försenat, annars orange).
-Inga uppgifter att bevaka → ren ikon.
+Inga uppgifter att bevaka → ren ikon. En liten **röd prick uppe till höger** betyder att nya *fel* (FEL/KRASCH, inte
+varningar) har loggats i `data\fel.log` sedan du senast öppnade felloggen; menyraden blir då
+”🧯 Öppna felloggen — N nya fel” och tooltipen nämner dem. Öppnar du felloggen släcks pricken
+(`data\fel_seen.txt` kommer ihåg när). Första gången (innan filen finns) räknas bara fel som kommer *efter* det.
+
+**🔔 Datum från mail på uppgiften:** har appen hittat datum i ett importerat mail visas ett märke `🔔 3` på uppgiften;
+hovra för datumen (`Påminner: 2/11, 15/11, 1/12` + raden ur mailet). Klicka märket, eller högerklicka →
+**🔔 Påminnelsedatum…**, för att avmarkera datum som inte ska påminna eller lägga till egna. Tray-notisen vid import
+(och dialogen vid manuell import av .eml) nämner datumen. Tom lista = inga extra påminnelser (förfallodatumet
+påverkas inte).
 
 ## 🎨 Namn och ikon
 

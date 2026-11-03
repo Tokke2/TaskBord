@@ -6,7 +6,7 @@ from __future__ import annotations
 from contextlib import suppress
 from typing import Any, List
 
-from app.constants import APP_NAME, LOG_PREFIX
+from app.constants import APP_NAME, LOG_PREFIX, SCRIPT_DIR
 
 
 class RemindersMixin:
@@ -177,6 +177,8 @@ class RemindersMixin:
     # Siffra på tray-ikonen (antal försenade + dagens)
     # ------------------------------------------------------------------
     _tray_badge_n = -1
+    _tray_err_n = 0            # antal nya fel i fel.log (röd prick)
+    _tray_badge_key = None
 
     def _update_tray_badge(self) -> None:
         """Rita antalet försenade/dagens uppgifter på tray-ikonen (GUI-tråden). 0 = ren ikon."""
@@ -186,11 +188,21 @@ class RemindersMixin:
             from core import reminder_logic as _rl
             n_over, n_today = _rl.count_due(self.store.active_tasks())
             n = n_over + n_today
-            if n == self._tray_badge_n:
+            n_err = 0
+            with suppress(Exception):
+                from core import error_log as _el
+                n_err = _el.count_unseen(SCRIPT_DIR / "data")
+            self._tray_err_n = n_err
+            self._refresh_errlog_action()
+            if (n, n_err) == self._tray_badge_key:
                 return
+            self._tray_badge_key = (n, n_err)
             self._tray_badge_n = n
-            if n <= 0:
+            if n <= 0 and n_err <= 0:
                 self._tray.setIcon(self._app_icon)
+                with suppress(Exception):
+                    self._last_tooltip_update = 0.0
+                    self._update_tray_tooltip()
                 return
             from PySide6.QtCore import QRect, Qt
             from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPixmap
@@ -201,23 +213,47 @@ class RemindersMixin:
             p = QPainter(pm)
             try:
                 p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-                r = 26
-                rect = QRect(size - r, size - r, r, r)
-                p.setPen(QColor("#ffffff"))
-                p.setBrush(QColor("#dc2626" if n_over else "#d97706"))
-                p.drawEllipse(rect)
-                f = QFont()
-                f.setBold(True)
-                f.setPixelSize(18 if n < 10 else 15)
-                p.setFont(f)
-                p.drawText(rect, Qt.AlignmentFlag.AlignCenter, _rl.badge_text(n))
+                if n > 0:
+                    r = 26
+                    rect = QRect(size - r, size - r, r, r)
+                    p.setPen(QColor("#ffffff"))
+                    p.setBrush(QColor("#dc2626" if n_over else "#d97706"))
+                    p.drawEllipse(rect)
+                    f = QFont()
+                    f.setBold(True)
+                    f.setPixelSize(18 if n < 10 else 15)
+                    p.setFont(f)
+                    p.drawText(rect, Qt.AlignmentFlag.AlignCenter, _rl.badge_text(n))
+                if n_err > 0:       # röd prick uppe till höger = nya fel i felloggen
+                    d = 20
+                    p.setPen(QColor("#ffffff"))
+                    p.setBrush(QColor("#ef4444"))
+                    p.drawEllipse(QRect(size - d - 1, 1, d, d))
             finally:
                 p.end()
             self._tray.setIcon(QIcon(pm))
             with suppress(Exception):
-                self._tray.setToolTip(f"{APP_NAME} — {n_over} försenade, {n_today} förfaller idag")
+                if n > 0:
+                    tip = f"{APP_NAME} — {n_over} försenade, {n_today} förfaller idag"
+                    if n_err > 0:
+                        tip += f"\n🧯 {n_err} nya fel i felloggen"
+                    self._tray.setToolTip(tip)
+                else:
+                    self._last_tooltip_update = 0.0
+                    self._update_tray_tooltip()
         except Exception as e:
             self._log.debug(f"{LOG_PREFIX} _update_tray_badge: {e}")
+
+    @staticmethod
+    def _errlog_action_text(n_err: int) -> str:
+        return f"🧯  Öppna felloggen — {n_err} nya fel" if n_err > 0 else "🧯  Öppna felloggen"
+
+    def _refresh_errlog_action(self) -> None:
+        """Menyraden följer antalet nya fel (kallas från märket och när menyn byggs)."""
+        with suppress(Exception):
+            act = getattr(self, "_errlog_action", None)
+            if act is not None:
+                act.setText(self._errlog_action_text(int(self._tray_err_n)))
 
     def _toggle_reminders(self, checked: bool) -> None:
         """NY v7-fix64: tray-toggle för påminnelser."""

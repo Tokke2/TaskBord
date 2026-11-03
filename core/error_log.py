@@ -351,6 +351,78 @@ def import_in_background(data_dir: Path, delay: float = 10.0) -> None:
     threading.Thread(target=_run, name="ErrorLogImport", daemon=True).start()
 
 
+# ============================================================================================================
+# NYA FEL (röd prick på tray-ikonen)
+# ============================================================================================================
+SEEN_NAME = "fel_seen.txt"          # epoch-sekunder för senaste "Öppna felloggen"
+_ENTRY_RX = re.compile(r"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) \| (FEL|KRASCH)\s*\|")
+_unseen_cache: Dict[Tuple[str, int, int, float], int] = {}
+
+
+def seen_path(data_dir: Path) -> Path:
+    return Path(data_dir) / SEEN_NAME
+
+
+def read_seen(data_dir: Path) -> Optional[float]:
+    """Tidpunkten då felloggen senast öppnades (None = aldrig/okänd)."""
+    try:
+        return float(seen_path(data_dir).read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return None
+
+
+def mark_seen(data_dir: Path, when: Optional[float] = None) -> None:
+    """Markera allt som läst (anropas när användaren öppnar felloggen)."""
+    try:
+        d = Path(data_dir)
+        d.mkdir(parents=True, exist_ok=True)
+        seen_path(d).write_text(str(int(time.time() if when is None else when)), encoding="utf-8")
+    except OSError:
+        pass
+    _unseen_cache.clear()
+
+
+def count_unseen(data_dir: Path, now: Optional[float] = None) -> int:
+    """
+    Antal FEL/KRASCH-poster i fel.log som är nyare än senaste "Öppna felloggen".
+    Varningar (VARNING) och importerade poster (IMPORT) räknas inte — pricken ska betyda något.
+    Första gången (ingen fel_seen.txt) sätts baslinjen till nu: gamla fel ger ingen prick.
+    Billig att anropa ofta: resultatet cachas på (mtime, storlek, baslinje).
+    """
+    data_dir = Path(data_dir)
+    seen = read_seen(data_dir)
+    if seen is None:
+        mark_seen(data_dir, now)
+        return 0
+    p = log_path(data_dir)
+    try:
+        st = p.stat()
+    except OSError:
+        return 0
+    key = (str(p), int(st.st_mtime_ns // 1_000_000), st.st_size, seen)
+    hit = _unseen_cache.get(key)
+    if hit is not None:
+        return hit
+    n = 0
+    try:
+        with open(p, "r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                m = _ENTRY_RX.match(line)
+                if not m:
+                    continue
+                try:
+                    ts = time.mktime(time.strptime(m.group(1), "%Y-%m-%d %H:%M:%S"))
+                except (ValueError, OverflowError):
+                    continue
+                if ts > seen:
+                    n += 1
+    except OSError:
+        return 0
+    _unseen_cache.clear()
+    _unseen_cache[key] = n
+    return n
+
+
 def prepare_for_open(data_dir: Path) -> Path:
     """Importerar det nya, skriver sammanfattningar och ser till att filen finns (med en trevlig rad om den är tom)."""
     data_dir = Path(data_dir)

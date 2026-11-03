@@ -276,7 +276,7 @@ check("tray-menyn har automatisk koll", "_toggle_auto_update" in main and "_init
 check("tray-menyn har tyst installation", "_toggle_auto_install" in main and "Installera nya versioner tyst" in main)
 check("timern tickar varje timme (för 12 h-gränsen)", "setInterval(3600 * 1000)" in main)
 check("tray-menyn har Sök ny version", "Sök ny version" in main and "self._check_for_updates" in main)
-check("uppdateringen sparar uppgifter först", "self.store.save()" in main.split("def _finish_check")[1][:4000])
+check("uppdateringen sparar uppgifter först", "self.store.save()" in main.split("def _finish_check")[1][:8000])
 
 print(f"\nupdater_test: {ok} lyckades, {fail} misslyckades")
 sys.exit(1 if fail else 0)
