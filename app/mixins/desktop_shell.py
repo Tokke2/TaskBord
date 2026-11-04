@@ -499,8 +499,39 @@ class DesktopShellMixin:
         """En annan app fick fokus: lägg oss överst strax efter att den ordnat sin egen z-ordning (och en gång till)."""
         if self._desktop_mode() != "top":
             return
-        for ms in (60, 400):
+        for ms in self.TOP_BURST_MS:
             self._QTimer.singleShot(ms, self._reassert_top_all)
+
+    # Nya appar visar ofta sitt fönster i flera steg (splash → huvudfönster, UWP-fönster som "avtäcks", fönster som
+    # gör sig själva till toppfönster efter en stund). Därför läggs vi överst igen i en salva efter varje händelse.
+    TOP_BURST_MS = (60, 400, 1200, 3000)
+
+    def _on_window_event(self, hwnd: int = 0, id_object: int = 0, id_child: int = 0) -> None:
+        """
+        Ett nytt toppnivåfönster visades/avtäcktes eller ett fönster återställdes (WinEvent), utan att fokus nödvändigtvis
+        bytte: lägg oss överst igen. Bara riktiga fönster räknas (inte knappar/menyer inuti dem) och många händelser i
+        rad slås ihop till en salva (högst en per 150 ms).
+        """
+        try:
+            if self._desktop_mode() != "top":
+                return
+            if id_object != 0 or id_child != 0 or not hwnd:
+                return                                  # OBJID_WINDOW / CHILDID_SELF = själva fönstret
+            import ctypes
+            user32 = ctypes.windll.user32
+            if user32.GetParent(hwnd) or not user32.IsWindowVisible(hwnd):
+                return                                  # barnfönster eller osynligt
+            if getattr(self, "_top_burst_pending", False):
+                return
+            self._top_burst_pending = True
+
+            def _go() -> None:
+                self._top_burst_pending = False
+                self._on_foreground_changed()
+
+            self._QTimer.singleShot(150, _go)
+        except Exception:
+            pass
 
     def _install_top_foreground_hook(self) -> None:
         """Windows: WinEvent-krok på EVENT_SYSTEM_FOREGROUND (en gång). Övriga system: bara tidtagaren gäller."""
@@ -513,9 +544,12 @@ class DesktopShellMixin:
             wintypes.DWORD, wintypes.DWORD,
         )
 
-        def _cb(*_a: Any) -> None:
+        def _cb(_hook: Any = None, event: Any = 0, hwnd: Any = 0, id_obj: Any = 0, id_child: Any = 0, *_rest: Any) -> None:
             try:
-                self._on_foreground_changed()
+                if event == 3:                      # EVENT_SYSTEM_FOREGROUND
+                    self._on_foreground_changed()
+                else:                               # nytt/avtäckt/återställt fönster
+                    self._on_window_event(int(hwnd or 0), int(id_obj or 0), int(id_child or 0))
             except Exception:
                 pass
 
@@ -523,11 +557,17 @@ class DesktopShellMixin:
         fn = ctypes.windll.user32.SetWinEventHook
         fn.restype = wintypes.HANDLE
         fn.argtypes = [wintypes.DWORD, wintypes.DWORD, wintypes.HMODULE, proto, wintypes.DWORD, wintypes.DWORD, wintypes.DWORD]
-        # EVENT_SYSTEM_FOREGROUND = 3; WINEVENT_OUTOFCONTEXT (0) | WINEVENT_SKIPOWNPROCESS (2)
-        h = fn(3, 3, None, cb, 0, 0, 0x0002)
-        if h:
-            self._top_fg_hook = (h, cb)             # cb måste leva kvar
-            self._log.info(f"{LOG_PREFIX} alltid överst: bevakar fokusbyten (WinEvent-krok)")
+        # WINEVENT_OUTOFCONTEXT (0) | WINEVENT_SKIPOWNPROCESS (2). Händelser:
+        #   3 = EVENT_SYSTEM_FOREGROUND (annan app tar fokus)      0x17 = EVENT_SYSTEM_MINIMIZEEND (fönster återställs)
+        #   0x8002 = EVENT_OBJECT_SHOW (nytt fönster visas)        0x8018 = EVENT_OBJECT_UNCLOAKED (UWP/Win11-appar visas)
+        hooks = []
+        for ev in (3, 0x17, 0x8002, 0x8018):
+            h = fn(ev, ev, None, cb, 0, 0, 0x0002)
+            if h:
+                hooks.append(h)
+        if hooks:
+            self._top_fg_hook = (hooks, cb)         # cb måste leva kvar
+            self._log.info(f"{LOG_PREFIX} alltid överst: bevakar fokusbyten och nya fönster (WinEvent-krokar: {len(hooks)}/4)")
         else:
             self._log.warning(f"{LOG_PREFIX} alltid överst: kunde inte installera fokuskroken — tidtagaren räcker")
 

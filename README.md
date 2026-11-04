@@ -154,9 +154,11 @@ Kryssrutan **Visa över andra appar** finns i tray-menyn och när du högerklick
 Valet sparas och gäller även efter omstart (snabbtangent: **Ctrl+Alt+T**). Är rutan urkryssad rättar appen själv till
 om fönstret mot förmodan har blivit liggande överst.
 
-**Ikryssat läge ligger alltid överst:** appen lägger sig överst igen **direkt när en annan app tar fokus** (Windows
-meddelar fokusbyten; ca 0,1 s senare, och en gång till strax efter) samt var **1,5:e sekund** som reserv — också
-över andra fönster som själva är ”alltid överst”. Gömmer eller minimerar Windows widgeten (Win+D, skärmlås …)
+**Ikryssat läge ligger alltid överst:** appen lägger sig överst igen **direkt när en annan app tar fokus** och **när ett
+nytt fönster öppnas** (även appar som visar sig utan att ta fokus, Win11-appar som ”avtäcks” och fönster som återställs
+från aktivitetsfältet). Windows meddelar händelserna; appen lägger sig överst ca 0,1 s senare och sedan en gång till efter
+0,4 s, 1,2 s och 3 s — nya appar visar ofta sitt fönster i flera steg (startbild → huvudfönster). Dessutom var
+**1,5:e sekund** som reserv. Det gäller också över andra fönster som själva är ”alltid överst”. Gömmer eller minimerar Windows widgeten (Win+D, skärmlås …)
 visas den igen inom 1,5 s; fönster du själv gömt till tray lämnas ifred. Tray-lyftet (klick på ikonen) släpper
 inte längre toppläget i det här läget, och påminnelsekortet ligger fortsatt överst.
 
