@@ -505,7 +505,7 @@ class UpdateMixin:
             f"({info.get('restored', 0)} fil(er) tillbaka, {info.get('removed', 0)} nya borttagna). "
             "Dina uppgifter och inställningar är orörda.\n\n"
             "Du får inte fler notiser om just den här uppdateringen. "
-            "Detaljer: data\\update_watchdog.log. Backup: " + str(info.get("backup", ""))
+            "Detaljer: loggar\\update_watchdog.log. Backup: " + str(info.get("backup", ""))
         )
         with suppress(Exception):
             if self._tray is not None:

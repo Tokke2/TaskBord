@@ -45,8 +45,9 @@ log = "\n".join(
        "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.payload.sig",
        "mail från anna.svensson@foretag.se ämne Rapport"]
 )
-(app / "data" / "todo_app.log").write_text(log, encoding="utf-8")
-(app / "data" / "update_watchdog.log").write_text("watchdog rad\n", encoding="utf-8")
+(app / "loggar").mkdir(exist_ok=True)
+(app / "loggar" / "todo_app.log").write_text(log, encoding="utf-8")
+(app / "loggar" / "update_watchdog.log").write_text("watchdog rad\n", encoding="utf-8")
 
 out = br.create_report(app, extra={"Release": "6.4.1 v7"})
 check("zip skapad i data/felrapporter i appmappen", out.parent == app / "data" / "felrapporter" and out.is_file(), str(out))

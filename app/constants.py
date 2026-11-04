@@ -64,7 +64,9 @@ JS_DIR: Final[Path] = SCRIPT_DIR / "js"
 DATA_DIR: Final[Path] = SCRIPT_DIR / "data"
 
 
-LOG_FILE: Final[Path] = DATA_DIR / "todo_app.log"
+# Loggar ligger i en egen undermapp i appmappen (gamla loggar i data/ flyttas dit vid start, core/log_paths.py)
+LOGS_DIR: Final[Path] = SCRIPT_DIR / "loggar"
+LOG_FILE: Final[Path] = LOGS_DIR / "todo_app.log"
 
 
 SETTINGS_FILE: Final[Path] = JS_DIR / "settings.json"

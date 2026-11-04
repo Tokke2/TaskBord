@@ -19,3 +19,6 @@ client_secret*.json
 
 # Genvägen Ledgebord.lnk skapas lokalt av appen (Windows)
 /Ledgebord.lnk
+
+# Loggar (egen undermapp i appmappen) — lokala, ska inte i git
+/loggar/

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-error_log.py — EN fil med alla fel för snabb felsökning: data/fel.log
+error_log.py — EN fil med alla fel för snabb felsökning: loggar/fel.log
 
 Varför: felen ligger annars utspridda — todo_app.log (tusentals rader, där felen drunknar), update_watchdog.log
 (egen process), window_failure_report.txt (nödrapport) och äldre roterade loggar. Den här filen samlar bara det som
@@ -11,9 +11,9 @@ Innehåll
     undantag via excepthook) och skriver dem direkt. Upprepade, likadana fel samlas ("upprepades N gånger").
   • IMPORT: vid start (och innan filen öppnas) hämtas fel från de andra loggarna: update_watchdog.log (nya rader,
     bara de som gäller fel/återställning), window_failure_report.txt (nödrapporten) samt — första gången —
-    ERROR/CRITICAL ur todo_app.log och de roterade dagsfilerna. Positionerna sparas i data/fel_import.json så
+    ERROR/CRITICAL ur todo_app.log och de roterade dagsfilerna. Positionerna sparas i loggar/fel_import.json så
     samma rad aldrig hamnar två gånger.
-  • Token och mailadresser maskas (samma regler som felrapporten). Allt ligger i appmappen (data/).
+  • Token och mailadresser maskas (samma regler som felrapporten). Allt ligger i appmappen (loggar/).
   • Filen roteras vid ~1,5 MB (fel.log → fel.log.1; en säkerhetskopia behålls).
 
 Format (en post):

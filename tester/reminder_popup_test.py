@@ -270,7 +270,7 @@ def child(work: str) -> None:
     # ----- röd prick för nya fel ----------------------------------------------------------------------------
     import time as _time
     from core import error_log as _EL
-    ddir = _fakeroot / "data"
+    ddir = _fakeroot / "loggar"
     ddir.mkdir(exist_ok=True)
     _EL.mark_seen(ddir, when=_time.time() - 10)
     c6 = Ctl()

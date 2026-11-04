@@ -156,12 +156,15 @@ def create_report(app_dir: Path, settings_file: Optional[Path] = None,
         z.writestr("LÄS_MIG.txt", README)
         z.writestr("info.txt", info_text(app_dir, extra))
         z.writestr("filer.txt", file_table(app_dir))
-        z.writestr("todo_app.log", redact_text(tail_lines(data / "todo_app.log")))
-        fl = data / "fel.log"
+        logs = app_dir / "loggar"
+        if not logs.is_dir():
+            logs = data                                    # äldre placering
+        z.writestr("todo_app.log", redact_text(tail_lines(logs / "todo_app.log")))
+        fl = logs / "fel.log"
         if fl.is_file():
             z.writestr("fel.log", redact_text(tail_lines(fl, 1500)))
         z.writestr("settings.json", settings_text)
-        wl = data / "update_watchdog.log"
+        wl = logs / "update_watchdog.log"
         if wl.is_file():
             z.writestr("update_watchdog.log", redact_text(tail_lines(wl, 500)))
     # behåll bara de senaste rapporterna

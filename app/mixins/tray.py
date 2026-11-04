@@ -697,7 +697,7 @@ class TrayMixin:
             errlog_action = self._QAction(self._errlog_action_text(int(self._tray_err_n)), self._tray_menu)
             self._errlog_action = errlog_action
             errlog_action.setToolTip(
-                "data\\fel.log — alla fel och varningar från hela appen (och uppdateringsväktaren) på ett ställe,\n"
+                "loggar\\fel.log — alla fel och varningar från hela appen (och uppdateringsväktaren) på ett ställe,\n"
                 "i tidsordning. Bra att börja med vid felsökning."
             )
             errlog_action.triggered.connect(self._open_error_log)

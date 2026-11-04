@@ -43,7 +43,7 @@ MANIFEST_NAME = "manifest.json"
 WATCHDOG_COPY_NAME = "watchdog.py"
 DEFAULT_PORTS = tuple(range(8765, 8777))
 _BACKUP_META_FILES = frozenset({"UPPDATERING.txt", MANIFEST_NAME, WATCHDOG_COPY_NAME})
-_PROTECTED_TOP = frozenset({"js", "data", ".git"})
+_PROTECTED_TOP = frozenset({"js", "data", "loggar", ".git"})
 
 
 # ---------------------------------------------------------------------------
@@ -141,10 +141,15 @@ def guard_command(app_dir: Path, backup_root: Path, exe: str, script: Path,
 # Själva väktaren
 # ---------------------------------------------------------------------------
 
+def logs_path(app_dir: Path) -> Path:
+    """Loggar ligger i appmappen/loggar (samma som core/log_paths.py — väktaren är beroendefri, därför en kopia)."""
+    return Path(app_dir) / "loggar"
+
+
 def _log(app_dir: Path, text: str) -> None:
     try:
-        data_dir(app_dir).mkdir(parents=True, exist_ok=True)
-        with open(data_dir(app_dir) / LOG_NAME, "a", encoding="utf-8") as f:
+        logs_path(app_dir).mkdir(parents=True, exist_ok=True)
+        with open(logs_path(app_dir) / LOG_NAME, "a", encoding="utf-8") as f:
             f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} | {text}\n")
     except OSError:
         pass

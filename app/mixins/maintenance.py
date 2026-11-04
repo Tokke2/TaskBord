@@ -90,9 +90,9 @@ class MaintenanceMixin:
             )
             return
         try:
-            data_dir = str(getattr(self, "_SCRIPT_DIR", SCRIPT_DIR) / "data")
+            data_dir = str(getattr(self, "_SCRIPT_DIR", SCRIPT_DIR) / "loggar")
         except Exception:
-            data_dir = str(SCRIPT_DIR / "data")
+            data_dir = str(SCRIPT_DIR / "loggar")
         result = fn(data_path=data_dir, force=False)
         if result.get("ran"):
             self._log.info(

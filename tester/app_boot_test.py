@@ -79,7 +79,7 @@ seed = [{"id": "plain001", "title": "Vanlig uppgift"},
 
 proc = subprocess.Popen([sys.executable, "main.pyw"], cwd=app_copy, env=env,
                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-log = app_copy / "data" / "todo_app.log"
+log = app_copy / "loggar" / "todo_app.log"
 text = ""
 t0 = time.time()
 while time.time() - t0 < 60:

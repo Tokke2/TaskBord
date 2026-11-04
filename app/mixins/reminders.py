@@ -191,7 +191,7 @@ class RemindersMixin:
             n_err = 0
             with suppress(Exception):
                 from core import error_log as _el
-                n_err = _el.count_unseen(SCRIPT_DIR / "data")
+                n_err = _el.count_unseen(SCRIPT_DIR / "loggar")
             self._tray_err_n = n_err
             self._refresh_errlog_action()
             if (n, n_err) == self._tray_badge_key:

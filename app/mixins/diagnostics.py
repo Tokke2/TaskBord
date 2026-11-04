@@ -163,7 +163,7 @@ class DiagnosticsMixin:
             if err_count > 10:
                 issues.append(
                     f"Manga errors i loggar: {err_count} "
-                    f"(kolla data/logs/session_*.log)"
+                    f"(kolla loggar/todo_app.log)"
                 )
             if critical_count > 0:
                 issues.append(
@@ -291,11 +291,11 @@ class DiagnosticsMixin:
             )
 
     def _open_error_log(self) -> None:
-        """🧯 Öppna data/fel.log (alla fel samlade). Importerar först det nya ur de andra loggarna."""
+        """🧯 Öppna loggar/fel.log (alla fel samlade). Importerar först det nya ur de andra loggarna."""
         try:
             from core import error_log
-            path = error_log.prepare_for_open(SCRIPT_DIR / "data")
-            error_log.mark_seen(SCRIPT_DIR / "data")       # öppnat = sett → röda pricken släcks
+            path = error_log.prepare_for_open(SCRIPT_DIR / "loggar")
+            error_log.mark_seen(SCRIPT_DIR / "loggar")       # öppnat = sett → röda pricken släcks
             self._tray_badge_key = None
             self._QTimer.singleShot(0, self._update_tray_badge)
             if not error_log.open_in_viewer(path):

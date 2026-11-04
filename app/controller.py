@@ -876,7 +876,7 @@ class AppController(
             with suppress(Exception):
                 from utils import cleanup_old_logs
                 _lr = cleanup_old_logs(
-                    data_path=str(SCRIPT_DIR / "data"), max_age_days=3
+                    data_path=str(SCRIPT_DIR / "loggar"), max_age_days=3
                 )
                 if _lr.get("removed"):
                     self._log.info(

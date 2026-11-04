@@ -19,7 +19,7 @@ from typing import Any, Dict, List
 from app.central_log import add_central_log_listener, format_central_log_stats_swedish, format_event_log_swedish, get_central_log_stats, get_recent_app_events, install_central_log_handler
 from app import startup_timing as _startup
 from app.config import parse_args
-from app.constants import APP_NAME, APP_VERSION_DISPLAY, DATA_DIR, JS_DIR, LOG_FILE, LOG_PREFIX, RELEASE_VERSION, SCRIPT_DIR, Timeouts
+from app.constants import APP_NAME, APP_VERSION_DISPLAY, DATA_DIR, JS_DIR, LOGS_DIR, LOG_FILE, LOG_PREFIX, RELEASE_VERSION, SCRIPT_DIR, Timeouts
 from app.controller import AppController
 from app.errors import _categorize_exception, _describe_exception, _format_compact_traceback, show_error_dialog
 from app.formatting import format_uptime
@@ -108,7 +108,7 @@ def install_global_exception_hook() -> None:
 
     Vad den gor:
       1. Fångar ALLA ohanterade undantag (inte KeyboardInterrupt)
-      2. Loggar komplett stacktrace till data/todo_app.log
+      2. Loggar komplett stacktrace till loggar/todo_app.log
       3. Visar svensk fel-dialog till anvandaren
       4. Kallar original hook (for Qt-dialog)
       5. NY v7: Installerar Qt-message-handler for Qt-fel (qInstallMessageHandler)
@@ -118,11 +118,11 @@ def install_global_exception_hook() -> None:
     log = logging.getLogger("Main")
     try:
         # Om root-logger saknar handlers, lägg till en basic file-handler som
-        # alltid skriver till data/todo_app.log (även vid tyst crash)
+        # alltid skriver till loggar/todo_app.log (även vid tyst crash)
         root = logging.getLogger()
         if not any(isinstance(h, logging.handlers.RotatingFileHandler) for h in root.handlers):
             try:
-                log_path = SCRIPT_DIR / "data" / "todo_app.log"
+                log_path = LOGS_DIR / "todo_app.log"
                 log_path.parent.mkdir(parents=True, exist_ok=True)
                 fallback_handler = logging.handlers.RotatingFileHandler(
                     log_path,
@@ -281,8 +281,8 @@ def install_global_exception_hook() -> None:
                             f"skapas (CreateWindowEx 'Felaktig parameter'). "
                             f"Tråd: {_thread_txt}. PySide6: {_ps6_ver}. "
                             f"Skärmar: {_screens_txt}. Ikon: {_ico_txt}. "
-                            f"Se data\\todo_app.log + "
-                            f"data\\window_failure_report.txt"
+                            f"Se loggar\\todo_app.log + "
+                            f"loggar\\window_failure_report.txt"
                         )
                         # FIX v7-fix20/22: syns även i konsolen (PowerShell)
                         # med DPI-läge + desktop.py-version — en konsol-paste
@@ -311,7 +311,7 @@ def install_global_exception_hook() -> None:
                                 "\n★ Fönster-skapande misslyckas!\n"
                                 f"  desktop.py: {_desk_ver}\n"
                                 f"  DPI: {_dpi_c}\n"
-                                "  Detaljer: data\\todo_app.log\n"
+                                "  Detaljer: loggar\\todo_app.log\n"
                             )
                             sys.__stderr__.flush()
                         except Exception:
@@ -356,7 +356,7 @@ def install_global_exception_hook() -> None:
                                 _ps6_ver2 = _ps6b.__version__
                             except Exception:
                                 pass
-                            _rep_dir = SCRIPT_DIR / "data"
+                            _rep_dir = LOGS_DIR
                             _rep_dir.mkdir(parents=True, exist_ok=True)
                             _rep = _rep_dir / "window_failure_report.txt"
                             _rep.write_text(
@@ -373,7 +373,7 @@ def install_global_exception_hook() -> None:
                                 "\nÅTGÄRDER (i ordning):\n"
                                 " 1. pip install --upgrade PySide6 "
                                 "(Python 3.14 kräver färsk version!)\n"
-                                " 2. Starta om och läs data\todo_app.log —\n"
+                                " 2. Starta om och läs loggar\todo_app.log —\n"
                                 "    sök efter ★ (PROBE-raden berättar om det\n"
                                 "    är miljön eller vår widget)\n"
                                 " 3. Uppdatera grafikdrivrutin\n"
@@ -389,7 +389,7 @@ def install_global_exception_hook() -> None:
                         log.critical(
                             f"{LOG_PREFIX} ★★ NÖDSTOPP — appen avslutas för "
                             f"att skydda CPU:n. ÅTGÄRD: pip install --upgrade "
-                            f"PySide6 + läs data\\window_failure_report.txt"
+                            f"PySide6 + läs loggar\\window_failure_report.txt"
                         )
                         try:
                             sys.__stderr__.write(
@@ -694,30 +694,38 @@ def run() -> int:
     # 1. Parsa argument
     config, mode = parse_args(sys.argv)
 
-    # 2. NY v6.4: Setup full logging (logger_setup → data/logs/)
+    # 2. Loggar ligger i appmappen/loggar/ — gamla loggar i data/ flyttas dit först (core/log_paths.py)
+    _migrated_logs: list = []
+    try:
+        from core.log_paths import migrate_old_logs
+        _migrated_logs = migrate_old_logs(SCRIPT_DIR)
+    except Exception:
+        pass
     # Importera logger_setup dynamiskt (för att undvika cirkulär import)
     try:
         from logger_setup import setup_full_logging
         logs_dir = setup_full_logging(
-            data_dir=SCRIPT_DIR / "data",
+            data_dir=LOGS_DIR,
             debug=(config.log_level == "DEBUG"),
             capture_stdout=True,
             capture_exceptions=True,
             capture_threads=True,
         )
         log = logging.getLogger("Main")
-        log.info(f"{LOG_PREFIX} Data dir: {logs_dir}")
+        log.info(f"{LOG_PREFIX} Logg-mapp: {logs_dir}")
         log.info(f"{LOG_PREFIX} Log-fil: {logs_dir / 'todo_app.log'}")
+        if _migrated_logs:
+            log.info(f"{LOG_PREFIX} loggar flyttade från data/ till loggar/: {', '.join(_migrated_logs)}")
     except ImportError as e:
         # Fallback till inbyggd setup_logging
         setup_logging(config.log_level, config.log_file)
         log = logging.getLogger("Main")
         log.warning(f"{LOG_PREFIX} logger_setup ej tillgängligt: {e}, använder fallback")
-    # 2b. Felloggen data/fel.log: samlar alla varningar/fel från alla moduler (live) + de andra loggarna (importeras)
+    # 2b. Felloggen loggar/fel.log: samlar alla varningar/fel från alla moduler (live) + de andra loggarna (importeras)
     try:
         from core import error_log
-        error_log.install(SCRIPT_DIR / "data")
-        error_log.import_in_background(SCRIPT_DIR / "data", delay=10.0)
+        error_log.install(LOGS_DIR)
+        error_log.import_in_background(LOGS_DIR, delay=10.0)
     except Exception as e:
         log.debug(f"{LOG_PREFIX} felloggen kunde inte startas: {e}")
     # 3. Installera global exception hook (extra Qt-specifik)

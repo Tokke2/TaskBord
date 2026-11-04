@@ -227,7 +227,7 @@ try:
           rb is not None and "kod 3" in str(rb.get("reason")) and rb.get("tag") == "v1.0.0" and len(str(rb.get("fingerprint"))) == 16
           and rb.get("restored") == 2 and rb.get("removed") == 3, str(rb))
     check("krasch: pending borta", wd.read_pending(app) is None)
-    check("krasch: väktarloggen finns", "ÅTERSTÄLLER" in (app / "data" / "update_watchdog.log").read_text(encoding="utf-8"))
+    check("krasch: väktarloggen finns", "ÅTERSTÄLLER" in (app / "loggar" / "update_watchdog.log").read_text(encoding="utf-8"))
 
     # 3c. syntaxfel i nya main.pyw
     app, info, bk = prepare("t_syntax", "syntax")

@@ -291,6 +291,8 @@ __all__ = [
 ]
 # FIX v7-fix15: rot-data (samma som main.pyw) — inte core/data (split-brain-fix)
 DEFAULT_DATA_DIR: Path = Path(__file__).resolve().parent.parent / "data"
+# Loggar ligger i appmappen/loggar (core/log_paths.py flyttar äldre loggar från data/ dit vid start)
+DEFAULT_LOGS_DIR: Path = Path(__file__).resolve().parent.parent / "loggar"
 LOGS_SUBDIR: str = "logs"
 # EN logg-fil (v6.4.1 v7): sätts av setup_full_logging → används av hjälpare
 SINGLE_LOG_NAME: str = "todo_app.log"
@@ -620,7 +622,7 @@ def setup_full_logging(
       Rickard 2026-09-22: "all loggning i en fil, ej 3 separata, ska logga precis allt".
 
     Skriver allt (DEBUG+) till:
-      - data/todo_app.log  (EN fil, allt, daily-rotating)
+      - loggar/todo_app.log  (EN fil, allt, daily-rotating)
       - stderr/console     (om tillgängligt)
 
     Args:
@@ -634,7 +636,7 @@ def setup_full_logging(
         Path till data-katalogen (där todo_app.log finns)
     """
     # 1. Skapa data-katalog (INTE data/logs/)
-    data_dir = data_dir or DEFAULT_DATA_DIR
+    data_dir = data_dir or DEFAULT_LOGS_DIR
     data_dir.mkdir(parents=True, exist_ok=True)
 
     # 2. Rensa gamla handlers (för att undvika dubbletter vid reinit)
@@ -657,7 +659,7 @@ def setup_full_logging(
         STANDARD_DATEFMT,
     )
 
-    # 5. === ENDAST EN LOG-FIL: data/todo_app.log ===
+    # 5. === ENDAST EN LOG-FIL: loggar/todo_app.log ===
     # NY v6.4.1 v7: Rickard vill ha EN fil med allt
     global _ACTIVE_LOG_PATH
     log_path = data_dir / SINGLE_LOG_NAME
@@ -754,7 +756,7 @@ def setup_full_logging(
             # FIX v7-fix19: 'logger' fanns inte i denna scope (latent bugg —
             # träffades bara när PySide6-importen misslyckas, t.ex. trasiga
             # systembibliotek) → NameError dödade hela setup_full_logging!
-            log.debug("[LOG] Qt event-filter: PySide6 saknas")
+            logging.getLogger("LoggerSetup").debug("[LOG] Qt event-filter: PySide6 saknas")
         except Exception as e:
             logger.debug(f"[LOG] Qt event-filter misslyckades: {e}")
 
@@ -829,15 +831,16 @@ def _resolve_log_file(logs_dir: Optional[Path] = None) -> Optional[Path]:
             return cand
     if _ACTIVE_LOG_PATH is not None and _ACTIVE_LOG_PATH.is_file():
         return _ACTIVE_LOG_PATH
-    # App-rot/data (main.pyw: SCRIPT_DIR/"data") — logger_setup ligger i core/
-    app_root_data = Path(__file__).resolve().parent.parent / "data" / SINGLE_LOG_NAME
-    if app_root_data.is_file():
-        return app_root_data
+    # App-rot/loggar (main.pyw: SCRIPT_DIR/"loggar") — logger_setup ligger i core/
+    app_root_logs = DEFAULT_LOGS_DIR / SINGLE_LOG_NAME
+    if app_root_logs.is_file():
+        return app_root_logs
+    # äldre placering: app-rot/data (loggar flyttas till loggar/ vid start)
     legacy = DEFAULT_DATA_DIR / SINGLE_LOG_NAME
     if legacy.is_file():
         return legacy
     # Returnera tänkt standard-sökväg (även om filen saknas ännu)
-    return app_root_data if _ACTIVE_LOG_PATH is None else _ACTIVE_LOG_PATH
+    return app_root_logs if _ACTIVE_LOG_PATH is None else _ACTIVE_LOG_PATH
 
 
 def get_recent_logs(
@@ -1046,7 +1049,7 @@ def create_log_snapshot(logs_dir: Optional[Path] = None) -> Dict[str, Any]:
 def get_logs_dir() -> Path:
     """NY v6.4.1: Hämta data-dir för ENA logg-filen (todo_app.log)."""
     single = _resolve_log_file(None)
-    logs_dir = single.parent if single is not None else DEFAULT_DATA_DIR
+    logs_dir = single.parent if single is not None else DEFAULT_LOGS_DIR
     logs_dir.mkdir(parents=True, exist_ok=True)
     return logs_dir
 

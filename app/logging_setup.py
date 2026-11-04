@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Strukturerad loggning till data/todo_app.log."""
+"""Strukturerad loggning till loggar/todo_app.log."""
 
 from __future__ import annotations
 

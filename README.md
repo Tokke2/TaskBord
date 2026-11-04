@@ -93,7 +93,7 @@ väntar (t.ex. när `requirements.txt` ändrats och tyst installation därför i
   av den gamla, fungerande koden i backupmappen) den nya appen och väntar upp till **60 sekunder** på
   att den kommit igång. Kraschar eller hänger den sig återställs de gamla filerna automatiskt, nya
   filer tas bort och den förra versionen startas igen. Nästa start berättar vad som hänt, och just
-  den uppdateringen aviseras inte igen. Loggen finns i `data\update_watchdog.log`. (Skyddet kommer
+  den uppdateringen aviseras inte igen. Loggen finns i `loggar\update_watchdog.log`. (Skyddet kommer
   från den version som kör uppdateringen — den första uppdateringen *till* en version med väktaren
   går alltså utan skydd.)
 * **Säkert:** hämtar bara från GitHub över https, kompilerar alla Python-filer först (en trasig
@@ -292,9 +292,9 @@ tray förblir det där.
 
 **Tray-ikonen** visar antalet försenade + dagens uppgifter som en siffra (röd om något är försenat, annars orange).
 Inga uppgifter att bevaka → ren ikon. En liten **röd prick uppe till höger** betyder att nya *fel* (FEL/KRASCH, inte
-varningar) har loggats i `data\fel.log` sedan du senast öppnade felloggen; menyraden blir då
+varningar) har loggats i `loggar\fel.log` sedan du senast öppnade felloggen; menyraden blir då
 ”🧯 Öppna felloggen — N nya fel” och tooltipen nämner dem. Öppnar du felloggen släcks pricken
-(`data\fel_seen.txt` kommer ihåg när). Första gången (innan filen finns) räknas bara fel som kommer *efter* det.
+(`loggar\fel_seen.txt` kommer ihåg när). Första gången (innan filen finns) räknas bara fel som kommer *efter* det.
 
 **🔔 Datum från mail på uppgiften:** har appen hittat datum i ett importerat mail visas ett märke `🔔 3` på uppgiften;
 hovra för datumen (`Påminner: 2/11, 15/11, 1/12` + raden ur mailet). Klicka märket, eller högerklicka →
@@ -344,18 +344,23 @@ håller, och **återställer det som låg i urklippet**. Är inget markerat anv�
 i urklippet. En tray-notis visar vad som skapades. Ändra/stäng av: tray → **⌨️ Snabbkommandon →
 📋 Lägg till från urklipp…**. Utan snabbtangent: tray → *📋 Ny uppgift från urklipp*.
 
-## 🧯 Felloggen — alla fel på ett ställe (`data\fel.log`)
+## 🧯 Felloggen — alla fel på ett ställe (`loggar\fel.log`)
+
+**Alla loggar ligger i en egen undermapp i appmappen: `loggar\`** (`todo_app.log`, `fel.log`, `update_watchdog.log`,
+`window_failure_report.txt` m.fl.). Loggar som tidigare låg i `data\` flyttas dit automatiskt vid start (finns samma fil
+redan läggs den gamla texten först). Uppgifter, inställningar och backuper ligger kvar där de var. `loggar\` rörs aldrig av
+uppdateringar och ingår inte i git.
 
 Felen låg tidigare utspridda (`todo_app.log` med tusentals rader, `update_watchdog.log` från uppdateringsväktaren,
 `window_failure_report.txt`, äldre dagsfiler). Nu samlas allt som gått fel i **en** fil — börja alltid där:
 
-* tray → **🧯 Öppna felloggen** (öppnas i Anteckningar), eller öppna `data\fel.log` direkt;
+* tray → **🧯 Öppna felloggen** (öppnas i Anteckningar), eller öppna `loggar\fel.log` direkt;
 * **live:** varje varning/fel/krasch från *alla* moduler skrivs direkt, med tid, modul (fil:rad) och stacktrace;
   likadana fel i följd samlas ("ovanstående upprepades N gånger");
 * **import:** 10 s efter start och varje gång du öppnar filen hämtas fel ur de andra loggarna — nya felrader ur
   `update_watchdog.log` (återställning, appen avslutades …), nödrapporten `window_failure_report.txt` och, första gången,
   ERROR/CRITICAL ur `todo_app.log` + de roterade dagsfilerna (rader märkta `IMPORT`). Samma rad tas aldrig två gånger
-  (`data\fel_import.json` håller reda på var vi är);
+  (`loggar\fel_import.json` håller reda på var vi är);
 * token och mailadresser maskas; filen roteras vid ca 1,5 MB (`fel.log.1` behålls); inget skrivs utanför appmappen;
 * den ingår också i **felrapporten** (ZIP) som `fel.log`.
 
