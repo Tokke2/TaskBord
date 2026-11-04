@@ -29,7 +29,7 @@ class MaintenanceMixin:
         with suppress(Exception):
             self._run_friday_pycache_cleanup(at_startup=False)
         with suppress(Exception):
-            self._run_friday_log_cleanup(at_startup=False)
+            self._run_log_archive(at_startup=False)
 
     def _run_friday_pycache_cleanup(self, at_startup: bool = False) -> None:
         """
@@ -65,49 +65,22 @@ class MaintenanceMixin:
         elif result.get("reason") not in ("inte_fredag", "redan_rensad_denna_vecka"):
             self._log.debug(f"{LOG_PREFIX} [CACHE] friday_pycache: {result}")
 
-    def _run_friday_log_cleanup(self, at_startup: bool = False) -> None:
+    def _run_log_archive(self, at_startup: bool = False) -> None:
         """
-        NY 2026-09-25: Log-rensning varje fredag.
-        Behåll ENDAST dagens log-fil (todo_app.log + aktuell backup).
-        Anropas vid start + via _periodic_cleanup (5 min).
+        Loggar från dagar före idag arkiveras (zip i loggar/arkiv/) — ingenting raderas. Kallas vid start och var 5:e
+        minut (billig om det inte finns något att göra), så även en app som står öppen över midnatt arkiverar igår.
+        Gamla VARNINGAR i fel.log arkiveras också; felposter ligger kvar tills de markerats som åtgärdade.
         """
-        utils_status = self._imports.get("utils")
-        if not utils_status or not utils_status.ok:
+        import time as _t
+        last = getattr(self, "_log_archive_ts", 0.0)
+        if _t.monotonic() - last < 240 and not at_startup:
             return
-        inst = utils_status.instance
-        fn = getattr(inst, "smart_friday_log_cleanup", None)
-        if fn is None and isinstance(inst, dict):
-            mod = inst.get("utils") or next(
-                (v for v in inst.values() if hasattr(
-                    v, "smart_friday_log_cleanup"
-                )),
-                None,
-            )
-            fn = getattr(mod, "smart_friday_log_cleanup", None)
-        if fn is None:
-            self._log.debug(
-                f"{LOG_PREFIX} [CACHE] smart_friday_log_cleanup saknas"
-            )
-            return
-        try:
-            data_dir = str(getattr(self, "_SCRIPT_DIR", SCRIPT_DIR) / "loggar")
-        except Exception:
-            data_dir = str(SCRIPT_DIR / "loggar")
-        result = fn(data_path=data_dir, force=False)
-        if result.get("ran"):
-            self._log.info(
-                f"{LOG_PREFIX} [CACHE] Fredags-loggrensning: "
-                f"behöll={result.get('logs_kept')} "
-                f"raderade={result.get('logs_removed')} "
-                f"({result.get('week')}, idag={result.get('today_key')}, "
-                f"start={at_startup})"
-            )
-        elif result.get("reason") not in (
-            "inte_fredag", "redan_rensad_denna_vecka"
-        ):
-            self._log.debug(
-                f"{LOG_PREFIX} [CACHE] friday_log_cleanup: {result}"
-            )
+        self._log_archive_ts = _t.monotonic()
+        from core import error_log, log_archive
+        logs = SCRIPT_DIR / "loggar"
+        log_archive.archive_in_background(logs)
+        with suppress(Exception):
+            error_log.tidy(logs)
 
     def _heartbeat(self) -> None:
         """Heartbeat för watchdog + log periodic health."""

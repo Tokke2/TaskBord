@@ -78,7 +78,7 @@ for f in ("app/bootstrap.py", "app/mixins/diagnostics.py", "app/mixins/reminders
     check(f"{f}: ingen logg pekar längre på data/", not re.search(r'data[\\/]+(todo_app|fel\.log|fel_|update_watchdog|window_failure)', s))
 check("felloggens 'Öppna' + röda pricken läser loggar/", 'prepare_for_open(SCRIPT_DIR / "loggar")' in src("app/mixins/diagnostics.py")
       and 'mark_seen(SCRIPT_DIR / "loggar")' in src("app/mixins/diagnostics.py") and 'count_unseen(SCRIPT_DIR / "loggar")' in src("app/mixins/reminders.py"))
-check("loggrensningen (start/fredag) tittar i loggar/", 'data_path=str(SCRIPT_DIR / "loggar")' in src("app/controller.py") and '/ "loggar")' in src("app/mixins/maintenance.py"))
+check("loggarkiveringen (start/var 5:e minut) tittar i loggar/", 'SCRIPT_DIR / "loggar"' in src("app/mixins/maintenance.py") and "archive_in_background(logs)" in src("app/mixins/maintenance.py"))
 check("uppdateringsväktaren skriver loggen i loggar/", 'logs_path(app_dir) / LOG_NAME' in src("core/update_watchdog.py"))
 check("loggar/ är skyddad mot uppdateringar (updater + väktare)", '"loggar"' in re.search(r"PROTECTED_TOP = frozenset\(\{[^}]*\}\)", src("core/updater.py")).group(0)
       and '"loggar"' in re.search(r"_PROTECTED_TOP = frozenset\(\{[^}]*\}\)", src("core/update_watchdog.py")).group(0))

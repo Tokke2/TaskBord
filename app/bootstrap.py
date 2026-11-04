@@ -701,6 +701,11 @@ def run() -> int:
         _migrated_logs = migrate_old_logs(SCRIPT_DIR)
     except Exception:
         pass
+    try:        # huvudloggen från en tidigare dag (appen var stängd vid midnatt) döps om → dagens logg börjar tom
+        from core import log_archive
+        log_archive.prepare_active(LOGS_DIR)
+    except Exception:
+        pass
     # Importera logger_setup dynamiskt (för att undvika cirkulär import)
     try:
         from logger_setup import setup_full_logging
@@ -724,8 +729,11 @@ def run() -> int:
     # 2b. Felloggen loggar/fel.log: samlar alla varningar/fel från alla moduler (live) + de andra loggarna (importeras)
     try:
         from core import error_log
+        error_log.tidy(LOGS_DIR)                   # gamla varningar → arkiv/ (felposter ligger kvar tills de åtgärdats)
         error_log.install(LOGS_DIR)
         error_log.import_in_background(LOGS_DIR, delay=10.0)
+        from core import log_archive
+        log_archive.archive_in_background(LOGS_DIR)  # loggar från dagar före idag → loggar/arkiv/ÅÅÅÅ-MM-DD.zip
     except Exception as e:
         log.debug(f"{LOG_PREFIX} felloggen kunde inte startas: {e}")
     # 3. Installera global exception hook (extra Qt-specifik)

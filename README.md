@@ -361,8 +361,21 @@ Felen låg tidigare utspridda (`todo_app.log` med tusentals rader, `update_watch
   `update_watchdog.log` (återställning, appen avslutades …), nödrapporten `window_failure_report.txt` och, första gången,
   ERROR/CRITICAL ur `todo_app.log` + de roterade dagsfilerna (rader märkta `IMPORT`). Samma rad tas aldrig två gånger
   (`loggar\fel_import.json` håller reda på var vi är);
-* token och mailadresser maskas; filen roteras vid ca 1,5 MB (`fel.log.1` behålls); inget skrivs utanför appmappen;
+* token och mailadresser maskas; inget skrivs utanför appmappen;
 * den ingår också i **felrapporten** (ZIP) som `fel.log`.
+
+### 🗄️ Arkiv — gårdagens loggar zippas, felen ligger kvar tills de är åtgärdade
+
+* **Loggar från dagar före idag arkiveras** (inget raderas): vid start, och sedan var 5:e minut så att en app som står
+  öppen över midnatt också arkiverar igår. Varje dag blir en zip: `loggar\arkiv\ÅÅÅÅ-MM-DD.zip` med `todo_app.log`,
+  `update_watchdog.log` (den dagens rader) och `fel-varningar.log` (den dagens VARNINGAR ur `fel.log`). Zipparna sparas
+  för alltid och rörs inte av uppdateringar. Den gamla raderingen av loggar efter 3 dagar är borttagen.
+* **Felposter (FEL, KRASCH och importerade fel) arkiveras inte per dag.** De ligger kvar i `loggar\fel.log` — även när de
+  är flera dagar gamla — tills du markerar dem som åtgärdade: tray → **✅ Markera fel som åtgärdade — N öppna**
+  (grå när det inte finns några). Då flyttas de (med stacktrace) till `loggar\arkiv\fel_atgardade.log` och `fel.log`
+  visar "Inga fel loggade". Kommer samma fel tillbaka efter markeringen loggas det på nytt.
+* `fel.log` får inte längre någon `.1`-rotation (den kunde slänga felposter). Blir filen ändå större än ca 6 MB flyttas de
+  *äldsta* felposterna till `loggar\arkiv\fel_overflod.log` — ingen post går förlorad.
 
 ## 🩺 Felrapport
 

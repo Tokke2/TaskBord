@@ -94,8 +94,8 @@ EL.MAX_BYTES = 2000
 for i in range(80):
     lg.error("x" * 100 + chr(97 + i % 26) * 5 + str(i) + chr(65 + i % 26) * i)   # olika nycklar
 EL.MAX_BYTES = old
-check("rotation: fel.log.1 finns, fel.log finns", (d / "fel.log.1").exists() and (d / "fel.log").exists())
-check("rotation: nya filen har nytt sessionshuvud", "═══ Ledgebord startad" in read(d))
+check("stor fil: ingen fel.log.1 längre (felposter får inte försvinna)", not (d / "fel.log.1").exists() and (d / "fel.log").exists())
+check("stor fil: alla 80 felposter ligger kvar tills de åtgärdats", read(d).count("| FEL") == 80, read(d).count("| FEL"))
 
 # 5. import ur andra loggar
 d, lg, w = fresh("e")

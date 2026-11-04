@@ -178,6 +178,7 @@ class RemindersMixin:
     # ------------------------------------------------------------------
     _tray_badge_n = -1
     _tray_err_n = 0            # antal nya fel i fel.log (röd prick)
+    _tray_open_err_n = 0       # antal ännu inte åtgärdade felposter i fel.log
     _tray_badge_key = None
 
     def _update_tray_badge(self) -> None:
@@ -192,6 +193,7 @@ class RemindersMixin:
             with suppress(Exception):
                 from core import error_log as _el
                 n_err = _el.count_unseen(SCRIPT_DIR / "loggar")
+                self._tray_open_err_n = _el.open_error_count(SCRIPT_DIR / "loggar")
             self._tray_err_n = n_err
             self._refresh_errlog_action()
             if (n, n_err) == self._tray_badge_key:
@@ -248,12 +250,21 @@ class RemindersMixin:
     def _errlog_action_text(n_err: int) -> str:
         return f"🧯  Öppna felloggen — {n_err} nya fel" if n_err > 0 else "🧯  Öppna felloggen"
 
+    @staticmethod
+    def _resolve_action_text(n_open: int) -> str:
+        return f"✅  Markera fel som åtgärdade — {n_open} öppna" if n_open > 0 else "✅  Inga öppna fel"
+
     def _refresh_errlog_action(self) -> None:
-        """Menyraden följer antalet nya fel (kallas från märket och när menyn byggs)."""
+        """Menyraderna följer antalet nya/öppna fel (kallas från märket och när menyn byggs)."""
         with suppress(Exception):
             act = getattr(self, "_errlog_action", None)
             if act is not None:
                 act.setText(self._errlog_action_text(int(self._tray_err_n)))
+        with suppress(Exception):
+            ra = getattr(self, "_resolve_action", None)
+            if ra is not None:
+                ra.setText(self._resolve_action_text(int(self._tray_open_err_n)))
+                ra.setEnabled(int(self._tray_open_err_n) > 0)
 
     def _toggle_reminders(self, checked: bool) -> None:
         """NY v7-fix64: tray-toggle för påminnelser."""

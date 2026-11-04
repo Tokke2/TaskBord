@@ -294,6 +294,17 @@ def child(work: str) -> None:
     c6._update_tray_badge()
     ck("efter att loggen öppnats släcks pricken", c6._tray.icons[-1] is c6._app_icon and c6._tray_err_n == 0)
     ck("menyraden återgår till grundtexten", acts[-1] == "🧯  Öppna felloggen", acts[-1])
+    # ----- "Markera fel som åtgärdade" ------------------------------------------------------------------------
+    ck("öppna fel räknas oberoende av 'sedda'", c6._tray_open_err_n == 1, c6._tray_open_err_n)
+    racts = []
+    c6._resolve_action = type("R", (), {"setText": lambda s, t: racts.append(("t", t)), "setEnabled": lambda s, v: racts.append(("e", v))})()
+    c6._refresh_errlog_action()
+    ck("tray-raden visar antalet öppna fel och är aktiv", ("t", "✅  Markera fel som åtgärdade — 1 öppna") in racts and ("e", True) in racts, racts)
+    _EL.resolve_all(ddir)
+    c6._tray_badge_key = None
+    c6._update_tray_badge()
+    ck("efter markering: 0 öppna, raden avstängd", c6._tray_open_err_n == 0 and racts[-1] == ("e", False) and ("t", "✅  Inga öppna fel") in racts, racts[-3:])
+    ck("felet ligger i arkiv/fel_atgardade.log", "trasigt" in (ddir / "arkiv" / "fel_atgardade.log").read_text(encoding="utf-8"))
 
     src = (ROOT / "app/mixins/backup_sync.py").read_text(encoding="utf-8")
     ck("siffran uppdateras när uppgifter ändras (GUI-tråden)", "_update_tray_badge()" in src)

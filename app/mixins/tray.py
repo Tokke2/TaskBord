@@ -703,6 +703,16 @@ class TrayMixin:
             errlog_action.triggered.connect(self._open_error_log)
             self._tray_menu.addAction(errlog_action)
 
+            resolve_action = self._QAction(self._resolve_action_text(int(self._tray_open_err_n)), self._tray_menu)
+            resolve_action.setToolTip(
+                "Felposter (FEL/KRASCH) ligger kvar i loggar\\fel.log tills de är åtgärdade.\n"
+                "Markera dem här när felet är rättat — de flyttas då till loggar\\arkiv\\fel_atgardade.log (raderas inte)."
+            )
+            resolve_action.setEnabled(int(self._tray_open_err_n) > 0)
+            resolve_action.triggered.connect(self._resolve_errors)
+            self._resolve_action = resolve_action
+            self._tray_menu.addAction(resolve_action)
+
             about_action = self._QAction("ℹ  Om…", self._tray_menu)
             about_action.triggered.connect(self.show_about)
             self._tray_menu.addAction(about_action)

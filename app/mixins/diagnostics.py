@@ -114,11 +114,11 @@ class DiagnosticsMixin:
             f"{LOG_PREFIX} === DIAGNOSTIK KLAR ==="
         )
         # NY 2026-09-23: Smart cache — rensa __pycache__ varje fredag
-        # NY 2026-09-25: Smart log-cleanup — rensa ALLA gamla loggar (behåll dagens)
+        # Loggar från tidigare dagar arkiveras (loggar/arkiv/), inget raderas
         with suppress(Exception):
             self._run_friday_pycache_cleanup(at_startup=True)
         with suppress(Exception):
-            self._run_friday_log_cleanup(at_startup=True)
+            self._run_log_archive(at_startup=True)
 
     def _get_app_health_status(self) -> Dict[str, Any]:
         """
@@ -303,6 +303,25 @@ class DiagnosticsMixin:
                 addon_watch.reveal_in_folder(path)
         except Exception as e:
             self._log.error(f"{LOG_PREFIX} kunde inte öppna felloggen: {e}", exc_info=True)
+
+    def _resolve_errors(self) -> None:
+        """✅ Markera felen som åtgärdade: felposterna flyttas till loggar/arkiv/fel_atgardade.log och lämnar fel.log."""
+        try:
+            from core import error_log
+            n = error_log.resolve_all(SCRIPT_DIR / "loggar")
+            self._log.info(f"{LOG_PREFIX} {n} fel markerade som åtgärdade (arkiverade i loggar/arkiv/fel_atgardade.log)")
+            self._tray_badge_key = None
+            self._QTimer.singleShot(0, self._update_tray_badge)
+            if self._tray is not None:
+                with suppress(Exception):
+                    self._tray.showMessage(
+                        "🧯 Felloggen",
+                        (f"{n} fel markerade som åtgärdade och arkiverade i loggar\\arkiv\\fel_atgardade.log."
+                         if n else "Inga öppna fel att markera."),
+                        self._QSystemTrayIcon.MessageIcon.Information, 6000,
+                    )
+        except Exception as e:
+            self._log.error(f"{LOG_PREFIX} kunde inte markera felen som åtgärdade: {e}", exc_info=True)
 
     def _create_bug_report(self) -> None:
         """🩺 Skapa felrapport: ZIP med logg/inställningar/versioner (utan uppgifter), visas i Utforskaren."""

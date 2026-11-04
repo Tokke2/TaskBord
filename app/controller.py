@@ -872,17 +872,8 @@ class AppController(
             with suppress(Exception):
                 self._cleanup_all_caches()
 
-            # NY v7-fix28: Logg-rensning — 3 dagars retention
-            with suppress(Exception):
-                from utils import cleanup_old_logs
-                _lr = cleanup_old_logs(
-                    data_path=str(SCRIPT_DIR / "loggar"), max_age_days=3
-                )
-                if _lr.get("removed"):
-                    self._log.info(
-                        f"{LOG_PREFIX} Logg-rensning: "
-                        f"{_lr['removed']} gamla loggar raderade"
-                    )
+            # Loggar raderas inte längre — gamla dagar arkiveras (loggar/arkiv/, core/log_archive.py) vid start
+            # och en gång i timmen; felposter ligger kvar i fel.log tills de markerats som åtgärdade.
 
             # 5. Flush logging
             for handler in logging.getLogger().handlers:

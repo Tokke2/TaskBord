@@ -30,8 +30,14 @@ import re
 import sys
 import threading
 import time
+from datetime import date
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+
+try:
+    from core import log_archive as _la
+except Exception:  # pragma: no cover - körs som lös fil
+    import log_archive as _la  # type: ignore
 
 FILE_NAME = "fel.log"
 STATE_NAME = "fel_import.json"
@@ -75,20 +81,17 @@ class ErrorLogWriter:
         self.path = Path(data_dir) / FILE_NAME
         self._lock = threading.RLock()
         self._session_written = False
+        self._last_tidy = 0.0
         self._seen: Dict[Tuple[int, str, str], List[float]] = {}   # nyckel → [första/senaste skrivna ts, tyst antal, senaste ts]
         self.written = 0
 
     # -- låg nivå ------------------------------------------------------------------------------------------------
     def _rotate_if_needed(self) -> None:
+        """Filen blir stor: gamla VARNINGAR arkiveras. Felposter ligger kvar tills de markerats som åtgärdade."""
         try:
-            if self.path.exists() and self.path.stat().st_size > MAX_BYTES:
-                bak = self.path.with_name(self.path.name + ".1")
-                try:
-                    bak.unlink()
-                except OSError:
-                    pass
-                os.replace(self.path, bak)
-                self._session_written = False       # ny fil → nytt sessionshuvud
+            if self.path.exists() and self.path.stat().st_size > MAX_BYTES and time.time() - self._last_tidy > 60:
+                self._last_tidy = time.time()
+                tidy(self.path.parent, cap_bytes=MAX_BYTES * 4, placeholder=False)
         except OSError:
             pass
 
@@ -423,6 +426,197 @@ def count_unseen(data_dir: Path, now: Optional[float] = None) -> int:
     return n
 
 
+# ============================================================================================================
+# FELPOSTER ligger kvar tills de är åtgärdade; VARNINGAR och sessionshuvuden från tidigare dagar arkiveras
+# ============================================================================================================
+RESOLVED_NAME = "fel_atgardade.log"      # i loggar/arkiv/
+OVERFLOW_NAME = "fel_overflod.log"       # i loggar/arkiv/ — bara om fel.log blir orimligt stor
+_ANY_ENTRY_RX = re.compile(r"^(\d{4}-\d\d-\d\d) \d\d:\d\d:\d\d \| (\S+)\s*\|")
+_HEADER_RX = re.compile(r"^═══ Ledgebord startad (\d{4}-\d\d-\d\d) ")
+_open_cache: Dict[Tuple[str, int, int], int] = {}
+_tidy_sig: Dict[str, Tuple[int, int, str]] = {}
+
+
+def parse_blocks(text: str) -> List[Dict[str, str]]:
+    """
+    Delar fel.log i block: 'entry' (en post med följdrader/stacktrace), 'header' (═══ Ledgebord startad …) och 'other'.
+    Förlustfritt: ''.join(block['text']) == text.
+    """
+    blocks: List[Dict[str, str]] = []
+    for line in text.splitlines(keepends=True):
+        m = _ANY_ENTRY_RX.match(line)
+        if m:
+            blocks.append({"kind": "entry", "day": m.group(1), "level": m.group(2), "text": line})
+            continue
+        h = _HEADER_RX.match(line)
+        if h:
+            blocks.append({"kind": "header", "day": h.group(1), "level": "", "text": line})
+        elif blocks:
+            blocks[-1]["text"] += line
+        else:
+            blocks.append({"kind": "other", "day": "", "level": "", "text": line})
+    return blocks
+
+
+def is_error_block(b: Dict[str, str]) -> bool:
+    """FEL, KRASCH och IMPORT (fel hämtade ur andra loggar) är felposter; bara VARNING är en varning."""
+    return b["kind"] == "entry" and b["level"] != "VARNING"
+
+
+def _drop_empty_headers(blocks: List[Dict[str, str]], keep: List[bool], today_iso: str) -> None:
+    """Ett sessionshuvud behålls om det är dagens eller om en behållen post följer före nästa huvud."""
+    follows_kept = False
+    for i in range(len(blocks) - 1, -1, -1):
+        b = blocks[i]
+        if b["kind"] == "header":
+            keep[i] = follows_kept or b["day"] >= today_iso
+            follows_kept = False
+        elif keep[i] and b["kind"] == "entry":
+            follows_kept = True
+
+
+def _writer_lock():
+    w = _writer
+    return w._lock if w is not None else threading.RLock()
+
+
+def _write_atomic(path: Path, text: str) -> None:
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def tidy(data_dir: Path, today: Optional[date] = None, cap_bytes: Optional[int] = None, placeholder: bool = True) -> Dict[str, int]:
+    """
+    Städar fel.log: VARNINGAR från dagar före idag arkiveras (arkiv/ÅÅÅÅ-MM-DD.zip → fel-varningar.log); felposter
+    (FEL/KRASCH/IMPORT) ligger kvar tills de markerats som åtgärdade. Skriver bara om filen när något ändrats.
+    cap_bytes: blir filen ändå större flyttas de ÄLDSTA felposterna till arkiv/fel_overflod.log (ingen går förlorad).
+    """
+    res = {"warnings": 0, "overflow": 0}
+    data_dir = Path(data_dir)
+    p = log_path(data_dir)
+    try:
+        st = p.stat()
+    except OSError:
+        return res
+    today_iso = (today or date.today()).isoformat()
+    sig = (st.st_mtime_ns // 1_000_000, st.st_size, today_iso)
+    if _tidy_sig.get(str(p)) == sig:
+        return res
+    with _writer_lock():
+        try:
+            text = p.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return res
+        blocks = parse_blocks(text)
+        keep = [True] * len(blocks)
+        old_warn: Dict[str, str] = {}
+        for i, b in enumerate(blocks):
+            if b["kind"] == "entry" and not is_error_block(b) and b["day"] < today_iso:
+                keep[i] = False
+                old_warn[b["day"]] = old_warn.get(b["day"], "") + b["text"]
+                res["warnings"] += 1
+        _drop_empty_headers(blocks, keep, today_iso)
+        overflow = ""
+        if cap_bytes:
+            size = sum(len(b["text"].encode("utf-8")) for b, k in zip(blocks, keep) if k)
+            for i, b in enumerate(blocks):
+                if size <= cap_bytes // 2:
+                    break
+                if keep[i] and is_error_block(b):
+                    keep[i] = False
+                    overflow += b["text"]
+                    size -= len(b["text"].encode("utf-8"))
+                    res["overflow"] += 1
+            if overflow:
+                _drop_empty_headers(blocks, keep, today_iso)
+        if all(keep):
+            st2 = p.stat()
+            _tidy_sig[str(p)] = (st2.st_mtime_ns // 1_000_000, st2.st_size, today_iso)
+            return res
+        try:        # arkivera FÖRST — skriv över filen först när arkivet säkert är skrivet
+            for d in sorted(old_warn):
+                _la.add_to_zip(_la.day_zip(data_dir, d), "fel-varningar.log", old_warn[d].encode("utf-8"))
+            if overflow:
+                ap = _la.archive_dir(data_dir)
+                ap.mkdir(parents=True, exist_ok=True)
+                with open(ap / OVERFLOW_NAME, "a", encoding="utf-8") as f:
+                    f.write(f"\n═══ För stor fel.log — äldsta felposterna flyttade {time.strftime('%Y-%m-%d %H:%M:%S')} ═══\n{overflow}")
+            new_text = "".join(b["text"] for b, k in zip(blocks, keep) if k)
+            if placeholder and not new_text.strip():
+                new_text = PLACEHOLDER
+            _write_atomic(p, new_text)
+        except OSError:
+            res["warnings"] = res["overflow"] = 0
+            return res
+        _unseen_cache.clear()
+        _open_cache.clear()
+        st3 = p.stat()
+        _tidy_sig[str(p)] = (st3.st_mtime_ns // 1_000_000, st3.st_size, today_iso)
+    return res
+
+
+def open_error_count(data_dir: Path) -> int:
+    """Antal felposter (FEL/KRASCH/IMPORT) som ännu inte markerats som åtgärdade. Cachas på (mtime, storlek)."""
+    p = log_path(data_dir)
+    try:
+        st = p.stat()
+    except OSError:
+        return 0
+    key = (str(p), st.st_mtime_ns // 1_000_000, st.st_size)
+    hit = _open_cache.get(key)
+    if hit is not None:
+        return hit
+    try:
+        n = sum(1 for b in parse_blocks(p.read_text(encoding="utf-8", errors="replace")) if is_error_block(b))
+    except OSError:
+        return 0
+    _open_cache.clear()
+    _open_cache[key] = n
+    return n
+
+
+def resolve_all(data_dir: Path, now: Optional[float] = None) -> int:
+    """
+    "Markera som åtgärdade": alla felposter flyttas till arkiv/fel_atgardade.log (med datum för markeringen) och
+    försvinner ur fel.log. Dagens varningar ligger kvar. Returnerar antal flyttade poster (0 = inget att göra eller
+    arkivet gick inte att skriva — då rörs fel.log inte).
+    """
+    data_dir = Path(data_dir)
+    p = log_path(data_dir)
+    now = time.time() if now is None else now
+    with _writer_lock():
+        try:
+            blocks = parse_blocks(p.read_text(encoding="utf-8", errors="replace"))
+        except OSError:
+            return 0
+        errs = [b for b in blocks if is_error_block(b)]
+        if not errs:
+            return 0
+        keep = [not is_error_block(b) for b in blocks]
+        _drop_empty_headers(blocks, keep, "9999-99-99")      # huvuden utan kvarvarande poster försvinner
+        try:
+            ap = _la.archive_dir(data_dir)
+            ap.mkdir(parents=True, exist_ok=True)
+            with open(ap / RESOLVED_NAME, "a", encoding="utf-8") as f:
+                f.write(f"\n═══ Markerade som åtgärdade {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(now))} "
+                        f"({len(errs)} fel) ═══\n" + "".join(b["text"] for b in errs))
+            rest = "".join(b["text"] for b, k in zip(blocks, keep) if k)
+            _write_atomic(p, rest if rest.strip() else PLACEHOLDER)
+        except OSError:
+            return 0
+        w = _writer
+        if w is not None:
+            w.flush_summaries()
+            w._seen.clear()                 # ett fel som kommer tillbaka efter markeringen ska loggas igen
+            w._session_written = False      # nytt sessionshuvud vid nästa post
+        _unseen_cache.clear()
+        _open_cache.clear()
+        _tidy_sig.clear()
+    mark_seen(data_dir, now)
+    return len(errs)
+
+
 def prepare_for_open(data_dir: Path) -> Path:
     """Importerar det nya, skriver sammanfattningar och ser till att filen finns (med en trevlig rad om den är tom)."""
     data_dir = Path(data_dir)
@@ -432,6 +626,10 @@ def prepare_for_open(data_dir: Path) -> Path:
     except Exception:
         pass
     w.flush_summaries()
+    try:
+        tidy(data_dir)               # gamla varningar → arkiv/ (felposter ligger kvar)
+    except Exception:
+        pass
     p = log_path(data_dir)
     if not p.exists():
         try:
