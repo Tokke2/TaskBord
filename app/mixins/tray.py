@@ -872,9 +872,10 @@ class TrayMixin:
                     getattr(shell, "_lift_prev_mode", "behind")
                 )
                 # FIX v7-fix75: ta bort TOPMOST FÖRE återfästningen
+                # (inte i 'Visa över andra appar': där ska fönstret ALDRIG tappa toppläget)
                 with suppress(Exception):
                     _hw = int(shell.winId())
-                    if _hw:
+                    if _hw and self._desktop_mode() != "top":
                         _u.SetWindowPos(
                             _hw, -2, 0, 0, 0, 0,
                             0x0010 | 0x0001 | 0x0002,

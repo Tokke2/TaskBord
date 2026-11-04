@@ -152,8 +152,13 @@ Kryssrutan **Visa över andra appar** finns i tray-menyn och när du högerklick
 - **Ikryssad** – Ledgebord ligger över alla andra appar hela tiden och går att skriva i direkt.
 
 Valet sparas och gäller även efter omstart (snabbtangent: **Ctrl+Alt+T**). Är rutan urkryssad rättar appen själv till
-om fönstret mot förmodan har blivit liggande överst. Om Windows (t.ex. Win+D) minimerar widgeten i ikryssat läge
-återställs den automatiskt inom några sekunder.
+om fönstret mot förmodan har blivit liggande överst.
+
+**Ikryssat läge ligger alltid överst:** appen lägger sig överst igen **direkt när en annan app tar fokus** (Windows
+meddelar fokusbyten; ca 0,1 s senare, och en gång till strax efter) samt var **1,5:e sekund** som reserv — också
+över andra fönster som själva är ”alltid överst”. Gömmer eller minimerar Windows widgeten (Win+D, skärmlås …)
+visas den igen inom 1,5 s; fönster du själv gömt till tray lämnas ifred. Tray-lyftet (klick på ikonen) släpper
+inte längre toppläget i det här läget, och påminnelsekortet ligger fortsatt överst.
 
 ## ⌨️ Styra listan med tangentbordet
 

@@ -117,7 +117,7 @@ check("top: lossas från skrivbordsförälder (SetParent 0)", ("SetParent", 4242
 check("top: WS_EX_NOACTIVATE borttagen (kan skriva i fönstret)", not (u.ex & 0x08000000))
 check("top: WS_EX_TOOLWINDOW kvar (ej i aktivitetsfältet)", bool(u.ex & 0x80))
 check("top: inget NOTOPMOST", not topmost_calls(u, -2))
-check("top: bevakningstimer 5 s", sh._zorder_timer.interval() == 5000)
+check("top: tät bevakningstimer (1,5 s)", sh._zorder_timer.interval() == DesktopShellMixin.TOP_WATCH_MS == 1500)
 
 # --- 2. maintain: top --------------------------------------------------------------------
 u.calls.clear()
@@ -130,7 +130,71 @@ hidden._desktop_layer_mode = "top"
 c._maintain_desktop_level(hidden)
 check("maintain/top: användar-dolt fönster rörs inte", not topmost_calls(u, -1))
 
+# --- 2b. systemet gömmer fönstret (Win+D m.m.) → visas igen och läggs överst -------------------
+class HiddenUser32(FakeUser32):
+    def IsWindowVisible(self, h): return 0
+
+
+class IconicUser32(FakeUser32):
+    def IsIconic(self, h): return 1
+
+
+uh = HiddenUser32()
+with_fake(uh)
+shh = Shell()
+shh._desktop_layer_mode = "top"
+check("systemgömt fönster: _reassert_top lyckas", c._reassert_top(shh) is True)
+check("…visas igen (SW_SHOWNOACTIVATE)", ("ShowWindow", 4242, 4) in uh.calls)
+check("…och läggs överst", len(topmost_calls(uh, -1)) == 1)
+ui_ = IconicUser32()
+with_fake(ui_)
+c._reassert_top(Shell())
+check("minimerat fönster återställs (SW_RESTORE) och läggs överst", ("ShowWindow", 4242, 9) in ui_.calls and len(topmost_calls(ui_, -1)) == 1)
+uh.calls.clear()
+with_fake(uh)
+check("användar-dolt (Qt) fönster rörs inte", c._reassert_top(Shell(visible=False)) is False and not uh.calls)
+
+
+class HiddenToTray(Ctl):
+    def _is_hidden_to_tray(self): return True
+
+
+check("gömt till tray rörs inte", HiddenToTray("top")._reassert_top(Shell()) is False and not uh.calls)
+cs = Ctl("top")
+cs._shutdown_initiated = True
+check("under nedstängning rörs inget", cs._reassert_top(Shell()) is False)
+
+# fokusbyte → överst igen (direkt + efter 60/400 ms), alla skal
+ua = FakeUser32()
+with_fake(ua)
+
+
+class _Q:
+    delays: list = []
+    @staticmethod
+    def singleShot(ms, fn): _Q.delays.append((ms, fn))
+
+
+import threading as _threading  # noqa: E402
+cf = Ctl("top")
+cf._QTimer = _Q
+cf._widget_lock = _threading.RLock()
+cf._widgets = {"a": SimpleNamespace(_shell=Shell()), "b": SimpleNamespace(_shell=Shell())}
+cf._on_foreground_changed()
+check("fokusbyte schemalägger två återläggningar (60 + 400 ms)", [d for d, _f in _Q.delays] == [60, 400])
+for _d, _f in _Q.delays:
+    _f()
+check("…som lägger ALLA skal överst", len(topmost_calls(ua, -1)) == 4)
+ua.calls.clear()
+_Q.delays.clear()
+cf.mode = "behind"
+cf._on_foreground_changed()
+cf._reassert_top_all()
+check("andra lägen: fokusbyte gör ingenting", not _Q.delays and not topmost_calls(ua, -1))
+check("kroken installeras bara på Windows (annars bara tidtagaren)", sys.platform == "win32" or Ctl("top")._install_top_foreground_hook() is None)
+
 # --- 3. top → behind släpper topmost ----------------------------------------------------
+with_fake(u)
 u.calls.clear()
 c.mode = "behind"
 c._apply_desktop_shell(sh, "w1")

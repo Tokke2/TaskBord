@@ -216,6 +216,10 @@ class DesktopShellMixin:
             # Inte 'visa över andra appar' → fönstret får ALDRIG vara topmost (kom från 'alltid överst'
             # eller blev kvar topmost efter en tillfällig lyftning)
             self._clear_topmost(hwnd, force=_prev_layer == "top" or _was_topmost)
+            with suppress(Exception):       # lämnat 'top': tillbaka till den glesa bevakningen
+                _tm0 = getattr(shell, "_zorder_timer", None)
+                if _tm0 is not None and _tm0.interval() == self.TOP_WATCH_MS:
+                    _tm0.setInterval(30000)
             desktop_status = self._imports.get("desktop")
             if mode in ("above", "behind") and desktop_status and desktop_status.ok:
                 if mode == "above":
@@ -433,12 +437,99 @@ class DesktopShellMixin:
         shell._desktop_layer_mode = "top"
         with suppress(Exception):  # tätare bevakning (Win+D) direkt, inte först efter 30 s
             _tm = getattr(shell, "_zorder_timer", None)
-            if _tm is not None and _tm.interval() != 5000:
-                _tm.setInterval(5000)
+            if _tm is not None and _tm.interval() != self.TOP_WATCH_MS:
+                _tm.setInterval(self.TOP_WATCH_MS)
+        with suppress(Exception):
+            self._install_top_foreground_hook()     # lägg oss överst direkt när en annan app tar fokus
         self._log.info(
             f"{LOG_PREFIX} ═══ LÄGE: ALLTID ÖVERST ═══ ovanpå alla fönster "
             f"(skal {wid!r} HWND={hwnd})"
         )
+
+    # ---- ALLTID ÖVERST: håll fönstret överst (tätare bevakning + direkt när en annan app tar fokus) ----
+    TOP_WATCH_MS = 1500          # hur ofta vi lägger oss överst igen i läget 'Visa över andra appar'
+
+    def _reassert_top(self, shell: Any) -> bool:
+        """
+        Lägg fönstret överst igen (HWND_TOPMOST utan att ta fokus) och visa det om systemet gömt/minimerat det
+        (t.ex. Win+D). Rör inte ett fönster som användaren själv gömt till tray eller som håller på att stängas.
+        True om fönstret lades överst.
+        """
+        try:
+            import ctypes
+            user32 = ctypes.windll.user32
+            if getattr(self, "_shutdown_initiated", False):
+                return False
+            if self._is_hidden_to_tray() or getattr(shell, "_hidden_to_tray", False):
+                return False
+            if not shell.isVisible():
+                return False
+            hwnd = int(shell.winId())
+            if not hwnd or not user32.IsWindow(hwnd):
+                return False
+            if user32.IsIconic(hwnd):
+                user32.ShowWindow(hwnd, 9)          # SW_RESTORE
+            elif not user32.IsWindowVisible(hwnd):
+                user32.ShowWindow(hwnd, 4)          # SW_SHOWNOACTIVATE — systemet gömde oss (Win+D m.m.)
+                self._log.info(f"{LOG_PREFIX} alltid överst: fönstret var gömt av systemet → visas igen")
+            user32.SetWindowPos(
+                hwnd, -1, 0, 0, 0, 0, 0x0040 | 0x0010 | 0x0001 | 0x0002,
+            )  # HWND_TOPMOST | SHOWWINDOW|NOACTIVATE|NOSIZE|NOMOVE (läggs överst bland toppfönster)
+            with suppress(Exception):               # påminnelsekortet ska fortsatt ligga allra överst
+                pp = getattr(self, "_reminder_popup", None)
+                if pp is not None and pp.isVisible():
+                    pp.raise_()
+            return True
+        except Exception:
+            return False
+
+    def _reassert_top_all(self) -> None:
+        """Alla skal överst igen (bara i läget 'top')."""
+        with suppress(Exception):
+            if self._desktop_mode() != "top":
+                return
+            with self._widget_lock:
+                widgets = list(self._widgets.values())
+            for w in widgets:
+                shell = getattr(w, "_shell", None)
+                if shell is not None:
+                    self._reassert_top(shell)
+
+    def _on_foreground_changed(self) -> None:
+        """En annan app fick fokus: lägg oss överst strax efter att den ordnat sin egen z-ordning (och en gång till)."""
+        if self._desktop_mode() != "top":
+            return
+        for ms in (60, 400):
+            self._QTimer.singleShot(ms, self._reassert_top_all)
+
+    def _install_top_foreground_hook(self) -> None:
+        """Windows: WinEvent-krok på EVENT_SYSTEM_FOREGROUND (en gång). Övriga system: bara tidtagaren gäller."""
+        if sys.platform != "win32" or getattr(self, "_top_fg_hook", None) is not None:
+            return
+        import ctypes
+        from ctypes import wintypes
+        proto = ctypes.WINFUNCTYPE(
+            None, wintypes.HANDLE, wintypes.DWORD, wintypes.HWND, wintypes.LONG, wintypes.LONG,
+            wintypes.DWORD, wintypes.DWORD,
+        )
+
+        def _cb(*_a: Any) -> None:
+            try:
+                self._on_foreground_changed()
+            except Exception:
+                pass
+
+        cb = proto(_cb)
+        fn = ctypes.windll.user32.SetWinEventHook
+        fn.restype = wintypes.HANDLE
+        fn.argtypes = [wintypes.DWORD, wintypes.DWORD, wintypes.HMODULE, proto, wintypes.DWORD, wintypes.DWORD, wintypes.DWORD]
+        # EVENT_SYSTEM_FOREGROUND = 3; WINEVENT_OUTOFCONTEXT (0) | WINEVENT_SKIPOWNPROCESS (2)
+        h = fn(3, 3, None, cb, 0, 0, 0x0002)
+        if h:
+            self._top_fg_hook = (h, cb)             # cb måste leva kvar
+            self._log.info(f"{LOG_PREFIX} alltid överst: bevakar fokusbyten (WinEvent-krok)")
+        else:
+            self._log.warning(f"{LOG_PREFIX} alltid överst: kunde inte installera fokuskroken — tidtagaren räcker")
 
     def _maintain_desktop_level(self, shell: Any) -> None:
         """
@@ -512,19 +603,14 @@ class DesktopShellMixin:
             with suppress(Exception):
                 _tm = getattr(shell, "_zorder_timer", None)
                 if _tm is not None:
-                    _want = 5000 if mode in ("normal", "top") else 30000
+                    _want = self.TOP_WATCH_MS if mode == "top" else (5000 if mode == "normal" else 30000)
                     if _tm.interval() != _want:
                         _tm.setInterval(_want)
 
             if mode == "top":
                 # alltid överst: se till att vi ligger kvar överst och syns
                 # (men rör inte ett fönster som användaren själv har dolt)
-                with suppress(Exception):
-                    if not shell.isVisible():
-                        return
-                    user32.SetWindowPos(
-                        hwnd, -1, 0, 0, 0, 0, 0x0040 | 0x0010 | 0x0001 | 0x0002,
-                    )  # HWND_TOPMOST | SHOWWINDOW|NOACTIVATE|NOSIZE|NOMOVE
+                self._reassert_top(shell)
                 return
             self._clear_topmost(hwnd)  # urkryssad 'Visa över andra appar' → aldrig topmost
             desktop_status = self._imports.get("desktop")
