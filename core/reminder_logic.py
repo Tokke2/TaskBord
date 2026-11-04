@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 reminder_logic.py — ren logik (utan Qt) för påminnelser: vilka uppgifter är försenade / förfaller idag?
 

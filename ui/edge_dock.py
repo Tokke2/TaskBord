@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 edge_dock.py — dockning vid skärmkant: dra fönstret mot en kant så glider det ut (bara en smal list
 syns kvar), och det glider in igen när musen nuddar kanten. Geometrin ligger i core/edge_dock.py.

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 ui/widget_atoms.py — små UI-klasser till TodoWidget (delad ur ui/widget.py):
 EditableLabel, InlineTitleEdit, TagChip, PriorityBadge, PriorityDot, DueDateLabel, GlassFrame.

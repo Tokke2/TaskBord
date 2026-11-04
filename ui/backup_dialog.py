@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 backup_dialog.py — NY v8 (2026-10-12): 💾 Backup av uppgifter (dialog).
 

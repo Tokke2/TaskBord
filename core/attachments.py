@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 attachments.py — bilagor på uppgifter. Filerna KOPIERAS in i appens datamapp
 (``<datamapp>/attachments/<uppgifts-id>/<filnamn>``) — aldrig utanför appmappen — så

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """Global snabbtangent "Lägg till från urklipp": markerad text i valfritt program blir en uppgift."""
 
 from __future__ import annotations

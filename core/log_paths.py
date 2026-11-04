@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 log_paths.py — var loggarna ligger: appmappen\\loggar\\ (egen undermapp, inget utanför appmappen).
 

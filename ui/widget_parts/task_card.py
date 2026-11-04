@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 ui/widget_parts/task_card.py — Uppgiftskortet: bygger ett kort (_build_task_widget), rensar layouter och bygger sökindex.
 

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 edge_dock.py — geometrin bakom "dockning vid skärmkant": dra fönstret mot en kant så glider det ut
 och visas igen när musen nuddar kanten. Ren matematik (ingen Qt) så allt går att testa.

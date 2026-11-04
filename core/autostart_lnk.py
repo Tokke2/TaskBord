@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 Autostart och genvägar med Ledgebords egen ikon (Windows) — aldrig Pythons ikon.
 

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 icon_art.py — Ledgebords appikon, ritad utan externa paket (bara stdlib: zlib + struct).
 

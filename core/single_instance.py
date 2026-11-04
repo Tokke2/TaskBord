@@ -1,3 +1,4 @@
+# Copyright © Rickard Längkvist, 2025–2026
 """
 single_instance.py — Ledgebord v7-fix87: instans-meddelandekanal.
 

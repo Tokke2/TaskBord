@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """Diagnostik, hälsostatus, doktor-dialog, statistik och om-ruta."""
 
 from __future__ import annotations

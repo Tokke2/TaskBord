@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 ui — Användargränssnitt for Ledgebord v6.4.1 v7.
 

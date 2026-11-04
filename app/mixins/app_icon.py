@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """Appikon: validering, skapande och Win32-processikon."""
 
 from __future__ import annotations

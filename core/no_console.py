@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 no_console.py — inga svarta konsollfönster som blinkar förbi på Windows.
 

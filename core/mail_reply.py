@@ -1,3 +1,4 @@
+# Copyright © Rickard Längkvist, 2025–2026
 """
 mail_reply.py — "Svara på mejlet" från en uppgiftskort.
 

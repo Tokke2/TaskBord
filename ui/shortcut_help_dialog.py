@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 shortcut_help_dialog.py — ⌨️ Tangentöversikt (F1): alla tangenter och snabbkommandon, med dina egna
 inställningar. Innehållet byggs i core/shortcut_help.py (testat utan Qt).

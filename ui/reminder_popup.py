@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 ui/reminder_popup.py — påminnelse som ett litet kort nere i hörnet, med knappar:
 

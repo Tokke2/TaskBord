@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 ui/widget_parts/focus_timers.py — Fokusvyn, periodisk z-ordningskontroll, snabbtangenter, timers och PWM (adaptiv uppdateringstakt).
 

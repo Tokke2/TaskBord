@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 logger_setup.py — Centraliserad loggning (NYTT v6.4) — v6.4.1 v7 (EN fil, AI-säker)
 =====================================================================================================

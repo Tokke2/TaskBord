@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """Plugin-system: hitta och installera saknade Python-paket."""
 
 from __future__ import annotations

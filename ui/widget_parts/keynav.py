@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 ui/widget_parts/keynav.py — Tangentbordsnavigering i listan (piltangenter, markering) och aktivering för inmatning.
 

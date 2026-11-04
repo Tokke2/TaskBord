@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 ui/widget_parts/theme.py — Tema och utseende: automatiskt tema och _apply_theme (QSS, textstorlek, densitet).
 

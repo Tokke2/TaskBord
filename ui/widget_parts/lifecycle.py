@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 ui/widget_parts/lifecycle.py — Start och uppbyggnad av fönstret: skärmanpassad storlek, förhandsdiagnostik, minimal/fas-2-UI och _init_ui.
 

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 ui/widget_parts/keys_position.py — Sök-token, tangenttryck, z-ordning (BUGG 19) samt återställning och validering av fönsterposition.
 

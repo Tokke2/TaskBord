@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 links.py — länkar på uppgifter: hitta URL:er i text och hämta sidans titel. Ingen Qt behövs.
 

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 link_titles.py — hämtar sidtitlar för länkar i bakgrunden och för över dem till GUI-tråden.
 

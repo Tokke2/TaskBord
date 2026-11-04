@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 core — UI-oberoende kärnlogik för Ledgebord v6.4.1.
 

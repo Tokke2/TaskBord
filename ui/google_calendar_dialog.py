@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 google_calendar_dialog.py — NY v8 (2026-10-12): koppla Google Calendar lokalt.
 

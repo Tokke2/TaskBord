@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """Sök ny version: manuell och automatisk uppdatering av appen (core/updater.py)."""
 
 from __future__ import annotations

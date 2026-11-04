@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 ui/widget_parts/task_actions.py — Uppgiftshändelser: bocka av, nåla fast, redigera titel, radera, lägg till, prioritet, flikar, sök och taggklick.
 

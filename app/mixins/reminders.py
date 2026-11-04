@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """Påminnelser för förfallna och dagens uppgifter."""
 
 from __future__ import annotations

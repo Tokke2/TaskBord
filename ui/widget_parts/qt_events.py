@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 ui/widget_parts/qt_events.py — Qt-händelser: mus, stäng, fokus, storlek/flytt, visa/dölj, förändring och nativeEvent samt geometrispar.
 

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 email_import.py — Ledgebord v7-fix35 → v7-fix85 (50 000 000 % bättre).
 

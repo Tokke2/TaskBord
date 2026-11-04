@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """Periodisk städning, hjärtslag och inaktivitet."""
 
 from __future__ import annotations

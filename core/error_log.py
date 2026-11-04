@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 error_log.py — EN fil med alla fel för snabb felsökning: loggar/fel.log
 

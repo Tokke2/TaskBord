@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """Påminner när Thunderbird-tillägget (.xpi) ändrats och behöver installeras om."""
 
 from __future__ import annotations

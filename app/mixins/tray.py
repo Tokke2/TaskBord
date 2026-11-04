@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """Systemfältsikon, tray-meny och snabbåtgärder därifrån."""
 
 from __future__ import annotations

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 Felrapport med ett klick: en ZIP med det som behövs för att felsöka — utan dina uppgifter.
 

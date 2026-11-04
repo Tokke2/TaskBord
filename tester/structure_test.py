@@ -99,5 +99,11 @@ except FileNotFoundError:
 bat = (ROOT / "INSTALLERA.bat").read_text(encoding="utf-8")
 check("INSTALLERA.bat kopierar app\\ och app\\mixins\\", "app\\*.py" in bat and "app\\mixins\\*.py" in bat)
 
+# --- upphovsrätt ------------------------------------------------------------------
+_no_c = [str(f.relative_to(ROOT)) for d in ("app", "core", "ui") for f in (ROOT / d).rglob("*.py")
+         if "__pycache__" not in f.parts and "Rickard Längkvist" not in f.read_text(encoding="utf-8")[:1500]]
+check("alla källfiler i app/core/ui har 'Copyright © Rickard Längkvist'", not _no_c, ", ".join(_no_c[:5]))
+check("LICENSE: Rickard Längkvist", "Rickard Längkvist" in (ROOT / "LICENSE").read_text(encoding="utf-8"))
+
 print(f"\nstructure_test: {ok} lyckades, {fail} misslyckades")
 sys.exit(1 if fail else 0)

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 ui/widget_parts/window_ops.py — Fönsterhantering: fönstermeny, flytt mellan skärmar, centrering, lås, framåt och automatisk omplacering.
 

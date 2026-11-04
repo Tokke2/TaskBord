@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 ui/widget_parts/task_menu.py — Uppgifternas menyer och dialoger: högerklicksmeny, datum/start/underuppgifter, namnbyte och radering (frågor).
 

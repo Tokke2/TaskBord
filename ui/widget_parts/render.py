@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 ui/widget_parts/render.py — Rendering av listan: eventFilter, blink för ny uppgift, ombyggnad av flikar/lista, paintEvent och statistikchip.
 

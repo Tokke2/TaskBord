@@ -509,3 +509,7 @@ Ledgebord är gratis och utan reklam. Donationer är helt frivilliga och går ti
 - ☕ **Ko-fi:** https://ko-fi.com/tokke2
 
 Du hittar samma länkar i appen: högerklicka på fönstret och välj **💖 Stöd Ledgebord…**.
+
+---
+
+Copyright © Rickard Längkvist, 2025–2026. Licens: MIT (se `LICENSE`).

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 Startmätning + fördröjd autostart (ren stdlib — importeras FÖRST av main.pyw, före Qt).
 

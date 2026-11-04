@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 Självläkande uppdatering: startar den uppdaterade appen och rullar tillbaka om den inte kommer igång.
 

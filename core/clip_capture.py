@@ -1,3 +1,4 @@
+# Copyright © Rickard Längkvist, 2025–2026
 """
 clip_capture.py — "Lägg till från urklipp": markerad text i ett annat program blir en uppgift.
 

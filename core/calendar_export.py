@@ -1,3 +1,4 @@
+# Copyright © Rickard Längkvist, 2025–2026
 """
 calendar_export.py — NY v8 (2026-10-12): exportera uppgifter till kalender.
 

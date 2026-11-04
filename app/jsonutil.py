@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """JSON-hjälpare (orjson om det finns, annars standardbiblioteket)."""
 
 from __future__ import annotations

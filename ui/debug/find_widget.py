@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 find_widget.py — Diagnostisera VAR widget-fönstret är (NYTT v6.4.1 v7)
 ====================================================================

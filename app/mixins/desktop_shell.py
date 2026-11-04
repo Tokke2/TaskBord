@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """Skrivbordsläge, glas/transparens och fönsternivå (Win32)."""
 
 from __future__ import annotations

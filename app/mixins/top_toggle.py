@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """Global snabbtangent som slår "Alltid överst" på/av (fönstret ligger över alla andra appar)."""
 
 from __future__ import annotations

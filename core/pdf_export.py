@@ -1,3 +1,4 @@
+# Copyright © Rickard Längkvist, 2025–2026
 """
 pdf_export.py — NY v6.4.1 v7 (2026-09-25): Snygg PDF-checklista för Ledgebord.
 Genererar HTML som renderas via QPrinter → PDF (ingen extern dep).

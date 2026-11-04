@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 log_archive.py — loggar från dagar före dagens datum arkiveras (zip) i loggar/arkiv/. Inget raderas.
 

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 ui/widget_parts/exports.py — Export, kalender, mejl och drag-och-släpp: PDF/ICS, Google Kalender, mejlimport, svara på mejl.
 

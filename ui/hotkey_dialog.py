@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 Dialog för att välja en global snabbtangent genom att TRYCKA den.
 

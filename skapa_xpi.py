@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 skapa_xpi.py — bygger Thunderbird-tillägget till en .xpi-fil.
 

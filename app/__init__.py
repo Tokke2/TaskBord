@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """Ledgebord-appens startkod (delad ur main.pyw).
 
 main.pyw är bara en liten startfil; själva logiken ligger här:

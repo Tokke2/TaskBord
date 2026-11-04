@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """Plattforms- och startdetektering (.pyw, dubbelklick, pythonw.exe)."""
 
 from __future__ import annotations

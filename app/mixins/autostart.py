@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """Starta med datorn (Startup-genväg med Ledgebords ikon) och minimerad start."""
 
 from __future__ import annotations

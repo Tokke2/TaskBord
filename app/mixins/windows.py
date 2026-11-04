@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """Widget-fönster: skapa, visa, storlek, tema och synk med inställningar."""
 
 from __future__ import annotations

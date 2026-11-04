@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 ui/widget_parts/links_attach.py — länkar (🔗) och bilagor (📎) på uppgifter: chips på kortet,
 högerklicksmenyer, "Lägg till länk…", "Bifoga fil…" och hämtning av sidtitlar i bakgrunden.

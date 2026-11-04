@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """Automatisk backup, synk mellan processer, autospar och uppdatering av listor."""
 
 from __future__ import annotations

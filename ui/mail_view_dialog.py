@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 Visar mailet som sparats på en uppgift (avsändare, ämne, text).
 

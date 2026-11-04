@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """E-postbryggan (Thunderbird-tillägget) och inkorgsmappen."""
 
 from __future__ import annotations

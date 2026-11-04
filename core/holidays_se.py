@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 Svenska röda dagar (helgdagar) — ren stdlib, inga nätverksanrop.
 

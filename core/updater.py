@@ -1,3 +1,4 @@
+# Copyright © Rickard Längkvist, 2025–2026
 """
 updater.py — Ledgebord: "🔄 Sök ny version" (uppdatering inifrån appen).
 

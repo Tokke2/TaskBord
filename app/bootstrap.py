@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """Uppstart: signalhanterare, global felhanterare och run()."""
 
 from __future__ import annotations

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """Stäng / minimera → gömmer fönstret till systemfältet (tray). Tray-ikonen tar fram det igen."""
 
 from __future__ import annotations
