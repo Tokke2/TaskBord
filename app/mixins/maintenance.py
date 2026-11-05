@@ -39,7 +39,7 @@ class MaintenanceMixin:
             self._weekly_maintenance_check()
 
     # -----------------------------------------------------------------------
-    # VECKOUNDERHÅLL: Python-patch + Pythons tillägg, helst måndag 08:00 (core/pip_update.py)
+    # VECKOUNDERHÅLL: Pythons tillägg (Python själv uppdateras inte), helst måndag 08:00 (core/pip_update.py)
     # -----------------------------------------------------------------------
     WEEKLY_MIN_UPTIME_SEC = 600      # inte direkt efter start (autostart m.m.)
     WEEKLY_MAX_WAIT_TICKS = 36       # väntar högst ~3 h (5-minuterstick) på ett lugnt ögonblick
@@ -51,7 +51,7 @@ class MaintenanceMixin:
     def _weekly_maintenance_check(self) -> None:
         """
         Anropas var 5:e minut. Är veckans underhåll inte gjort (se ``pip_update.slot_start``: måndag 08:00) kollas
-        i bakgrunden om något finns att uppdatera (pip --dry-run + Python-patch). Finns något och du inte håller på
+        i bakgrunden om något finns att uppdatera (pip --dry-run). Finns något och du inte håller på
         med något startar appen om tyst via FORSTA_START.bat /snabb /vecka, som uppdaterar medan appen är avstängd
         och sedan startar den igen (fönsterläge och uppgifter sparas som vid tyst omstart efter en uppdatering).
         Högst ett omstartsförsök per vecka; ingenting hittas → veckan bockas av utan omstart.
@@ -75,13 +75,13 @@ class MaintenanceMixin:
                 return
             self._weekly_state = "checking"
             pip_update.mark_try(SCRIPT_DIR)      # före kollen: aldrig fler än ett försök per vecka härifrån
-            self._log.info(f"{LOG_PREFIX} veckounderhåll: kollar Python och tillägg i bakgrunden")
+            self._log.info(f"{LOG_PREFIX} veckounderhåll: kollar Pythons tillägg i bakgrunden")
 
             def _work() -> None:
                 try:
                     self._weekly_result = pip_update.needs_update(SCRIPT_DIR)
                 except Exception as e:
-                    self._weekly_result = {"packages": [], "python": "", "error": str(e)}
+                    self._weekly_result = {"packages": [], "error": str(e)}
                 self._weekly_state = "ready"
 
             threading.Thread(target=_work, name="weekly-check", daemon=True).start()
@@ -93,9 +93,9 @@ class MaintenanceMixin:
             pip_update.log_line(SCRIPT_DIR, f"veckokoll misslyckades: {res['error']}")
             self._weekly_state = "done"
             return
-        if not res.get("packages") and not res.get("python"):
+        if not res.get("packages"):
             pip_update.mark_ok(SCRIPT_DIR, "inget att uppdatera (kollat av appen)")
-            pip_update.log_line(SCRIPT_DIR, "veckokoll: alla paket och Python är aktuella")
+            pip_update.log_line(SCRIPT_DIR, "veckokoll: alla paket är aktuella")
             self._log.info(f"{LOG_PREFIX} veckounderhåll: allt är aktuellt")
             self._weekly_state = "done"
             return
@@ -106,7 +106,7 @@ class MaintenanceMixin:
                 self._log.info(f"{LOG_PREFIX} veckounderhåll: gav upp att vänta ({reason}) — görs vid nästa start")
                 self._weekly_state = "done"
             return
-        what = ", ".join((res.get("packages") or [])[:6]) + (f" + Python {res['python']}" if res.get("python") else "")
+        what = ", ".join((res.get("packages") or [])[:6])
         self._log.info(f"{LOG_PREFIX} veckounderhåll: {what} — startar om tyst för att uppdatera")
         pip_update.log_line(SCRIPT_DIR, f"veckounderhåll: appen startar om för att uppdatera ({what})")
         with suppress(Exception):

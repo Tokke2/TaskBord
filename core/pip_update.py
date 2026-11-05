@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # Copyright © Rickard Längkvist, 2025–2026
 """
-pip_update.py — VECKOUNDERHÅLL: kolla Python och Pythons tillägg (paketen i requirements*.txt) och uppdatera dem.
+pip_update.py — VECKOUNDERHÅLL: kolla Pythons tillägg (paketen i requirements*.txt) och uppdatera dem. Python själv uppdateras inte.
 En gång i veckan — helst måndag morgon kl 08:00 — inte vid varje start.
 
 Hur "måndag 08:00" fungerar: veckan börjar måndag 08:00 (``slot_start``). Är veckans underhåll inte gjort är det
@@ -15,7 +15,7 @@ Använder den installerade Pythons egna pip — ingen egen miljö (venv); pakete
     python core/pip_update.py --wait-exit           väntar tills appen avslutats (exit 0), 1 om den fortfarande kör
     python core/pip_update.py --run [--quiet]       uppdatera paketen nu och bocka av veckan (vid fel: nytt försök efter 6 h)
     python core/pip_update.py --mark                bocka av veckan (efter fullständig installation)
-    python core/pip_update.py --check               behövs något? (paket + Python-patch), ändrar inget
+    python core/pip_update.py --check               behövs något? (paket), ändrar inget
 
 Regler:
   * Bara standardbiblioteket (körs före appen, så inga paket kan antas finnas).
@@ -230,46 +230,16 @@ def wait_app_exit(max_wait: float = 60.0, step: float = 1.0, probe: Optional[Cal
 
 
 # ---------------------------------------------------------------------------------------------------------
-# Behövs något? (körs av appen i bakgrunden — ändrar ingenting) och Python-patch i samma serie
+# Behövs något? (körs av appen i bakgrunden — ändrar ingenting). Python själv uppdateras INTE (Rickards val).
 # ---------------------------------------------------------------------------------------------------------
-PY_FTP = "https://www.python.org/ftp/python/"
-
-
-def _http(url: str, method: str = "GET", timeout: float = 15.0):
-    req = urllib.request.Request(url, method=method)
-    with urllib.request.build_opener().open(req, timeout=timeout) as resp:
-        return resp.status, (resp.read(2_000_000).decode("utf-8", "replace") if method == "GET" else "")
-
-
-def latest_patch(series: str, fetch: Optional[Callable] = None) -> str:
-    """Senaste patch-version i serien (t.ex. '3.14' → '3.14.9') som har en Windows-installer; '' om okänt/fel."""
-    fetch = fetch or _http
-    try:
-        if not re.fullmatch(r"\d+\.\d+", series):
-            return ""
-        _st, html = fetch(PY_FTP, "GET")
-        nums = sorted({int(m.group(1)) for m in re.finditer(r'href="' + re.escape(series) + r'\.(\d+)/"', html)}, reverse=True)
-        for n in nums:
-            v = f"{series}.{n}"
-            try:
-                st, _ = fetch(f"{PY_FTP}{v}/python-{v}-amd64.exe", "HEAD")
-            except Exception:
-                continue
-            if st == 200:
-                return v
-    except Exception:
-        pass
-    return ""
-
-
-def needs_update(app_dir, runner: Optional[Callable] = None, fetch: Optional[Callable] = None, timeout: float = 90.0) -> Dict:
+def needs_update(app_dir, runner: Optional[Callable] = None, timeout: float = 90.0) -> Dict:
     """
-    Behövs veckoöversynen? {"packages": [...], "python": "3.14.9" eller "", "error": ""}.
-    Paket: pip install --dry-run (installerar inget). Python: finns en nyare patch i samma serie än den som kör?
+    Behövs veckoöversynen? {"packages": [...], "error": ""}.
+    Paket: pip install --dry-run (installerar inget). Pythons egen version kollas/uppdateras inte.
     Nätfel → "error" (då startar appen inte om i onödan).
     """
     app_dir = Path(app_dir)
-    res: Dict = {"packages": [], "python": "", "error": ""}
+    res: Dict = {"packages": [], "error": ""}
     try:
         for fname in ("requirements.txt", "requirements-optional.txt"):
             req = app_dir / fname
@@ -285,10 +255,6 @@ def needs_update(app_dir, runner: Optional[Callable] = None, fetch: Optional[Cal
             m = re.search(r"Would install (.+)", out)
             if m:
                 res["packages"] += m.group(1).split()
-        series = f"{sys.version_info[0]}.{sys.version_info[1]}"
-        v = latest_patch(series, fetch)
-        if v and int(v.rsplit(".", 1)[1]) > sys.version_info[2]:
-            res["python"] = v
     except subprocess.TimeoutExpired:
         res["error"] = "pip tog för lång tid"
     except Exception as e:

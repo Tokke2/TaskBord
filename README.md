@@ -5,19 +5,16 @@
 
 1. Ladda ner eller klona repot och öppna appmappen.
 2. Dubbelklicka på **`FORSTA_START.bat`**. Filen:
-   - hämtar senaste stabila Python-versionen från python.org (inget versionsnummer är hårdkodat),
-   - **kollar först om Python redan finns.** Finns den installeras ingen ny Python: den uppdateras bara till senaste
-     patch-version i *samma serie* (t.ex. 3.14.7 → senaste 3.14.x, på plats; paket och PATH bevaras). En ny serie
-     (3.15) installeras aldrig bredvid. Är Python installerad för alla användare (kräver administratör) hoppas
-     uppdateringen över, och går det inte att kolla (offline) startar appen med den som finns. **Bara om Python saknas**
-     installeras senaste stabila från python.org,
+   - **kollar först om Python redan finns.** Finns den används den som den är: **Python uppdateras inte** (varken
+     här, vid start eller i veckounderhållet) och ingen ny Python installeras bredvid. **Bara om Python saknas**
+     hämtas och installeras senaste stabila från python.org (inget versionsnummer är hårdkodat),
    - installerar eller uppgraderar alla paket i `requirements.txt` och `requirements-optional.txt` till senaste version,
    - startar Ledgebord med den nyaste Python som finns.
-3. Nästa gång: dubbelklicka på **`STARTA_HAR.bat`**. Den startar med nyaste installerade Python och installerar bara om Python saknas. **En gång i veckan — helst måndag 08:00, inte vid varje start — kollas Python och Pythons tillägg** (patch-version av din Python och paketen i `requirements.txt` / `requirements-optional.txt`) och uppdateras, tyst, med den installerade Pythons egen pip (`core/pip_update.py`). **Ingen egen miljö (venv)**: allt ligger i samma Python som övriga program. Veckan börjar måndag 08:00; är veckans underhåll inte gjort är det "dags":
+3. Nästa gång: dubbelklicka på **`STARTA_HAR.bat`**. Den startar med nyaste installerade Python och installerar bara om Python saknas. **En gång i veckan — helst måndag 08:00, inte vid varje start — kollas Pythons tillägg** (paketen i `requirements.txt` / `requirements-optional.txt`; Python själv uppdateras inte) och uppdateras, tyst, med den installerade Pythons egen pip (`core/pip_update.py`). **Ingen egen miljö (venv)**: allt ligger i samma Python som övriga program. Veckan börjar måndag 08:00; är veckans underhåll inte gjort är det "dags":
   - *Ledgebord körs sedan före måndag 08:00:* ca 10 min in i appens körning efter 08:00, eller så snart du inte skriver/redigerar, kollar appen i bakgrunden om något finns att uppdatera. Finns något startar den om tyst (fönsterläge och uppgifter sparas som vid en uppdatering), `FORSTA_START.bat /snabb /vecka` uppdaterar medan appen är avstängd och startar den igen. Finns inget bockas veckan av utan omstart. Högst ett omstartsförsök per vecka.
   - *Datorn var avstängd på måndagen:* första start via `STARTA_HAR.bat` efter 08:00 gör underhållet först (några sekunder).
   - *Offline/fel:* appen startar ändå; nytt försök vid en start först efter 6 timmar (aldrig en omstart för det).
-  Python uppdateras bara inom din serie (3.14.x → senaste 3.14.x, på plats); en ny serie installeras aldrig bredvid. Beroenden som andra program delar uppgraderas bara om ett krav i Ledgebord kräver det. Resultatet står i `loggar\pip_uppdatering.log`, veckans status i `loggar\veckounderhall.json`. Underhållet görs bara på Windows. Vill du köra det direkt: `FORSTA_START.bat` (full uppdatering). Inget svart konsollfönster visas: `STARTA_HAR.bat` startar via `STARTA_DOLT.vbs` (dolt), och själva appen körs med `pythonw.exe`, där alla underprogram (schtasks, reg, pip …) startas utan fönster (`core/no_console.py`). Saknas Python öppnas ett synligt installationsfönster. Allra utan blink: använd skrivbordsgenvägen "Ledgebord" eller dubbelklicka `main.pyw`.
+  Beroenden som andra program delar uppgraderas bara om ett krav i Ledgebord kräver det. Resultatet står i `loggar\pip_uppdatering.log`, veckans status i `loggar\veckounderhall.json`. Underhållet görs bara på Windows. Vill du köra det direkt: `FORSTA_START.bat` (full uppdatering av tilläggen). Inget svart konsollfönster visas: `STARTA_HAR.bat` startar via `STARTA_DOLT.vbs` (dolt), och själva appen körs med `pythonw.exe`, där alla underprogram (schtasks, reg, pip …) startas utan fönster (`core/no_console.py`). Saknas Python öppnas ett synligt installationsfönster. Allra utan blink: använd skrivbordsgenvägen "Ledgebord" eller dubbelklicka `main.pyw`.
 
 > Plattform: Ledgebord är idag gjord för Windows. Den använder Windows-specifika funktioner för fönsterlägen och skrivbordsikoner.
 

@@ -3,12 +3,9 @@ REM ============================================================
 REM  Ledgebord - FORSTA START / UPPDATERING (Windows)
 REM  Ingen version ar hardkodad:
 REM   1. Kollar FORST om Python 3.10+ finns installerad
-REM   2. Finns den: uppdateras den till senaste patch-version i SAMMA
-REM      serie (t.ex. 3.14.7 -> senaste 3.14.x, pa plats). Ingen ny
-REM      Python installeras bredvid, och en ny serie (3.15) lamnas at dig.
-REM      Ar den installerad for alla anvandare (kraver admin) hoppas
-REM      uppdateringen over. Gar det inte att kolla/uppdatera fortsatter
-REM      appen med den som finns.
+REM   2. Finns den: anvands den som den ar. Python UPPDATERAS INTE har
+REM      (ingen patch-uppdatering, ingen ny version) - det sker inte vid
+REM      start och inte i veckounderhallet.
 REM   3. Saknas Python: installerar senaste stabila fran python.org
 REM   4. Installerar/uppgraderar alla paket (requirements.txt
 REM      och requirements-optional.txt) till senaste version
@@ -19,8 +16,8 @@ REM    FORSTA_START.bat        full installation/uppdatering
 REM    FORSTA_START.bat /snabb startar direkt med installerad Python
 REM                            (installerar bara om Python saknas). En
 REM                            gang i veckan (manda 08:00, annars forsta
-REM                            start efter det) uppdateras Python-patch och
-REM                            Pythons tillagg (core\pip_update.py)
+REM                            start efter det) uppdateras Pythons tillagg
+REM                            (paketen, core\pip_update.py)
 REM    FORSTA_START.bat /snabb /vecka   (appen startar om for veckounderhall)
 REM  Inga adminrattigheter behovs.
 REM ============================================================
@@ -52,37 +49,15 @@ if "%SNABB%"=="1" if defined PY goto :snabb_paket
 REM Snabbstart utan Python: oppna en synlig ruta for full installation (annars hanger den dolda)
 if "%SNABB%"=="1" (start "Ledgebord - Installation" "%~f0" & exit /b 1)
 
-REM ----- Finns Python? Uppdatera den (samma serie). Saknas den? Installera senaste stabila. -----
-set "SERIE="
+REM ----- Finns Python? Anvand den som den ar (ingen uppdatering av Python). Saknas den? Installera senaste stabila. -----
 set "PSARG="
-if defined PY (
-  set /a "SMIN=PYNUM/1000"
-  set /a "SMIC=PYNUM%%1000"
-  set "SERIE=3.!SMIN!"
-  set "PSARG=-Serie !SERIE!"
-  echo [1/5] Python finns redan: !PY!  ^(3.!SMIN!.!SMIC!^)
-)
-call :get_latest
 if not defined PY goto :python_not_found
-
-REM -- Python finns: ingen ny installation, bara uppdatering inom samma serie --
-if not defined PYVER goto :python_noupdate
-if !PYNUM! GEQ !LATNUM! goto :python_uptodate
-echo [2/5] Uppdaterar Python 3.!SMIN!.!SMIC! till %PYVER% (samma serie, pa plats) ...
-call :upgrade_python
-call :find_python
-goto :python_ok
-
-:python_noupdate
-echo [2/5] Kunde inte kolla efter ny Python-version (offline?) - fortsatter med den installerade.
-goto :python_ok
-
-:python_uptodate
-echo [2/5] Python ar redan senaste versionen i serien %SERIE% (%PYVER%) - ingen uppdatering behovs.
+echo [1/5] Python finns redan: %PY% - Python uppdateras inte, den installerade anvands.
 goto :python_ok
 
 REM -- Python saknas: installera senaste stabila --
 :python_not_found
+call :get_latest
 if not defined PYVER goto :python_missing
 echo [1/5] Python saknas. Senaste stabila enligt python.org: %PYVER%
 echo [2/5] Installerar Python %PYVER% ...
@@ -117,7 +92,7 @@ if exist "%APPDIR%core\pip_update.py" "%PY%" "%APPDIR%core\pip_update.py" --mark
 goto :start_app
 
 :snabb_paket
-REM VECKOUNDERHALL (helst manda 08:00, inte vid varje start): Python-patch + Pythons tillagg (paket). Bara om veckans
+REM VECKOUNDERHALL (helst manda 08:00, inte vid varje start): Pythons tillagg (paket). Python uppdateras inte. Bara om veckans
 REM underhall inte ar gjort och Ledgebord inte kor. Anropad med /vecka (appen har startat om for det) kors det direkt
 REM efter att appen avslutats. Tyst, loggas i loggar\pip_uppdatering.log, blockerar aldrig starten.
 if not exist "%APPDIR%core\pip_update.py" goto :start_app
@@ -129,21 +104,9 @@ goto :start_app
 :vecko_kor
 "%PY%" "%APPDIR%core\pip_update.py" --wait-exit --quiet
 if errorlevel 1 goto :start_app
-call :vecko_python
 "%PY%" "%APPDIR%core\pip_update.py" --run --quiet
 goto :start_app
 
-:vecko_python
-REM Python finns: uppdatera bara inom samma serie (aldrig en ny installation bredvid), tyst och utan att krascha
-set /a "SMIN=PYNUM/1000"
-set "SERIE=3.%SMIN%"
-set "PSARG=-Serie %SERIE%"
-call :get_latest
-if not defined PYVER exit /b 0
-if %PYNUM% GEQ %LATNUM% exit /b 0
-call :upgrade_python
-call :find_python
-exit /b 0
 
 :start_app
 echo [5/5] Startar Ledgebord ...
@@ -185,7 +148,7 @@ exit /b 0
 
 REM ------------------------------------------------------------
 REM  Hamta version fran python.org (ingen reservversion). PSARG tom =
-REM  senaste stabila; "-Serie 3.14" = senaste patch i den serien.
+REM  senaste stabila (anvands bara nar Python saknas).
 REM  Satter PYVER (t.ex. 3.14.9) och LATNUM (minor*1000 + micro).
 REM ------------------------------------------------------------
 :get_latest
@@ -197,42 +160,6 @@ for /f "tokens=1,2,3 delims=." %%A in ("%PYVER%") do set /a "LATNUM=%%B*1000+%%C
 exit /b 0
 
 
-REM ------------------------------------------------------------
-REM  UPPDATERA befintlig Python till PYVER (samma serie, pa plats).
-REM  Gor aldrig en ny installation bredvid den som finns.
-REM  - installerad for alla anvandare (Program Files): hoppas over
-REM    (skulle kravt administrator)
-REM  1) Officiell installer fran python.org (per anvandare = samma
-REM     serie uppdateras pa plats, paket och PATH bevaras)
-REM  2) Reserv: winget upgrade
-REM  Misslyckas det fortsatter vi med den installerade versionen.
-REM ------------------------------------------------------------
-:upgrade_python
-echo "%PY%" | find /i "%ProgramFiles%" >nul
-if not errorlevel 1 goto :upgrade_allusers
-call :download_installer
-if not exist "%PYSETUP%" goto :upgrade_winget
-echo        Uppdaterar Python till %PYVER% ...
-"%PYSETUP%" /quiet InstallAllUsers=0 PrependPath=1 Include_test=0 Include_launcher=1
-if errorlevel 1 goto :upgrade_winget
-echo        Python uppdaterad till %PYVER%.
-exit /b 0
-
-:upgrade_allusers
-echo        [INFO] Python ar installerad for alla anvandare - uppdatering kraver administrator.
-echo        Hoppar over (ingen ny installation gors). Uppdatera Python manuellt om du vill.
-exit /b 0
-
-:upgrade_winget
-where winget.exe >nul 2>&1
-if errorlevel 1 goto :upgrade_fail
-winget upgrade -e --id Python.Python.%SERIE% --silent --accept-package-agreements --accept-source-agreements
-if errorlevel 1 goto :upgrade_fail
-exit /b 0
-
-:upgrade_fail
-echo        [INFO] Kunde inte uppdatera Python - fortsatter med installerad version.
-exit /b 0
 
 :download_installer
 set "PYURL=https://www.python.org/ftp/python/%PYVER%/python-%PYVER%-amd64.exe"

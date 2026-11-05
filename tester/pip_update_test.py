@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-pip_update_test.py — veckounderhåll: Python-patch + Pythons tillägg uppdateras en gång i veckan (helst måndag 08:00),
+pip_update_test.py — veckounderhåll: Pythons tillägg uppdateras (Python själv inte) en gång i veckan (helst måndag 08:00),
 inte vid varje start. Samma Python, ingen egen miljö.
 
 Kör:  python tester/pip_update_test.py     (inget nät, ingen Qt; pip ersätts av en attrapp)
@@ -202,29 +202,18 @@ check("wait_app_exit: avstängd efter två sekunder → True", PU.wait_app_exit(
 check("wait_app_exit: kör kvar → False efter max", PU.wait_app_exit(3, 1, lambda: True, lambda s: None) is False)
 
 # --- behövs något? (appens bakgrundskoll) ---------------------------------------------------------------------------
-def fetch_ok(url, method="GET"):
-    if method == "GET":
-        return 200, '<a href="3.%d.1/">x</a><a href="3.%d.%d/">x</a><a href="3.%d.%d/">x</a>' % (sys.version_info[1], sys.version_info[1], sys.version_info[2] + 2, sys.version_info[1], sys.version_info[2] + 1)
-    if url.endswith(f"3.{sys.version_info[1]}.{sys.version_info[2] + 2}/python-3.{sys.version_info[1]}.{sys.version_info[2] + 2}-amd64.exe"):
-        raise OSError("404")          # nyaste saknar installer → nästa
-    return 200, ""
-
-
-check("latest_patch: hoppar över version utan installer", PU.latest_patch(f"3.{sys.version_info[1]}", fetch_ok) == f"3.{sys.version_info[1]}.{sys.version_info[2] + 1}")
-check("latest_patch: nätfel → ''", PU.latest_patch("3.14", lambda *a, **k: (_ for _ in ()).throw(OSError("x"))) == "")
-check("latest_patch: ogiltig serie → ''", PU.latest_patch("tre.fjorton", fetch_ok) == "")
 d = newdir()
 f = Fake([(0, "Would install PySide6-6.11.4 shiboken6-6.11.4\n", ""), (0, "Requirement already satisfied\n", "")])
-r = PU.needs_update(d, runner=f, fetch=lambda *a, **k: (200, ""))
+r = PU.needs_update(d, runner=f)
 check("needs_update: paket med nyare version hittas via --dry-run", r["packages"] == ["PySide6-6.11.4", "shiboken6-6.11.4"] and not r["error"], r)
 check("needs_update: kör pip med --dry-run (installerar inget)", all("--dry-run" in c[0] for c in f.calls))
-check("needs_update: Python-patch nyare i samma serie → anges", PU.needs_update(newdir(), runner=Fake([(0, "", ""), (0, "", "")]), fetch=fetch_ok)["python"].startswith("3."))
-check("needs_update: allt aktuellt → tomt", (lambda r: not r["packages"] and not r["python"] and not r["error"])(PU.needs_update(newdir(), runner=Fake([(0, "", "")] * 2), fetch=lambda *a, **k: (200, ""))))
-r = PU.needs_update(newdir(), runner=Fake([(1, "", "ERROR: Could not find a version\n")]), fetch=fetch_ok)
+check("needs_update: Python själv kollas inte (ingen latest_patch, inget 'python'-fält)", not hasattr(PU, "latest_patch") and "python" not in PU.needs_update(newdir(), runner=Fake([(0, "", ""), (0, "", "")])))
+check("needs_update: allt aktuellt → tomt", (lambda r: not r["packages"] and not r["error"])(PU.needs_update(newdir(), runner=Fake([(0, "", "")] * 2))))
+r = PU.needs_update(newdir(), runner=Fake([(1, "", "ERROR: Could not find a version\n")]))
 check("needs_update: nätfel (obligatoriska) → error, ingen omstart", r["error"] and not r["packages"], r)
-r = PU.needs_update(newdir(), runner=Fake([subprocess.TimeoutExpired("pip", 1)]), fetch=fetch_ok)
+r = PU.needs_update(newdir(), runner=Fake([subprocess.TimeoutExpired("pip", 1)]))
 check("needs_update: timeout → error", "lång tid" in r["error"])
-r = PU.needs_update(newdir(), runner=Fake([(0, "", ""), (1, "", "ERROR: optional")]), fetch=lambda *a, **k: (200, ""))
+r = PU.needs_update(newdir(), runner=Fake([(0, "", ""), (1, "", "ERROR: optional")]))
 check("needs_update: fel i valfria tillägg avgör inget", not r["error"])
 
 # --- omstart för underhållet ------------------------------------------------------------------------------------------
@@ -332,7 +321,7 @@ MM.SCRIPT_DIR = wd
 set_needs({"packages": [], "python": "3.99.9", "error": ""})
 c = Ctl()
 tick(c, 2)
-check("veckokoll: bara Python-patch finns → startar också om", len(sched) == 1 and "shutdown" in c.events)
+check("veckokoll: en ny Python-version räknas INTE (Python uppdateras inte) → ingen omstart, veckan bockas av", not sched and "shutdown" not in c.events and PU.weekly_due(wd, D.now()) is False)
 wd = newdir()
 MM.SCRIPT_DIR = wd
 sched.clear()
@@ -365,11 +354,10 @@ blk = "\n".join(lines[i:lines.index(":vecko_kor")])
 check("bat: tar bara den vanliga starten via '--due' (exit 10 = dags) — inte vid varje start",
       'pip_update.py" --due' in blk and "if errorlevel 10 goto :vecko_kor" in blk and "goto :start_app" in blk.split("if errorlevel 10 goto :vecko_kor")[1])
 check("bat: /vecka (appen startade om för underhållet) går direkt till underhållet", 'if /i "%~2"=="/vecka" goto :vecko_kor' in blk)
-vk = "\n".join(lines[lines.index(":vecko_kor"):lines.index(":vecko_python")])
-check("bat: underhållet väntar tills appen avslutats, sedan Python-patch, sedan paket",
-      vk.index("--wait-exit") < vk.index("call :vecko_python") < vk.index("--run") and "if errorlevel 1 goto :start_app" in vk)
-vp = "\n".join(lines[lines.index(":vecko_python"):lines.index(":start_app")])
-check("bat: Python uppdateras bara inom samma serie (-Serie), aldrig install_python", "-Serie" in vp and "install_python" not in vp and "call :upgrade_python" in vp)
+vk = "\n".join(lines[lines.index(":vecko_kor"):lines.index(":start_app")])
+check("bat: underhållet väntar tills appen avslutats, sedan paketen — och rör inte Python",
+      vk.index("--wait-exit") < vk.index("--run") and "if errorlevel 1 goto :start_app" in vk and "python" not in vk.lower().replace("pip_update", ""))
+check("bat: ingen Python-uppdatering finns kvar (inga upgrade_python/vecko_python, inget -Serie)", not re.search(r"upgrade_python|vecko_python|-Serie|upgrade_winget|upgrade_allusers", bat))
 check("bat: hela flödet (FORSTA_START utan /snabb) bockar av veckan (--mark)", "pip_update.py\" --mark" in bat)
 check("bat: ingen venv i batchfilens kommandon", not any("venv" in l.lower() for l in lines if not l.lstrip().upper().startswith("REM")))
 labels = {l[1:].strip().lower() for l in lines if l.startswith(":") and not l.startswith("::")}
