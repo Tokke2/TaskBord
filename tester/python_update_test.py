@@ -64,7 +64,7 @@ check("alla-användare-installation (Program Files) hoppas över utan admin/ny i
 check("uppdatering per användare på plats (/quiet InstallAllUsers=0)", "/quiet InstallAllUsers=0" in up)
 check("reserv: winget UPGRADE för samma serie", "winget upgrade -e --id Python.Python.%SERIE%" in bat)
 check("misslyckad uppdatering stoppar inte starten", block("upgrade_fail").strip().endswith("exit /b 0") and "fortsatter" in block("upgrade_fail"))
-check("snabbstart (/snabb) uppdaterar aldrig", bat.index('if "%SNABB%"=="1" if defined PY goto :start_app') < bat.index("call :get_latest"))
+check("snabbstart (/snabb) uppdaterar aldrig Python själv (bara paketen, se pip_update_test)", bat.index('if "%SNABB%"=="1" if defined PY goto :snabb_paket') < bat.index("call :get_latest"))
 check("fortfarande: pip/paket och start efter Python-steget", "[3/5]" in bat and "[5/5] Startar Ledgebord" in bat)
 
 # PowerShell: serie-läge

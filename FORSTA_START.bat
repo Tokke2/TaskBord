@@ -17,7 +17,9 @@ REM
 REM  Anvandning:
 REM    FORSTA_START.bat        full installation/uppdatering
 REM    FORSTA_START.bat /snabb startar direkt med installerad Python
-REM                            (installerar bara om Python saknas)
+REM                            (installerar bara om Python saknas) men
+REM                            kollar/uppdaterar Pythons tillagg (paket)
+REM                            fore varje start (core\pip_update.py)
 REM  Inga adminrattigheter behovs.
 REM ============================================================
 chcp 65001 >nul
@@ -44,7 +46,7 @@ echo.
 
 REM ----- Snabblage: starta med det som redan finns -----
 call :find_python
-if "%SNABB%"=="1" if defined PY goto :start_app
+if "%SNABB%"=="1" if defined PY goto :snabb_paket
 REM Snabbstart utan Python: oppna en synlig ruta for full installation (annars hanger den dolda)
 if "%SNABB%"=="1" (start "Ledgebord - Installation" "%~f0" & exit /b 1)
 
@@ -109,6 +111,13 @@ if errorlevel 1 echo        [VARNING] Valfria tillagg kunde inte installeras. Ke
 echo        Kontrollerar att kravda paket gar att importera ...
 "%PY%" -c "import PySide6, psutil" >nul 2>&1
 if errorlevel 1 goto :fail_verify
+goto :start_app
+
+:snabb_paket
+REM Vid varje start: kolla Pythons tillagg (paketen) och uppdatera dem med den installerade Pythons pip -
+REM ingen egen miljo (venv). Tyst, loggas i loggar\pip_uppdatering.log, blockerar aldrig starten.
+if exist "%APPDIR%core\pip_update.py" "%PY%" "%APPDIR%core\pip_update.py" --quiet
+goto :start_app
 
 :start_app
 echo [5/5] Startar Ledgebord ...
