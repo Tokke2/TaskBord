@@ -4,9 +4,13 @@
 
 from __future__ import annotations
 
+import sys
+import threading
+import time
 from contextlib import suppress
+from typing import Any
 
-from app.constants import LOG_PREFIX, SCRIPT_DIR, Timeouts
+from app.constants import AppMode, LOG_PREFIX, SCRIPT_DIR, Timeouts
 
 
 class MaintenanceMixin:
@@ -31,6 +35,89 @@ class MaintenanceMixin:
             self._run_friday_pycache_cleanup(at_startup=False)
         with suppress(Exception):
             self._run_log_archive(at_startup=False)
+        with suppress(Exception):
+            self._weekly_maintenance_check()
+
+    # -----------------------------------------------------------------------
+    # VECKOUNDERHÅLL: Python-patch + Pythons tillägg, helst måndag 08:00 (core/pip_update.py)
+    # -----------------------------------------------------------------------
+    WEEKLY_MIN_UPTIME_SEC = 600      # inte direkt efter start (autostart m.m.)
+    WEEKLY_MAX_WAIT_TICKS = 36       # väntar högst ~3 h (5-minuterstick) på ett lugnt ögonblick
+
+    _weekly_state = ""               # "" → "checking" → "ready" → "done"
+    _weekly_result: Any = None
+    _weekly_wait = 0
+
+    def _weekly_maintenance_check(self) -> None:
+        """
+        Anropas var 5:e minut. Är veckans underhåll inte gjort (se ``pip_update.slot_start``: måndag 08:00) kollas
+        i bakgrunden om något finns att uppdatera (pip --dry-run + Python-patch). Finns något och du inte håller på
+        med något startar appen om tyst via FORSTA_START.bat /snabb /vecka, som uppdaterar medan appen är avstängd
+        och sedan startar den igen (fönsterläge och uppgifter sparas som vid tyst omstart efter en uppdatering).
+        Högst ett omstartsförsök per vecka; ingenting hittas → veckan bockas av utan omstart.
+        """
+        if sys.platform != "win32" or getattr(self, "_shutdown_initiated", False):
+            return
+        if self._mode == AppMode.SAFE_MODE or getattr(self, "_update_busy", False) or getattr(self, "_update_guard_pending", False):
+            return
+        from core import pip_update
+        state = self._weekly_state
+        if state == "checking":
+            return
+        if state == "done":
+            if not pip_update.weekly_due(SCRIPT_DIR):
+                self._weekly_state = ""         # ny vecka → ny koll
+            return
+        if state == "":
+            if time.time() - getattr(self, "_start_time", time.time()) < self.WEEKLY_MIN_UPTIME_SEC:
+                return
+            if not pip_update.app_may_restart_for_it(SCRIPT_DIR):
+                return
+            self._weekly_state = "checking"
+            pip_update.mark_try(SCRIPT_DIR)      # före kollen: aldrig fler än ett försök per vecka härifrån
+            self._log.info(f"{LOG_PREFIX} veckounderhåll: kollar Python och tillägg i bakgrunden")
+
+            def _work() -> None:
+                try:
+                    self._weekly_result = pip_update.needs_update(SCRIPT_DIR)
+                except Exception as e:
+                    self._weekly_result = {"packages": [], "python": "", "error": str(e)}
+                self._weekly_state = "ready"
+
+            threading.Thread(target=_work, name="weekly-check", daemon=True).start()
+            return
+        # state == "ready"
+        res = self._weekly_result or {}
+        if res.get("error"):
+            self._log.info(f"{LOG_PREFIX} veckounderhåll: kunde inte kolla ({res['error']}) — provar igen vid nästa start efter 6 h")
+            pip_update.log_line(SCRIPT_DIR, f"veckokoll misslyckades: {res['error']}")
+            self._weekly_state = "done"
+            return
+        if not res.get("packages") and not res.get("python"):
+            pip_update.mark_ok(SCRIPT_DIR, "inget att uppdatera (kollat av appen)")
+            pip_update.log_line(SCRIPT_DIR, "veckokoll: alla paket och Python är aktuella")
+            self._log.info(f"{LOG_PREFIX} veckounderhåll: allt är aktuellt")
+            self._weekly_state = "done"
+            return
+        reason = self._update_busy_reason()
+        if reason:
+            self._weekly_wait += 1
+            if self._weekly_wait >= self.WEEKLY_MAX_WAIT_TICKS:
+                self._log.info(f"{LOG_PREFIX} veckounderhåll: gav upp att vänta ({reason}) — görs vid nästa start")
+                self._weekly_state = "done"
+            return
+        what = ", ".join((res.get("packages") or [])[:6]) + (f" + Python {res['python']}" if res.get("python") else "")
+        self._log.info(f"{LOG_PREFIX} veckounderhåll: {what} — startar om tyst för att uppdatera")
+        pip_update.log_line(SCRIPT_DIR, f"veckounderhåll: appen startar om för att uppdatera ({what})")
+        with suppress(Exception):
+            self._remember_hidden_for_restart()
+        self._flush_window_state("före veckounderhåll")
+        if pip_update.schedule_maintenance(SCRIPT_DIR):
+            self._weekly_state = "done"
+            self.shutdown()
+        else:
+            self._log.warning(f"{LOG_PREFIX} veckounderhåll: kunde inte schemalägga — görs vid nästa start")
+            self._weekly_state = "done"
 
     def _run_friday_pycache_cleanup(self, at_startup: bool = False) -> None:
         """

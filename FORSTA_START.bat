@@ -17,9 +17,11 @@ REM
 REM  Anvandning:
 REM    FORSTA_START.bat        full installation/uppdatering
 REM    FORSTA_START.bat /snabb startar direkt med installerad Python
-REM                            (installerar bara om Python saknas) men
-REM                            kollar/uppdaterar Pythons tillagg (paket)
-REM                            fore varje start (core\pip_update.py)
+REM                            (installerar bara om Python saknas). En
+REM                            gang i veckan (manda 08:00, annars forsta
+REM                            start efter det) uppdateras Python-patch och
+REM                            Pythons tillagg (core\pip_update.py)
+REM    FORSTA_START.bat /snabb /vecka   (appen startar om for veckounderhall)
 REM  Inga adminrattigheter behovs.
 REM ============================================================
 chcp 65001 >nul
@@ -111,13 +113,37 @@ if errorlevel 1 echo        [VARNING] Valfria tillagg kunde inte installeras. Ke
 echo        Kontrollerar att kravda paket gar att importera ...
 "%PY%" -c "import PySide6, psutil" >nul 2>&1
 if errorlevel 1 goto :fail_verify
+if exist "%APPDIR%core\pip_update.py" "%PY%" "%APPDIR%core\pip_update.py" --mark --quiet
 goto :start_app
 
 :snabb_paket
-REM Vid varje start: kolla Pythons tillagg (paketen) och uppdatera dem med den installerade Pythons pip -
-REM ingen egen miljo (venv). Tyst, loggas i loggar\pip_uppdatering.log, blockerar aldrig starten.
-if exist "%APPDIR%core\pip_update.py" "%PY%" "%APPDIR%core\pip_update.py" --quiet
+REM VECKOUNDERHALL (helst manda 08:00, inte vid varje start): Python-patch + Pythons tillagg (paket). Bara om veckans
+REM underhall inte ar gjort och Ledgebord inte kor. Anropad med /vecka (appen har startat om for det) kors det direkt
+REM efter att appen avslutats. Tyst, loggas i loggar\pip_uppdatering.log, blockerar aldrig starten.
+if not exist "%APPDIR%core\pip_update.py" goto :start_app
+if /i "%~2"=="/vecka" goto :vecko_kor
+"%PY%" "%APPDIR%core\pip_update.py" --due --quiet
+if errorlevel 10 goto :vecko_kor
 goto :start_app
+
+:vecko_kor
+"%PY%" "%APPDIR%core\pip_update.py" --wait-exit --quiet
+if errorlevel 1 goto :start_app
+call :vecko_python
+"%PY%" "%APPDIR%core\pip_update.py" --run --quiet
+goto :start_app
+
+:vecko_python
+REM Python finns: uppdatera bara inom samma serie (aldrig en ny installation bredvid), tyst och utan att krascha
+set /a "SMIN=PYNUM/1000"
+set "SERIE=3.%SMIN%"
+set "PSARG=-Serie %SERIE%"
+call :get_latest
+if not defined PYVER exit /b 0
+if %PYNUM% GEQ %LATNUM% exit /b 0
+call :upgrade_python
+call :find_python
+exit /b 0
 
 :start_app
 echo [5/5] Startar Ledgebord ...
