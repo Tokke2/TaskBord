@@ -179,6 +179,7 @@ Tryck **↓** (eller **↑**) – även när du står i inmatningsfältet – s�
 | ↑ / ↓ | föregående / nästa uppgift (↑ på den första går tillbaka till inmatningsfältet) |
 | Home / End, PgUp / PgDn | första / sista, 5 steg |
 | Mellanslag | markera klar |
+| Ctrl+D | klar **och nästa** (se nedan) |
 | E eller F2 | ändra titeln direkt på kortet (Enter sparar, Esc avbryter) |
 | P | fäst / lossa |
 | 1 / 2 / 3 / 0 | prioritet hög / normal / låg / ingen |
@@ -188,6 +189,42 @@ Tryck **↓** (eller **↑**) – även när du står i inmatningsfältet – s�
 **Med musen:** dubbelklicka på en titel (eller högerklicka → *Byt namn*) så blir titeln en textruta på kortet. Enter eller klick utanför sparar, Esc avbryter. F2 fungerar även från musmarkeringen.
 
 Skriver du ett vanligt tecken som inte är en kommandotangent hamnar det i inmatningsfältet. När en uppgift blir klar eller tas bort flyttas markeringen till nästa, så du kan bocka av en hel rad med mellanslag.
+
+## ✅ Klar och nästa (Ctrl+D)
+
+**Ctrl+D** bockar av den markerade uppgiften och flyttar markeringen direkt till nästa, så du kan jobba dig nedåt listan utan musen. Är det den sista går markeringen till föregående; finns inga fler uppgifter hamnar du i inmatningsfältet. Finns ingen markering än väljer första trycket bara den översta (så inget klarmarkeras av misstag) – tryck igen för att klarmarkera den. Fungerar även medan du står i inmatningsfältet, men inte i fokusläget (F3, där Enter gör samma sak) eller på andra flikar.
+
+Tangenten kan bytas eller stängas av i `settings.json` (`shortcuts` → `done_next`; tom text = av). Ctrl+Enter är medvetet **inte** vald: den registrerar en ny uppgift i inmatningsfältet.
+
+## 📆 Kalender – se vilka dagar som är tunga
+
+Tredje fliken **📆 Kalender** visar en månad i taget (mån–sön, med veckonummer). Varje dag visar **antal uppgifter** med förfallodatum den dagen (även extra påminnelsedatum från importerade mail, märkta 🔔). Hur tung dagen är syns som en svag färgton och ett färgstreck i botten (1 · 2–3 · 4–5 · 6+ uppgifter) – men antalet står alltid som text, så färgen är aldrig det enda tecknet. Röda dagar har röd siffra, idag har accentram, och en förfluten dag med öppna uppgifter har röd ram.
+
+* Klicka på en dag → dagens uppgifter listas under (hög prioritet först). **Dubbelklicka** på en uppgift → du hamnar i *Aktiva* med uppgiften markerad.
+* **➕ Ny uppgift den här dagen** skapar en uppgift med dagen som förfallodatum.
+* ◀ ▶ byter månad, **Idag** hoppar tillbaka. Kalendern bara visar – uppgifterna ändras i *Aktiva*. Klara uppgifter räknas inte.
+
+## 💸 Delbetalningsplan (faktura i flera betalningar)
+
+Högerklicka på fönstret → **💸 Delbetalningsplan…** (finns också i tray-menyn, och i högerklicksmenyn på en uppgift som **Delbetalningsplan från den här…** – då fylls rubriken i). Fyll i:
+
+* **Rubrik / kund**, valfritt **totalbelopp** (och **handpenning** = del 1, resten delas lika), **antal delar** (2–60), **första förfallodag** och **intervall** (varje månad · varannan vecka · varje vecka · varannan/var tredje månad).
+* **Helg / röd dag:** standard är *flytta till närmaste vardag* (lördag → fredag, söndag → måndag, röd dag → närmaste arbetsdag; annars *nästa* / *föregående* vardag eller *flytta inte*). Röda dagar kommer från appens egen helgkalender.
+* Förhandsvisningen uppdateras medan du skriver. **Skapa** lägger N uppgifter, t.ex. `Limo Anders — del 1 av 3 (4 000 kr)`, med förfallodatum, vald prioritet och taggen `delbetalning`.
+
+Månadssteg räknas från första datumet och dagen kläms till månadens längd (31 jan → 28 feb → 31 mar → 30 apr – dagen driver inte nedåt). Belopp räknas i ören; resten läggs på sista delen så summan alltid blir exakt. Belopp skrivs som `12 000`, `12000,50` eller `12.000,50`. Delbetalningsuppgifterna är vanliga uppgifter – ändra eller ta bort enskilda delar som vanligt.
+
+## 🏷 Taggfärger
+
+Varje tagg har **en egen färg som är densamma på alla uppgifter** (förut avgjordes färgen av platsen i uppgiftens taggslista, så samma tagg kunde ha olika färg). Standardfärgen räknas ur taggnamnet (versaler spelar ingen roll) och är densamma på alla datorer.
+
+* **Högerklicka på en tagg** → välj färg ur paletten, **🖌 Egen färg…** eller **↩ Standardfärg**. **🏷 Taggfärger…** (i menyn och i fönstermenyn) listar alla taggar med förhandsvisning.
+* Valen sparas i `settings.json` (`tag_colors`) och slår igenom direkt i alla fönster.
+* Chipet är heltäckande och texten svart eller vit – den som ger minst 4,5:1 kontrast – så även en egen färg är läsbar i både ljust och mörkt tema.
+
+## 🌗 Temat följer Windows (live)
+
+Standardtemat är **🖥️ Följ Windows**. Byter du Windows mellan ljust och mörkt läge byter Ledgebord **direkt** (inget omstart): appen lyssnar på Qt:s färgschema-signal och kontrollerar dessutom läget var 5:e sekund. **🌗 Auto** (ljust 07–19, mörkt kväll/natt) byts också live. Fast *Ljust* eller *Mörkt* påverkas inte. Tray-menyns rubrik visar vilket läge som gäller just nu.
 
 ## ⌨️ F1 – tangentöversikt
 
@@ -500,6 +537,7 @@ fasad — alla importer (`from widget import TodoWidget`) fungerar som förut:
 | `ui/widget.py` | `TodoWidget(mixins…, QWidget)` — signaler, `__init__` och diagnostik |
 | `ui/widget_base.py` | konstanter, teman, hjälpfunktioner, logg/felhantering, PWM, `parse_natural_input` |
 | `ui/widget_atoms.py` | `EditableLabel`, `TagChip`, `LinkChip`, `PriorityBadge`, `PriorityDot`, `DueDateLabel`, `GlassFrame` |
+| `ui/calendar_view.py`, `ui/payment_plan_dialog.py`, `ui/tag_colors_dialog.py` | kalenderfliken, delbetalningsdialogen, taggfärgsdialogen (logiken ligger Qt-fri i `core/calendar_grid.py`, `core/payment_plan.py`, `core/tag_colors.py`) |
 | `ui/widget_parts/*.py` | metoderna, en mixin per område: `lifecycle`, `task_menu`, `task_actions`, `render`, `task_card`, `theme`, `keys_position`, `focus_timers`, `exports`, `window_ops`, `keynav`, `qt_events`, `links_attach` |
 
 Ändra textstorleken via `set_ui_font_scale()` (i `widget_base`), inte genom att skriva till `_UI_FONT_SCALE`.

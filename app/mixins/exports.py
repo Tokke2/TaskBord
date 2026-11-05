@@ -106,6 +106,20 @@ class ExportsMixin:
                 f"{LOG_PREFIX} PDF-export misslyckades (modul returnerade False)"
             )
 
+    def _open_payment_plan(self) -> None:
+        """Tray-menyn: 💸 Delbetalningsplan… (dialogen skapar uppgifterna direkt i butiken)."""
+        try:
+            from ui.payment_plan_dialog import open_payment_plan_dialog
+            ids = open_payment_plan_dialog(None, getattr(self, "store", None))
+            if ids:
+                for w in list(getattr(self, "_widgets", {}).values()):
+                    try:
+                        w._schedule_rebuild()
+                    except Exception:
+                        pass
+        except Exception as e:
+            self._log.warning(f"{LOG_PREFIX} kunde inte öppna delbetalningsplanen: {e}")
+
     def _open_google_calendar(self) -> None:
         """
         NY v8 (2026-10-12): öppna Google Calendar-dialogen från tray-menyn.

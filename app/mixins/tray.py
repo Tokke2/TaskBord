@@ -201,6 +201,18 @@ class TrayMixin:
             self._export_calendar_action.triggered.connect(self._export_calendar_ics)
             self._tray_menu.addAction(self._export_calendar_action)
 
+            # Delbetalningsplan: en faktura i flera betalningar → uppgifter med förfallodatum
+            self._payment_plan_action = self._QAction(
+                "💸  Delbetalningsplan…",
+                self._tray_menu,
+            )
+            self._payment_plan_action.setToolTip(
+                "Dela en faktura i flera betalningar.\n"
+                "Varje del blir en uppgift med förfallodatum."
+            )
+            self._payment_plan_action.triggered.connect(self._open_payment_plan)
+            self._tray_menu.addAction(self._payment_plan_action)
+
             # NY v8 (2026-10-12): lokal Google Calendar-koppling (OAuth)
             self._google_calendar_action = self._QAction(
                 "☁️  Google Calendar (koppla konto)…",
@@ -323,14 +335,12 @@ class TrayMixin:
                     if hasattr(self.settings, "theme_raw")
                     else "system"
                 )
-                _theme_menu = self._tray_menu.addMenu(
-                    "🎨  Tema"
-                    + (
-                        "  (🌗 Auto aktivt)"
-                        if _theme_now == "auto"
-                        else ""
-                    )
-                )
+                _theme_menu = self._tray_menu.addMenu(self._theme_menu_title(_theme_now))
+                self._theme_menu_ref = _theme_menu
+                # "Följ Windows" kan ha bytt läge sedan menyn byggdes → uppdatera titeln när den öppnas
+                if getattr(self, "_theme_title_menu_id", None) != id(self._tray_menu):
+                    self._theme_title_menu_id = id(self._tray_menu)
+                    self._tray_menu.aboutToShow.connect(self._refresh_theme_menu_title)
                 for _tv, _tl in (
                     ("light", "☀️  Ljust"),
                     ("dark", "🌙  Mörkt"),
@@ -728,6 +738,23 @@ class TrayMixin:
             self._tray.setContextMenu(self._tray_menu)
         except Exception as e:
             self._log.error(f"_populate_tray_menu misslyckades: {e}", exc_info=True)
+
+    def _theme_menu_title(self, raw: str = "") -> str:
+        """Tray-menyns temarubrik; med Auto/Följ Windows visas vilket läge som gäller just nu."""
+        try:
+            raw = raw or self.settings.theme_raw()
+            if raw in ("auto", "system"):
+                now = "mörkt" if self.settings.theme_quiet() == "dark" else "ljust"
+                return ("🎨  Tema  (🌗 Auto: " if raw == "auto" else "🎨  Tema  (🖥️ Följer Windows: ") + now + ")"
+        except Exception:
+            pass
+        return "🎨  Tema"
+
+    def _refresh_theme_menu_title(self) -> None:
+        with suppress(Exception):
+            m = getattr(self, "_theme_menu_ref", None)
+            if m is not None:
+                m.setTitle(self._theme_menu_title())
 
     def _on_tray_activated(self, reason: Any) -> None:
         """Hantera tray-ikon aktivering (vänster/höger/dubbelklick)."""

@@ -23,6 +23,8 @@ _WINDOW_ACTIONS: Dict[str, str] = {
     "next_task": "Markera nästa uppgift",
     "prev_task": "Markera föregående uppgift",
     "edit_task": "Ändra titeln på den markerade uppgiften",
+    "done_next": "Klar och nästa: bocka av den markerade uppgiften och markera nästa "
+                 "(utan markering: väljer den översta)",
 }
 
 _LIST_KEYS: List[Tuple[str, str]] = [
@@ -51,6 +53,7 @@ _MOUSE: List[Tuple[str, str]] = [
     ("Högerklick på fönstret", "Fönstermenyn: Visa över andra appar, lås, centrera, export, backup …"),
     ("Dra fönstret mot en kant", "Släpp nära vänster/höger/övre skärmkanten → fönstret glider ut och kommer tillbaka när musen nuddar kanten"),
     ("Klick på en tagg", "Filtrerar listan på taggen"),
+    ("Högerklick på en tagg", "Välj färg för taggen (samma färg på alla uppgifter; 🏷 Taggfärger… i fönstermenyn visar alla)"),
     ("🔗 / 📎 på ett kort", "Öppnar länken i webbläsaren / bilagan i sitt program (högerklick: fler val)"),
 ]
 
@@ -99,6 +102,7 @@ def build_sections(settings: Any = None, platform: Optional[str] = None) -> List
         sc = dict(settings.shortcuts()) if settings is not None else {}
     except Exception:
         sc = {}
+    sc.setdefault("done_next", "Ctrl+D")  # äldre sparade inställningar saknar den; tangenten gäller ändå
     for action, text in _WINDOW_ACTIONS.items():
         seq = str(sc.get(action) or "").strip()
         if seq and seq.upper() != "F1":

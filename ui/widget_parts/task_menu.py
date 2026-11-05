@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from ui.widget_base import *  # noqa: F401,F403
 from ui.widget_atoms import *  # noqa: F401,F403
+from core.payment_plan import base_title as _plan_base_title
 
 
 class TaskMenuMixin:
@@ -163,6 +164,12 @@ class TaskMenuMixin:
             menu.addSeparator()
             act = menu.addAction("✏️ Redigera titel…")
             act.triggered.connect(lambda _c: self._prompt_rename(tid))
+            if not self._task_is_archived(tid):
+                act = menu.addAction("💸 Delbetalningsplan från den här…")
+                act.setToolTip("Dela upp i flera betalningar — titeln fylls i från uppgiften")
+                act.triggered.connect(
+                    lambda _c, _t=str(task.get("title") or ""): self._on_open_payment_plan(_plan_base_title(_t))
+                )
             if task.get("remind_dates"):
                 act = menu.addAction("🔔 Påminnelsedatum…")
                 act.setToolTip("Datum som appen hittade i mailet — ta bort eller lägg till")

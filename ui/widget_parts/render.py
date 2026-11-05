@@ -274,6 +274,55 @@ class RenderMixin:
         except Exception:
             pass
 
+    # ------------------------------------------------------------------
+    # Kalenderfliken (ui/calendar_view.py)
+    # ------------------------------------------------------------------
+    CALENDAR_TAB_INDEX = 2
+
+    def _calendar_visible(self) -> bool:
+        tabs = getattr(self, "tabs", None)
+        return tabs is not None and tabs.count() > self.CALENDAR_TAB_INDEX \
+            and tabs.currentIndex() == self.CALENDAR_TAB_INDEX
+
+    def _refresh_calendar(self, force: bool = False) -> None:
+        """Mata kalendern med aktiva uppgifter. Ritar bara om fliken syns (annars när den öppnas)."""
+        try:
+            cv = getattr(self, "calendar_view", None)
+            if cv is None:
+                return
+            if not force and not self._calendar_visible():
+                self._calendar_dirty = True
+                return
+            self._calendar_dirty = False
+            tasks = self.store.active_tasks() if hasattr(self.store, "active_tasks") else []
+            cv.set_tasks(list(tasks))
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} _refresh_calendar: {_describe_widget_error(e)}")
+
+    def _on_calendar_task(self, task_id: str) -> None:
+        """Dubbelklick på en uppgift i kalenderns dagslista → visa den (markerad) i Aktiva-fliken."""
+        try:
+            get_throttle().notify_activity()
+            self.tabs.setCurrentIndex(0)
+            if task_id in list(getattr(self, "_nav_tids", [])):
+                self._nav_select(task_id)
+            else:
+                logger.info(f"{LOG_PREFIX} kalender: uppgiften {task_id!r} är dold av sökning/senarelagd")
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} _on_calendar_task: {_describe_widget_error(e)}")
+
+    def _on_calendar_add(self, iso_day: str) -> None:
+        """➕ Ny uppgift i kalendern: fråga efter titeln och skapa uppgiften med dagen som förfallodatum."""
+        try:
+            get_throttle().notify_activity()
+            from PySide6.QtWidgets import QInputDialog
+            text, ok = QInputDialog.getText(self, "Ny uppgift", f"Uppgift med förfallodatum {iso_day}:")
+            if ok and text.strip():
+                self.store.add_task(text.strip(), due_date=iso_day)
+                self._rebuild_task_list()
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} _on_calendar_add: {_describe_widget_error(e)}")
+
     def _rebuild_task_list(self) -> None:
         """Bygg om task-listan (med forbattrad felhantering)."""
         start = time.perf_counter()
@@ -301,6 +350,7 @@ class RenderMixin:
             self._render_tasks(archive, archived=True)
             self._reapply_flash()
             self._build_search_index()
+            self._refresh_calendar()
             duration = (time.perf_counter() - start) * 1000
             self._render_count += 1
             if duration > 50.0:

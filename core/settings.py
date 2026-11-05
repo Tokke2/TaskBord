@@ -884,6 +884,12 @@ def _coerce_int(value: Any, default: int = 0, min_val: int = 0, max_val: int = 2
         return default
 
 
+def _clean_tag_colors(value: Any) -> Dict[str, str]:
+    """Taggfärger från filen → bara giltiga {gement namn: '#rrggbb'} (resten tas bort)."""
+    from core import tag_colors as _tc
+    return _tc.clean_overrides(value)
+
+
 def _coerce_list(value: Any, default: Optional[List[Any]] = None) -> List[Any]:
     """Konvertera värde till lista."""
     if isinstance(value, list):
@@ -955,6 +961,7 @@ class Settings(QObject):
         windows_updated = Signal(list)
         tabs_changed = Signal(list)
         shortcuts_changed = Signal(dict)
+        tag_colors_changed = Signal(dict)
         settings_saved = Signal()
         settings_loaded = Signal()
         error_occurred = Signal(str)
@@ -987,6 +994,7 @@ class Settings(QObject):
         "edit_task": "F2",
         "delete_task": "Delete",
         "toggle_done": "Space",
+        "done_next": "Ctrl+D",  # klar och nästa: bocka av markerad uppgift, markera nästa
     }
 
     # ========================================================================
@@ -1281,6 +1289,7 @@ class Settings(QObject):
             "last_backup_at": None,
             "custom_tags": [],
             "active_tag_filter": [],
+            "tag_colors": {},  # {gement taggnamn: "#rrggbb"} — användarens egna taggfärger
             "shortcuts": copy.deepcopy(self.DEFAULT_SHORTCUTS),
             "diagnostics": {"log_level": "INFO", "max_log_files": 5},
             "language": "sv",
@@ -1424,6 +1433,7 @@ class Settings(QObject):
             "windows": lambda v: _coerce_list(v, self.DEFAULT_WINDOWS),
             "custom_tags": lambda v: _coerce_list(v, []),
             "active_tag_filter": lambda v: _coerce_list(v, []),
+            "tag_colors": lambda v: _clean_tag_colors(v),
             "shortcuts": lambda v: v if isinstance(v, dict) else copy.deepcopy(self.DEFAULT_SHORTCUTS),
         }
         if key not in validators:
@@ -1649,62 +1659,54 @@ class Settings(QObject):
     # THEME / ACCENT / GLASS
     # ========================================================================
 
-    @_log_call
-    def theme(self) -> str:
-        """Hämta aktuellt tema (med system-fallback)."""
+    def system_theme(self) -> Optional[str]:
+        """
+        Windows/macOS/Linux:s eget val just nu: "light" / "dark" (None om det inte går att avgöra).
+
+        Läses färskt vid varje anrop (ingen cache) — det är det som låter appen följa Windows live.
+        Windows: registret (AppsUseLightTheme, appläget); övriga och som reserv: Qt:s colorScheme.
+        Tyst (ingen loggning) — anropas var femte sekund av widgetens tema-vakt.
+        """
+        try:
+            if sys.platform == "win32":
+                try:
+                    import winreg
+                    with winreg.OpenKey(
+                        winreg.HKEY_CURRENT_USER,
+                        r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+                    ) as key:
+                        value, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
+                        return "light" if value else "dark"
+                except OSError:
+                    pass
+            from PySide6.QtCore import Qt as _Qt
+            from PySide6.QtGui import QGuiApplication
+            _app = QGuiApplication.instance()
+            if _app is not None:
+                _cs = _app.styleHints().colorScheme()
+                if _cs == _Qt.ColorScheme.Light:
+                    return "light"
+                if _cs == _Qt.ColorScheme.Dark:
+                    return "dark"
+        except Exception:
+            pass
+        return None
+
+    def theme_quiet(self) -> str:
+        """Det tema som gäller just nu ("light"/"dark"): system → Windows val, auto → klockan. Tyst."""
         with self._lock:
             theme = self._data.get("theme", Theme.SYSTEM.value)
         if theme == Theme.AUTO.value:
-            # NY v7-fix82: klockstyrt tema — ljust dagtid (07:00–18:59),
-            # mörkt kväll/natt (19:00–06:59). Växling under körning sköts
-            # av widgetens _check_auto_theme-timer (var 10:e minut).
-            _hour = datetime.now().hour
-            _resolved = "light" if 7 <= _hour < 19 else "dark"
-            return _resolved
+            # klockstyrt: ljust dagtid (07:00–18:59), mörkt kväll/natt (19:00–06:59)
+            return "light" if 7 <= datetime.now().hour < 19 else "dark"
         if theme == Theme.SYSTEM.value:
-            # Detektera systemtema
-            try:
-                import sys as _sys
-                if _sys.platform == "win32":
-                    try:
-                        import winreg
-                        with winreg.OpenKey(
-                            winreg.HKEY_CURRENT_USER,
-                            r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
-                        ) as key:
-                            value, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
-                            resolved = "light" if value else "dark"
-                            self._log.debug(
-                                f"{LOG_PREFIX} Systemtema detekterat: {resolved}"
-                            )
-                            return resolved
-                    except OSError as e:
-                        self._log.debug(
-                            f"{LOG_PREFIX} Kunde inte läsa systemtema: {e}"
-                        )
-                else:
-                    # macOS/Linux: fråga Qt (6.5+) vad systemet använder
-                    try:
-                        from PySide6.QtCore import Qt as _Qt
-                        from PySide6.QtGui import QGuiApplication
-                        _app = QGuiApplication.instance()
-                        if _app is not None:
-                            _cs = _app.styleHints().colorScheme()
-                            if _cs == _Qt.ColorScheme.Light:
-                                return "light"
-                            if _cs == _Qt.ColorScheme.Dark:
-                                return "dark"
-                    except Exception:
-                        pass
-                resolved = "dark"  # Default fallback
-                self._log.debug(f"{LOG_PREFIX} Default-tema: {resolved}")
-                return resolved
-            except Exception as e:
-                self._log.warning(
-                    f"{LOG_PREFIX} Tema-detektering misslyckades: {e}"
-                )
-                return "dark"
+            return self.system_theme() or "dark"
         return theme
+
+    @_log_call
+    def theme(self) -> str:
+        """Hämta aktuellt tema (system/auto löses till light/dark)."""
+        return self.theme_quiet()
 
     @_log_call
     def theme_setting(self) -> str:
@@ -1727,6 +1729,10 @@ class Settings(QObject):
     def is_dark(self) -> bool:
         """Är mörkt tema aktivt just nu?"""
         return self.theme() == Theme.DARK.value
+
+    def is_dark_quiet(self) -> bool:
+        """Som is_dark() men utan loggning (för periodiska kontroller)."""
+        return self.theme_quiet() == Theme.DARK.value
 
     @_log_call
     def theme_raw(self) -> str:
@@ -2361,6 +2367,42 @@ class Settings(QObject):
         self._log.info(
             f"{LOG_PREFIX} set_custom_tags: {len(clean_tags)} unika tags"
         )
+        return True
+
+    @_log_call
+    def tag_colors(self) -> Dict[str, str]:
+        """Användarens egna taggfärger: {gement taggnamn: '#rrggbb'} (tomt = alla standardfärger)."""
+        with self._lock:
+            return dict(_clean_tag_colors(self._data.get("tag_colors", {})))
+
+    @_log_setter("tag_colors")
+    def set_tag_color(self, tag: str, color: Optional[str]) -> bool:
+        """Välj färg för en tagg ('#rrggbb'). color=None/'' = tillbaka till standardfärgen."""
+        from core import tag_colors as _tc
+        key = _tc.normalize(tag)
+        if not key:
+            return False
+        new = _tc.normalize_hex(color) if color else None
+        if color and new is None:
+            self._log.error(f"{LOG_PREFIX} set_tag_color: ogiltig färg {color!r}")
+            return False
+        with self._lock:
+            cur = _clean_tag_colors(self._data.get("tag_colors", {}))
+            if new is None:
+                if key not in cur:
+                    return True
+                cur.pop(key, None)
+            else:
+                if cur.get(key) == new:
+                    return True
+                if key not in cur and len(cur) >= _tc.MAX_CUSTOM:
+                    return False
+                cur[key] = new
+            self._data["tag_colors"] = cur
+            snapshot = dict(cur)
+        self._dirty = True
+        self._save_async_worker(self._data)
+        self._safe_emit("tag_colors_changed", snapshot)
         return True
 
     @_log_call

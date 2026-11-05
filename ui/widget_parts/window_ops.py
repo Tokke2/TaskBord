@@ -71,6 +71,12 @@ class WindowOpsMixin:
                 "Koppla ett Google-konto lokalt (OAuth i webbläsaren) och\n"
                 "skicka uppgifter rakt in i din kalender."
             )
+            # Delbetalningsplan (faktura i flera betalningar) + taggfärger
+            act_plan = menu.addAction("💸 Delbetalningsplan…")
+            act_plan.setToolTip(
+                "Dela en faktura i flera betalningar — varje del blir en uppgift med förfallodatum."
+            )
+            act_tagcol = menu.addAction("🏷 Taggfärger…")
             # NY v8: backup av uppgifter
             act_backup = menu.addAction("💾 Backup av uppgifter…")
             act_help = menu.addAction("⌨️ Tangentöversikt (F1)")
@@ -109,6 +115,10 @@ class WindowOpsMixin:
                 self._on_open_google_calendar()
             elif chosen is act_backup:
                 self._on_open_backup()
+            elif chosen is act_plan:
+                self._on_open_payment_plan()
+            elif chosen is act_tagcol:
+                self._on_open_tag_colors()
             elif chosen is act_dock:
                 self.settings.set_edge_dock_enabled(act_dock.isChecked())
                 if not act_dock.isChecked():

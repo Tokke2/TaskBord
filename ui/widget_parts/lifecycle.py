@@ -374,6 +374,15 @@ class LifecycleMixin:
         self.tabs.setTabToolTip(
             1, "Historik: klara uppgifter sparas här för alltid (de tas aldrig bort)"
         )
+        # Flik 3: kalendervy (månadsrutnät med uppgifter per dag, ui/calendar_view.py)
+        from ui.calendar_view import CalendarView
+        self.calendar_view = CalendarView(self)
+        self.calendar_view.task_activated.connect(self._on_calendar_task)
+        self.calendar_view.add_requested.connect(self._on_calendar_add)
+        self.tabs.addTab(self.calendar_view, "📆 Kalender")
+        self.tabs.setTabToolTip(
+            2, "Månadsvy: se vilka dagar som är tunga (antal uppgifter per förfallodag)"
+        )
         self.tabs.currentChanged.connect(self._on_tab_changed)
         self.content_stack.addWidget(self.tabs)
         # Sida 1: Focus Mode (1 task stort + nav-knappar)

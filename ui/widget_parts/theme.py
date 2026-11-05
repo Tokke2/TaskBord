@@ -16,40 +16,58 @@ from ui.widget_atoms import *  # noqa: F401,F403
 class ThemeMixin:
     """Tema och utseende: automatiskt tema och _apply_theme (QSS, textstorlek, densitet)."""
 
-    @_log_call
-    def _check_auto_theme(self) -> None:
+    def _check_auto_theme(self, *_ignored: Any) -> None:
         """
-        NY v7-fix82: klockstyrt tema — växla utan omstart.
+        Följ temat live: växla utan omstart när det som styr temat ändras.
 
-        Körs var 10:e minut (se _init_timers). Gäller ENDAST när
-        användaren valt 'Auto' i tray-menyn (settings theme='auto'):
-        07:00–18:59 = ljust, 19:00–06:59 = mörkt. theme()/is_dark()
-        i settings löser värdet; här detekteras GRÄNSÖVERSKRIDANDET
-        (sparat _theme_is_dark ≠ aktuellt) → _apply_theme() om.
+        * "Följ Windows" (system): Windows ljust/mörkt läge läses färskt — kontrollen körs var 5:e
+          sekund (``_init_timers``) och direkt när Qt säger att färgschemat ändrats
+          (``QStyleHints.colorSchemeChanged``, se ``_watch_system_theme``).
+        * "Auto": klockan passerade 07:00 / 19:00.
+        Övriga lägen (ljust/mörkt fast) gör ingenting. Gränsen detekteras genom att jämföra det
+        sparade ``_theme_is_dark`` med aktuellt värde → ``_apply_theme()``. Tyst (ingen loggning)
+        om inget ändrats, eftersom den körs ofta.
         """
         try:
             raw = None
             with suppress(Exception):
                 if hasattr(self.settings, "theme_raw"):
                     raw = self.settings.theme_raw()
-            if raw != "auto":
-                return  # auto ej valt — gör ingenting
+            if raw not in ("auto", "system"):
+                return  # fast tema valt — gör ingenting
             want_dark = None
             with suppress(Exception):
-                if hasattr(self.settings, "is_dark"):
+                if hasattr(self.settings, "is_dark_quiet"):
+                    want_dark = bool(self.settings.is_dark_quiet())
+                elif hasattr(self.settings, "is_dark"):
                     want_dark = bool(self.settings.is_dark())
             if want_dark is None:
                 return
             current = bool(getattr(self, "_theme_is_dark", not want_dark))
             if want_dark != current:
+                why = "Windows bytte läge" if raw == "system" else "klockan passerade gränsen"
                 logger.info(
-                    f"{LOG_PREFIX} Auto-tema: klockan passerade "
-                    f"gränsen → växlar till "
-                    f"{'mörkt' if want_dark else 'ljust'} (v7-fix82)"
+                    f"{LOG_PREFIX} Tema följer {'Windows' if raw == 'system' else 'klockan'}: {why} "
+                    f"→ växlar till {'mörkt' if want_dark else 'ljust'}"
                 )
                 self._apply_theme()
         except Exception as e:
             logger.debug(f"{LOG_PREFIX} _check_auto_theme: {e}")
+
+    def _watch_system_theme(self) -> None:
+        """Lyssna på Qt:s färgschema-signal (Qt ≥ 6.5) så temat byts direkt när Windows byter läge."""
+        try:
+            from PySide6.QtGui import QGuiApplication
+            app = QGuiApplication.instance()
+            if app is None:
+                return
+            hints = app.styleHints()
+            sig = getattr(hints, "colorSchemeChanged", None)
+            if sig is not None:
+                sig.connect(self._check_auto_theme)
+                self._system_theme_signal = True
+        except Exception as e:
+            logger.debug(f"{LOG_PREFIX} _watch_system_theme: {e}")
 
     def _apply_theme(self) -> None:
         """
@@ -83,6 +101,13 @@ class ThemeMixin:
             # NY v7-fix17: spara tema för paintEvent-auroran + accent-tinter
             self._theme_is_dark: bool = is_dark
             self._theme_accent_hex: str = accent_hex
+            with suppress(Exception):  # kalenderfliken har egen QSS (ui/calendar_view.py)
+                _cv = getattr(self, "calendar_view", None)
+                if _cv is not None:
+                    _cv.apply_theme(
+                        is_dark, accent_hex, t["fg"], t["muted"], t["surface_edge"], t["surface"],
+                        _scaled_px(12),
+                    )
             tab_tint = _hex_rgba(accent_hex, 0.17 if is_dark else 0.14)
             tab_edge = _hex_rgba(accent_hex, 0.45)
 

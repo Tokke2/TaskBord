@@ -172,20 +172,33 @@ else:
 
 if _QT_AVAILABLE:
     class TagChip(QLabel):
-        """Färgkodad tag-chip (klickbar)."""
+        """Färgkodad tag-chip. Vänsterklick = filtrera, högerklick = välj färg.
+
+        Färgen är en HEX-kulör per taggnamn (core/tag_colors.py): samma tagg har samma färg överallt.
+        Chipet är heltäckande (ogenomskinligt) och texten är svart eller vit — den som ger ≥ 4,5:1
+        kontrast — så den är läsbar i både mörkt och ljust tema, även med egna färger.
+        """
 
         clicked = Signal(str)
+        color_menu_requested = Signal(str, object)  # (tagg, global QPoint)
 
         @_log_call
         def __init__(
-            self, text: str, color_index: int = 0, parent: Optional[QWidget] = None
+            self, text: str, color_index: int = 0, parent: Optional[QWidget] = None,
+            color: Optional[str] = None,
         ) -> None:
             super().__init__(text, parent)
+            from core import tag_colors as _tc
             self._text: str = text
             self._color_index: int = color_index % len(TAG_COLORS)
+            self._color: str = _tc.normalize_hex(color) or _tc.default_color(text)
             self._active: bool = False
             self.setMouseTracking(True)
+            self.setToolTip("Klicka: filtrera på taggen  ·  Högerklick: välj färg")
             self._apply_style()
+
+        def tag_color(self) -> str:
+            return self._color
 
         def set_active(self, active: bool) -> None:
             self._active = active
@@ -195,27 +208,24 @@ if _QT_AVAILABLE:
             )
 
         def _apply_style(self) -> None:
-            # Etapp 10 (v7-fix10): moderna glas-chips — tonad färgyta +
-            # kant i samma kulör, vit text läsbar på mörkt/ljust.
-            # OBS: rgba()-strängar (ej QColor.NameFormat) — funkar i
-            # PySide6/PyQt6/PyQt5 utan versionsberoende.
-            base = _qcolor_from_rgba(TAG_COLORS[self._color_index])
-            bg_a = 205 if self._active else 150
-            edge_a = 255 if self._active else 170
+            from core import tag_colors as _tc
+            bg = self._color
+            fg = _tc.text_color_for(bg)
+            edge = fg if self._active else _tc.darker(bg)
+            width = 2 if self._active else 1
             self.setStyleSheet(
-                f"QLabel {{ "
-                f"background-color: rgba({base.red()}, {base.green()}, "
-                f"{base.blue()}, {bg_a}); "
-                f"color: #ffffff; "
-                f"border: 1px solid rgba({base.red()}, {base.green()}, "
-                f"{base.blue()}, {edge_a}); "
+                f"QLabel {{ background-color: {bg}; color: {fg}; "
+                f"border: {width}px solid {edge}; "
                 f"padding: 2px 9px; border-radius: 9px; "
                 f"font-size: {_scaled_px(10)}px; font-weight: 600; }}"
             )
 
         def mousePressEvent(self, event: QMouseEvent) -> None:
             get_throttle().notify_activity()
-            self.clicked.emit(self._text)
+            if event.button() == Qt.MouseButton.RightButton:
+                self.color_menu_requested.emit(self._text, event.globalPosition().toPoint())
+            else:
+                self.clicked.emit(self._text)
             event.accept()
 
 

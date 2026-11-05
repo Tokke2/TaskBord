@@ -55,6 +55,43 @@ class KeyNavMixin:
         except Exception as e:
             logger.warning(f"{LOG_PREFIX} _navigate_tasks: {e}", exc_info=True)
 
+    def _done_and_next(self) -> None:
+        """
+        Snabbtangent "Klar och nästa" (standard Ctrl+D, ändras i inställningarna under "done_next").
+
+        Den markerade uppgiften bockas av och markeringen hamnar direkt på nästa uppgift
+        (är det den sista → på föregående; finns inga fler → tillbaka till inmatningsfältet).
+        Finns ingen markering än väljs bara den översta — så en felaktig tangent aldrig klarmarkerar
+        något man inte sett. Fungerar från inmatningsfältet också. Inte i fokusläget (F3, där Enter gör det).
+        """
+        try:
+            if getattr(self, "_focus_mode", False):
+                return
+            tabs = getattr(self, "tabs", None)
+            if tabs is not None and tabs.currentIndex() != 0:
+                return
+            get_throttle().notify_activity()
+            tids = list(self._nav_tids)
+            if not tids:
+                return
+            if not self._nav_active or self._sel_tid not in tids:
+                self._nav_select(tids[0])
+                return
+            tid = self._sel_tid
+            i = tids.index(tid)
+            nxt = tids[i + 1] if i + 1 < len(tids) else (tids[i - 1] if i > 0 else None)
+            self._on_task_toggle(tid, True)
+            # _nav_after_render har redan flyttat markeringen till grannen; säkra den och scrolla fram kortet
+            left = [t for t in self._nav_tids if t != tid]
+            if not left:
+                self._nav_exit(focus_input=True)
+                return
+            target = nxt if nxt in left else left[min(i, len(left) - 1)]
+            self._nav_select(target)
+            logger.info(f"{LOG_PREFIX} klar och nästa: {tid!r} → {target!r}")
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} _done_and_next: {e}", exc_info=True)
+
     def _nav_select(self, tid: str) -> None:
         """Markera en uppgift, flytta fokus till listan och scrolla fram kortet."""
         self._sel_tid = tid

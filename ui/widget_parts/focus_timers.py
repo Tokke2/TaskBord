@@ -311,13 +311,17 @@ class FocusTimersMixin:
         if not hasattr(self.settings, "shortcuts"):
             return
         try:
-            shortcuts = self.settings.shortcuts()
+            shortcuts = dict(self.settings.shortcuts())
+            # sparade inställningar från äldre versioner saknar "Klar och nästa" → standardtangenten
+            if "done_next" not in shortcuts:
+                shortcuts["done_next"] = getattr(self.settings, "DEFAULT_SHORTCUTS", {}).get("done_next", "Ctrl+D")
             # FIX v7-fix78: varje kortkommando MÅSTE ha en hanterare
             handlers = {
                 "add_task": ("_on_input_submit", self._on_input_submit),
                 "toggle_visible": ("_on_close_clicked", self._on_close_clicked),
                 "open_search": ("_focus_search", self._focus_search),
                 "edit_task": ("_edit_selected_title", self._edit_selected_title),
+                "done_next": ("_done_and_next", self._done_and_next),
                 "next_task": (
                     "_navigate_tasks(ned)",
                     lambda: self._navigate_tasks(Qt.Key.Key_Down),
@@ -412,9 +416,16 @@ class FocusTimersMixin:
         # passerat dag/gränsen (07:00/19:00) och växla isåfall
         # (gäller endast när användaren valt 'Auto' i tray-menyn)
         self._auto_theme_timer = QTimer(self)
-        self._auto_theme_timer.setInterval(600_000)  # 10 minuter
+        # Följ Windows ljust/mörkt live: kontrollera var 5:e sekund (billig registerläsning) — och
+        # direkt via colorSchemeChanged (se _watch_system_theme). Auto (klocka) klarar sig på samma timer.
+        self._auto_theme_timer.setInterval(5_000)
         self._auto_theme_timer.timeout.connect(self._check_auto_theme)
         self._auto_theme_timer.start()
+        with suppress(Exception):
+            self._watch_system_theme()
+        # Taggfärg ändrad (i detta eller ett annat fönster) → rita om korten + kalendern
+        with suppress(Exception):
+            self.settings.tag_colors_changed.connect(self._on_tag_colors_changed)
         # NY v7-fix73: bevaka textfälten — FocusIn aktiverar fönstret
         with suppress(Exception):
             if getattr(self, "input_field", None) is not None:

@@ -536,6 +536,8 @@ class TaskActionsMixin:
         get_throttle().notify_activity()
         old_index = self._active_tab_index
         self._active_tab_index = index
+        if index == getattr(self, "CALENDAR_TAB_INDEX", 2):
+            self._refresh_calendar(force=True)
         self._audit.add(
             "tab_changed", {"from": old_index, "to": index}
         )

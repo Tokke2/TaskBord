@@ -206,9 +206,13 @@ class TaskCardMixin:
                 meta = QHBoxLayout()
                 meta.setSpacing(6)
                 meta.addSpacing(34)  # indrag i linje med titeln
+                _overrides = self._tag_color_overrides()
                 for i, tag in enumerate(tags):
-                    chip = TagChip(tag, color_index=i, parent=container)
+                    # färgen hör till TAGGEN (inte platsen i listan) + användarens eget val
+                    chip = TagChip(tag, color_index=i, parent=container,
+                                   color=self._tag_color_for(tag, _overrides))
                     chip.clicked.connect(self._on_tag_clicked)
+                    chip.color_menu_requested.connect(self._on_tag_color_menu)
                     meta.addWidget(chip)
                 if _is_snoozed(task):
                     sn_lbl = QLabel(

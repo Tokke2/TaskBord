@@ -123,6 +123,96 @@ class ExportsMixin:
                 f"{_describe_widget_error(e)}"
             )
 
+    # ------------------------------------------------------------------
+    # Taggfärger (core/tag_colors.py) — färg per tagg, eget val sparas i inställningarna
+    # ------------------------------------------------------------------
+    def _tag_color_overrides(self) -> Dict[str, str]:
+        try:
+            return dict(self.settings.tag_colors())
+        except Exception:
+            return {}
+
+    def _tag_color_for(self, tag: str, overrides: Optional[Dict[str, str]] = None) -> str:
+        from core import tag_colors as _tc
+        return _tc.resolve(tag, self._tag_color_overrides() if overrides is None else overrides)
+
+    def _on_tag_colors_changed(self, _colors: Any = None) -> None:
+        """Någon ändrade en taggfärg (här eller i ett annat fönster) → rita om korten och kalendern."""
+        with suppress(Exception):
+            self._schedule_rebuild()
+
+    def _set_tag_color(self, tag: str, color: Optional[str]) -> bool:
+        """Spara taggens färg (None = standardfärg). Ritar om via settings.tag_colors_changed."""
+        try:
+            ok = bool(self.settings.set_tag_color(tag, color))
+            if ok:
+                self._on_tag_colors_changed()
+            return ok
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} _set_tag_color: {_describe_widget_error(e)}")
+            return False
+
+    def _on_tag_color_menu(self, tag: str, global_pos: Any) -> None:
+        """Högerklick på en tagg: välj färg ur paletten, egen färg eller tillbaka till standard."""
+        try:
+            get_throttle().notify_activity()
+            from PySide6.QtGui import QColor, QIcon, QPixmap
+            from PySide6.QtWidgets import QColorDialog
+            from core import tag_colors as _tc
+
+            def _icon(hex_color: str) -> Any:
+                pm = QPixmap(16, 16)
+                pm.fill(QColor(hex_color))
+                return QIcon(pm)
+
+            cur = self._tag_color_for(tag)
+            is_custom = _tc.normalize(tag) in self._tag_color_overrides()
+            menu = QMenu(self)
+            head = menu.addAction(f"🎨 Färg för \"{tag}\"")
+            head.setEnabled(False)
+            menu.addSeparator()
+            for name, hex_color in _tc.PALETTE:
+                act = menu.addAction(_icon(hex_color), name)
+                act.setCheckable(True)
+                act.setChecked(hex_color == cur)
+                act.triggered.connect(lambda _c=False, h=hex_color: self._set_tag_color(tag, h))
+            menu.addSeparator()
+            act_own = menu.addAction("🖌 Egen färg…")
+            act_def = menu.addAction("↩ Standardfärg")
+            act_def.setEnabled(is_custom)
+            act_all = menu.addAction("🏷 Alla taggfärger…")
+            chosen = menu.exec(global_pos)
+            if chosen is act_own:
+                col = QColorDialog.getColor(QColor(cur), self, f"Färg för \"{tag}\"")
+                if col.isValid():
+                    self._set_tag_color(tag, col.name())
+            elif chosen is act_def:
+                self._set_tag_color(tag, None)
+            elif chosen is act_all:
+                self._on_open_tag_colors()
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} _on_tag_color_menu: {_describe_widget_error(e)}")
+
+    def _on_open_tag_colors(self) -> None:
+        """Fönstermenyn: 🏷 Taggfärger… (lista över alla taggar med färgval)."""
+        try:
+            get_throttle().notify_activity()
+            from ui.tag_colors_dialog import open_tag_colors_dialog
+            open_tag_colors_dialog(self, self.store, self.settings)
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} _on_open_tag_colors: {_describe_widget_error(e)}")
+
+    def _on_open_payment_plan(self, title: str = "") -> None:
+        """💸 Delbetalningsplan (fönstermenyn / uppgiftsmenyn): N uppgifter med förfallodatum."""
+        try:
+            get_throttle().notify_activity()
+            from ui.payment_plan_dialog import open_payment_plan_dialog
+            ids = open_payment_plan_dialog(self, getattr(self, "store", None), title)
+            if ids:
+                self._schedule_rebuild()
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} _on_open_payment_plan: {_describe_widget_error(e)}")
+
     def _on_show_shortcut_help(self) -> None:
         """F1 / fönstermenyn: ⌨️ Tangentöversikt (alla tangenter, med dina inställningar)."""
         try:
