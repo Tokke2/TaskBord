@@ -6,7 +6,11 @@
 1. Ladda ner eller klona repot och öppna appmappen.
 2. Dubbelklicka på **`FORSTA_START.bat`**. Filen:
    - hämtar senaste stabila Python-versionen från python.org (inget versionsnummer är hårdkodat),
-   - installerar Python om det saknas, eller uppgraderar det om installerad version är äldre än senaste,
+   - **kollar först om Python redan finns.** Finns den installeras ingen ny Python: den uppdateras bara till senaste
+     patch-version i *samma serie* (t.ex. 3.14.7 → senaste 3.14.x, på plats; paket och PATH bevaras). En ny serie
+     (3.15) installeras aldrig bredvid. Är Python installerad för alla användare (kräver administratör) hoppas
+     uppdateringen över, och går det inte att kolla (offline) startar appen med den som finns. **Bara om Python saknas**
+     installeras senaste stabila från python.org,
    - installerar eller uppgraderar alla paket i `requirements.txt` och `requirements-optional.txt` till senaste version,
    - startar Ledgebord med den nyaste Python som finns.
 3. Nästa gång: dubbelklicka på **`STARTA_HAR.bat`**. Den startar direkt med nyaste installerade Python och installerar bara om Python saknas. Inget svart konsollfönster visas: `STARTA_HAR.bat` startar via `STARTA_DOLT.vbs` (dolt), och själva appen körs med `pythonw.exe`, där alla underprogram (schtasks, reg, pip …) startas utan fönster (`core/no_console.py`). Saknas Python öppnas ett synligt installationsfönster. Allra utan blink: använd skrivbordsgenvägen "Ledgebord" eller dubbelklicka `main.pyw`.
