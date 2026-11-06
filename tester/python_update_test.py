@@ -66,7 +66,9 @@ check("pip_update.py: needs_update ger bara paket + fel", '{"packages": [], "err
 msrc = (ROOT / "app/mixins/maintenance.py").read_text(encoding="utf-8")
 check("appens veckokoll bryr sig inte om Python-version", "res.get(\"python\")" not in msrc and "res['python']" not in msrc)
 readme = (ROOT / "README.md").read_text(encoding="utf-8")
+manual = (ROOT / "docs/MANUAL.md").read_text(encoding="utf-8")
 check("README säger att Python inte uppdateras", "Python uppdateras inte" in readme)
+check("manualen säger att Python inte uppdateras", "Python uppdateras inte" in manual)
 
 print(f"\npython_update_test: {ok} lyckades, {fail} misslyckades")
 sys.exit(1 if fail else 0)

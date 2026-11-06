@@ -4,8 +4,11 @@
 icon_art.py — Ledgebords appikon, ritad utan externa paket (bara stdlib: zlib + struct).
 
 Motiv: en indigo rundad ruta med en gul KANTLIST längs vänsterkanten ("ledge") och ett vitt
-uppgiftskort som glider ut från den, med bockade rader. Samma bild används som fönster-, tray-,
-aktivitetsfälts- och genvägsikon (``icon/ledgebord.ico``) och i Thunderbird-tillägget.
+uppgiftskort med bockade rader.
+
+OBS: den medföljande ikonen (``icon/ledgebord.ico``, Thunderbird-tilläggets ikoner, README-bilderna) byggs numera
+av ``icon/bygg_ikoner.py`` från mallen ``icon/ledgebord-master.png``. Den här ritningen är RESERVIKONEN: appen
+använder den (skriven till ``data/ledgebord.ico``) bara om ``icon/ledgebord.ico`` saknas, så att ett Pythonikon aldrig syns.
 
 * ``render(size)``      → RGBA-bytes (rad för rad, uppifrån), supersamplad för mjuka kanter
 * ``build_ico(sizes)``  → .ico med klassiska BMP-poster (≤128 px) + PNG-post för 256 px
@@ -193,8 +196,9 @@ def write_icon_files(folder: Path, sizes: Sequence[int] = ICO_SIZES) -> Tuple[Pa
     return ico, png
 
 
-if __name__ == "__main__":  # python core/icon_art.py [målmapp]
+if __name__ == "__main__":  # python core/icon_art.py <målmapp>
     import sys
-    target = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent / "icon"
-    a, b = write_icon_files(target)
+    if len(sys.argv) < 2:   # skriv aldrig över den medföljande ikonen i icon/ av misstag
+        sys.exit("ange en målmapp, t.ex.:  python core/icon_art.py data   (medföljande ikon byggs av icon/bygg_ikoner.py)")
+    a, b = write_icon_files(Path(sys.argv[1]))
     print(f"skrev {a} ({a.stat().st_size} B) och {b} ({b.stat().st_size} B)")

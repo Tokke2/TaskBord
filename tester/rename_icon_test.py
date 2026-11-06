@@ -74,7 +74,9 @@ def text_tests() -> None:
     check("fönstertiteln är Ledgebord", 'setWindowTitle("Ledgebord")' in (ROOT / "app/mixins/windows.py").read_text(encoding="utf-8"))
     check("APP_NAME är Ledgebord", 'APP_NAME: Final[str] = "Ledgebord"' in (ROOT / "app/constants.py").read_text(encoding="utf-8"))
     check("startskriptet för macOS är omdöpt", (ROOT / "STARTA_LEDGEBORD.command").is_file() and not (ROOT / "STARTA_TASKBORD.command").exists())
-    check("README och app-namn: Ledgebord", (ROOT / "README.md").read_text(encoding="utf-8").lstrip().startswith("#") and "Ledgebord" in (ROOT / "README.md").read_text(encoding="utf-8")[:300])
+    rd = (ROOT / "README.md").read_text(encoding="utf-8")
+    check("README: rubriken Ledgebord överst + banner", "\n# Ledgebord\n" in rd[:600] and "docs/img/banner.png" in rd[:300])
+    check("README: bilderna finns och länkarna går till filer som finns", all((ROOT / m).exists() for m in re.findall(r"\]\(((?:docs/|THUNDERBIRD|GOOGLE|LICENSE)[^)#]*)", rd)) and (ROOT / "docs/img/banner.png").is_file())
     # protokollet mot det installerade Thunderbird-tillägget är oförändrat
     bg = (ROOT / "thunderbird-tillagg/background.js").read_text(encoding="utf-8")
     mb = (ROOT / "core/mail_bridge.py").read_text(encoding="utf-8")
@@ -133,8 +135,16 @@ def icon_tests() -> None:
     a, b = icon_art.write_icon_files(tmp, sizes=(16, 32))
     check("write_icon_files skriver ico + png", a.is_file() and b.is_file() and parse_ico(a.read_bytes())[2][0][0] == 16)
     shutil.rmtree(tmp, ignore_errors=True)
-    check("bundlade filen är exakt det generatorn ritar (ingen avdrift)",
-          ico == icon_art.build_ico(), "kör: python core/icon_art.py")
+    # reservikonen (stdlib) ska fortfarande ge en giltig ico med samma storlekar
+    fb = parse_ico(icon_art.build_ico())[2]
+    check("reservikonen: samma sju storlekar som den medföljande", sorted(e[0] for e in fb) == sizes)
+    # den medföljande ikonen är den nya (byggd från mallen), inte reservritningen
+    check("medföljande ikonen är byggd från mallen (inte reservritningen)", ico != icon_art.build_ico())
+    mp = (ROOT / "icon/ledgebord-master.png").read_bytes()
+    check("mallen: PNG 1024×1024", mp[:8] == b"\x89PNG\r\n\x1a\n" and struct.unpack(">II", mp[16:24]) == (1024, 1024))
+    for s_ in (16, 32, 48, 64, 128):
+        ap = (ROOT / f"thunderbird-tillagg/icons/icon-{s_}.png").read_bytes()
+        check(f"tilläggets icon-{s_}.png: {s_}×{s_}", ap[:8] == b"\x89PNG\r\n\x1a\n" and struct.unpack(">II", ap[16:24]) == (s_, s_))
 
 
 def qt_child() -> None:
@@ -152,7 +162,7 @@ def qt_child() -> None:
     sizes = sorted({(s.width(), s.height()) for s in ico.availableSizes()})
     ck("Qt ser flera storlekar", len(sizes) >= 5, sizes)
     pm = ico.pixmap(48, 48)
-    ck("Qt: 48 px-pixmap har rätt färger (gul kantlist längst till vänster)", pm.toImage().pixelColor(4, 24).red() > 200, pm.toImage().pixelColor(4, 24).getRgb())
+    ck("Qt: 48 px-pixmap har rätt färger (gul kantlist längst till vänster)", pm.toImage().pixelColor(7, 24).red() > 200, pm.toImage().pixelColor(7, 24).getRgb())
 
     # AppIconMixin: bundlad ikon används; saknas den ritas den om (aldrig Python-ikon)
     import app.mixins.app_icon as AI

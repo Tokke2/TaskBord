@@ -368,6 +368,6 @@ else:
     check("render: cache-nyckeln har belopp/anteckning och summan uppdateras", "self._extra_state(task)" in rsrc and rsrc.count("_update_amount_summary") == 2)
     store_src = (ROOT / "core/store.py").read_text(encoding="utf-8")
     check("store: belopp läses in igen (coerce)", 'raw.get("amount_cents")' in store_src and "def set_note" in store_src and "def set_amount" in store_src)
-    check("README beskriver belopp, anteckningar och kontaktuppgifter", all(k in (ROOT / "README.md").read_text(encoding="utf-8") for k in ("## 💰 Belopp", "## 📝 Anteckningar", "klickbara telefonnummer")))
+    check("manualen beskriver belopp, anteckningar och kontaktuppgifter", all(k in (ROOT / "docs/MANUAL.md").read_text(encoding="utf-8") for k in ("## 💰 Belopp", "## 📝 Anteckningar", "klickbara telefonnummer")))
     print(f"\namount_note_contacts_test: {_ok} lyckades, {_fail} misslyckades")
     sys.exit(1 if _fail else 0)
