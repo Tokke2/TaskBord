@@ -238,6 +238,40 @@ Tryck **F1** (i fönstret) så visas alla tangenter och snabbkommandon, **med di
 
 Klara uppgifter hamnar i *Arkiverade* och **tas aldrig bort** – varken av appen, av „rensa arkiv“ (finns inte längre), av automatisk städning (finns ingen) eller av att återställa en äldre backup (nyare arkiverade uppgifter läggs då till i arkivet). Arkiverade uppgifter har ingen „Ta bort“-knapp. Du kan fortfarande markera en arkiverad uppgift som oklar, då blir den aktiv igen. Länkar/bilagor kan läggas till på arkiverade uppgifter men inte tas bort.
 
+## 💰 Belopp
+
+Högerklicka på en uppgift → **💰 Belopp…** och skriv t.ex. `4000`, `4 000 kr` eller `1 234,50` (tomt = ta bort). Beloppet
+visas som en grön chip på kortet (klick = ändra) och sparas i ören, så summorna blir exakta. Uppgifterna som en
+**delbetalningsplan** skapar får sina belopp automatiskt.
+
+* **Summaraden** ovanför listan visar summan i den vy du ser: *kvar* (ej klarmarkerade), *försenat* (förfallodatum före
+  idag), *denna månad* och *klarmarkerat*. Söker du eller klickar på en tagg följer summan med — skriv `limo` i sökfältet
+  och se vad som ligger kvar att fakturera för limo. Raden syns bara när någon uppgift har belopp.
+* **Klicka på summaraden** för fördelningen: per förfallomånad, per tagg (en uppgift med flera taggar räknas under varje
+  tagg) och i arkivet *klart per månad* (efter klardatum).
+* Beloppet följer med till kalenderposten ("Belopp: 4 000 kr") och PDF-checklistan. Arkiverade uppgifter behåller
+  sitt belopp (och det går att ändra, arkivet raderas aldrig).
+
+## 📝 Anteckningar
+
+Högerklicka → **📝 Anteckning…** öppnar en ruta för längre text med flera rader (Ctrl+Retur sparar, upp till 50 000
+tecken). Kortet visar en lila chip med första raden (`+` om det finns fler rader; hovra för hela texten, klicka för att
+redigera). Sökfältet söker även i anteckningar. Anteckningen skickas med när uppgiften läggs i kalendern, och mail- och
+urklippsuppgifter som redan har en anteckning visar den nu också.
+
+## 📞 Klickbara telefonnummer och 📍 adresser
+
+Appen letar i titeln och anteckningen och gör **klickbara telefonnummer och adresser** av det den hittar:
+
+* **📞 Telefon** (070-123 45 67, 0701234567, 08-123 456 78, +46 70 123 45 67, +47 …): klick ger en meny — *Ring* (`tel:`),
+  *Skicka SMS* eller *Kopiera numret*. Menyn finns eftersom `tel:` inte är kopplat till något program på alla datorer;
+  *Kopiera* fungerar alltid.
+* **📍 Adress** (`Storgatan 12 B, 111 22 Stockholm`, `Norra Hamngatan 4`): klick öppnar **Google Maps**; högerklick ger
+  *Vägbeskrivning hit* och *Kopiera adressen*. En adress behöver gatunamn med stor bokstav och typisk ändelse (…gatan,
+  …vägen, …gränd, …torget …) plus husnummer.
+* Datum, belopp, organisations- och personnummer och OCR-/fakturanummer tolkas **inte** som telefonnummer. Högst 3 nummer
+  och 2 adresser visas per kort. Ingenting skickas någonstans förrän du klickar.
+
 ## 🔠 Textstorlek (Kompakt · Normal · Stor)
 
 Högerklicka på tray-ikonen → **Textstorlek**: *Kompakt* (mindre text, tätare kort, döljer raden "Tillagd" – du ser fler uppgifter), *Normal* (som förut) eller *Stor* (större text, luftigare). Valet sparas.
@@ -542,6 +576,7 @@ fasad — alla importer (`from widget import TodoWidget`) fungerar som förut:
 | Fil | Innehåll |
 | --- | --- |
 | `ui/widget.py` | `TodoWidget(mixins…, QWidget)` — signaler, `__init__` och diagnostik |
+| `ui/extras_dialogs.py`, `ui/widget_parts/extras.py` | anteckningsdialogen, beloppsöversikten och mixinen för belopp, anteckningar och klickbara kontaktuppgifter (logiken ligger Qt-fri i `core/amounts.py` och `core/contacts.py`) |
 | `ui/widget_base.py` | konstanter, teman, hjälpfunktioner, logg/felhantering, PWM, `parse_natural_input` |
 | `ui/widget_atoms.py` | `EditableLabel`, `TagChip`, `LinkChip`, `PriorityBadge`, `PriorityDot`, `DueDateLabel`, `GlassFrame` |
 | `ui/calendar_view.py`, `ui/payment_plan_dialog.py`, `ui/tag_colors_dialog.py` | kalenderfliken, delbetalningsdialogen, taggfärgsdialogen (logiken ligger Qt-fri i `core/calendar_grid.py`, `core/payment_plan.py`, `core/tag_colors.py`) |

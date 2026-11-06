@@ -164,6 +164,15 @@ class TaskMenuMixin:
             menu.addSeparator()
             act = menu.addAction("✏️ Redigera titel…")
             act.triggered.connect(lambda _c: self._prompt_rename(tid))
+            from core import amounts as _am
+            from core.payment_plan import format_amount as _fa
+            _cur_amt = _am.task_amount(task)
+            act = menu.addAction(f"💰 Belopp… ({_fa(_cur_amt)})" if _cur_amt else "💰 Belopp…")
+            act.setToolTip("Belopp i kronor — summeras ovanför listan och per månad/tagg")
+            act.triggered.connect(lambda _c: self._edit_amount(tid))
+            act = menu.addAction("📝 Redigera anteckning…" if task.get("note") else "📝 Anteckning…")
+            act.setToolTip("Längre text med flera rader. Telefonnummer och adresser i den blir klickbara på kortet")
+            act.triggered.connect(lambda _c: self._edit_note(tid))
             if not self._task_is_archived(tid):
                 act = menu.addAction("💸 Delbetalningsplan från den här…")
                 act.setToolTip("Dela upp i flera betalningar — titeln fylls i från uppgiften")

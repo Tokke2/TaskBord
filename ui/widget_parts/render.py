@@ -482,6 +482,7 @@ class RenderMixin:
                 )
                 if not archived:
                     self._update_stats_chip(0, 0, n_snoozed_hidden)
+                    self._update_amount_summary([])
                 empty_label = QLabel(empty_text, self)
                 empty_label.setObjectName("emptyHint")
                 empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -491,6 +492,7 @@ class RenderMixin:
                 self._update_archive_tab_count(0)
                 return
             if not archived:
+                self._update_amount_summary(tasks)
                 # v7-fix17: live-stats i headern
                 self._update_stats_chip(
                     len(tasks),
@@ -722,6 +724,7 @@ class RenderMixin:
                 _task_has_email(task),
                 tuple((x.get("url"), x.get("title")) for x in (task.get("links") or [])),
                 tuple(x.get("file") for x in (task.get("attachments") or [])),
+                self._extra_state(task),
             )
             if tid in self._task_widgets and not archived:
                 existing = self._task_widgets[tid]

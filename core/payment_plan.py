@@ -195,4 +195,6 @@ def create_tasks(store: Any, plan: List[Dict[str, Any]], priority: str = "none",
         if not tid:
             break
         ids.append(tid)
+        if item.get("amount_cents") and hasattr(store, "set_amount"):
+            store.set_amount(tid, int(item["amount_cents"]))   # beloppet följer med så att summorna stämmer
     return ids

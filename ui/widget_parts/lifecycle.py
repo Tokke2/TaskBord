@@ -356,14 +356,22 @@ class LifecycleMixin:
         self.search_input = QLineEdit(self)
         self.search_input.setObjectName("searchInput")
         self.search_input.setPlaceholderText(
-            "🔍  Sök uppgifter (titel eller tagg)…"
+            "🔍  Sök uppgifter (titel, tagg eller anteckning)…"
         )
         self.search_input.setToolTip(
-            "Sok i uppgiftstitlar och taggar. Tomt = visa alla."
+            "Sök i titlar, taggar och anteckningar. Tomt = visa alla."
         )
         self.search_input.setClearButtonEnabled(True)
         self.search_input.textChanged.connect(self._on_search_changed)
         root.addWidget(self.search_input)
+        # Belopp: summan i den vy som visas (dold när ingen uppgift har belopp); klick = fördelning
+        self.amount_summary = QPushButton("", self)
+        self.amount_summary.setObjectName("amountSummary")
+        self.amount_summary.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.amount_summary.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.amount_summary.setVisible(False)
+        self.amount_summary.clicked.connect(self._show_amount_overview)
+        root.addWidget(self.amount_summary)
         # NY v6.4.1: StackedWidget med 2 sidor (Normal + Focus Mode)
         self.content_stack = QStackedWidget(self)
         self.content_stack.addTab = self.content_stack.addWidget  # alias

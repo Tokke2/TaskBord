@@ -246,6 +246,8 @@ class TaskCardMixin:
 
             # Länkar (🔗) och bilagor (📎)
             self._add_link_rows(container, vbox, task, archived)
+            # Belopp (💰), anteckning (📝), telefonnummer (📞) och adresser (📍)
+            self._add_extra_rows(container, vbox, task, archived)
 
             # Datumraden visas alltid: skapad-datum för aktiva och
             # avslutsdatum för arkiverade uppgifter.

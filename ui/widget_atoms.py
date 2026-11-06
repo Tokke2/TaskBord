@@ -243,6 +243,11 @@ if _QT_AVAILABLE:
         clicked = Signal(str)                 # key (url eller filens relativa sökväg)
         menu_requested = Signal(str, object)  # key, global position
         MAX_CHARS: ClassVar[int] = 30
+        # chipens art → objectName (stilen i temat): länk, bilaga, belopp, anteckning, telefon/adress
+        OBJECT_NAMES: ClassVar[Dict[str, str]] = {
+            "attachment": "attachChip", "amount": "amountChip", "note": "noteChip",
+            "phone": "contactChip", "address": "contactChip",
+        }
 
         def __init__(
             self, text: str, key: str, kind: str = "link", tooltip: str = "",
@@ -251,9 +256,13 @@ if _QT_AVAILABLE:
             super().__init__(parent)
             self._key = key
             self._kind = kind
-            self.setObjectName("attachChip" if kind == "attachment" else "linkChip")
+            self.setObjectName(self.OBJECT_NAMES.get(kind, "linkChip"))
             self.setProperty("chipKind", kind)
-            self.setText(self.elide(text, self.MAX_CHARS))
+            if kind == "note":      # anteckning: början av texten, inte "början…slut"
+                one = " ".join(str(text or "").split())
+                self.setText(one if len(one) <= 36 else one[:35].rstrip() + "…")
+            else:
+                self.setText(self.elide(text, self.MAX_CHARS))
             self.setToolTip(tooltip or key)
             self.setCursor(Qt.CursorShape.PointingHandCursor)
             self.setFocusPolicy(Qt.FocusPolicy.NoFocus)

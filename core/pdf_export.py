@@ -202,6 +202,13 @@ def render_checklist_html(
                     + " #".join(_html_escape(x) for x in tags)
                     + "</span>"
                 )
+            try:
+                from core.amounts import task_amount
+                from core.payment_plan import format_amount
+                if task_amount(t):
+                    extra += f" &nbsp;<span class='tags'>{_html_escape(format_amount(task_amount(t)))}</span>"
+            except Exception:
+                pass
             if due:
                 # vänligt datum + färg (försenade = röda)
                 label, color = _due_label(due)

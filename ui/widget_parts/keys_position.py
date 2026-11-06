@@ -24,6 +24,9 @@ class KeysPositionMixin:
             tokens.update(self._tokenize_cached(title))
         for tag in task.get("tags", []):
             tokens.add(tag.lower())
+        note = task.get("note")
+        if isinstance(note, str) and note:
+            tokens.update(self._tokenize_cached(note[:2000]))
         return tokens
 
     @staticmethod

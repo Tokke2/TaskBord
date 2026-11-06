@@ -1100,6 +1100,16 @@ def _coerce_remind_info(raw: Any) -> Dict[str, str]:
     return out
 
 
+MAX_AMOUNT_CENTS: Final[int] = 10 ** 12
+
+
+def _coerce_amount(raw: Any) -> int:
+    """Belopp i ören: heltal 1 … 10^12, annars 0 (inget belopp)."""
+    if isinstance(raw, bool) or not isinstance(raw, int):
+        return 0
+    return raw if 0 < raw <= MAX_AMOUNT_CENTS else 0
+
+
 def _coerce_links(raw: Any) -> List[Dict[str, str]]:
     """Länkar på en uppgift: ``[{url, title}]`` (bara http/https, utan dubbletter)."""
     out: List[Dict[str, str]] = []
@@ -1213,6 +1223,10 @@ def _coerce_task(raw: Any, idx: int = 0) -> Optional[Dict[str, Any]]:
         rinfo = _coerce_remind_info(raw.get("remind_info"))
         if rinfo:
             out["remind_info"] = rinfo
+    # Belopp i ören (heltal) — sparas bara om det finns
+    amount = _coerce_amount(raw.get("amount_cents"))
+    if amount:
+        out["amount_cents"] = amount
     # Länkar och bilagor (listor) — sparas bara om de finns
     links = _coerce_links(raw.get("links"))
     if links:
@@ -2431,6 +2445,41 @@ class TaskStore(QObject):
     # Länkar och bilagor (fungerar på aktiva OCH arkiverade uppgifter; att TA BORT
     # en länk/bilaga går bara på aktiva — arkivet är historik som inte ändras bakåt)
     # ------------------------------------------------------------------
+    def _set_optional_field(self, task_id: str, key: str, value: Any, action: str) -> bool:
+        """Sätt (eller ta bort, vid value=None) ett valfritt fält på en uppgift — även på arkiverade (ingen historik förloras)."""
+        with self._lock:
+            task = self._by_id.get(task_id)
+            if task is None:
+                logger.warning(f"{LOG_PREFIX} {action}: {task_id!r} hittades inte")
+                return False
+            before = _safe_copy(task)
+            if task.get(key) == value or (value is None and key not in task):
+                return False
+            if value is None:
+                task.pop(key, None)
+            else:
+                task[key] = value
+            self._dirty = True
+        self._find_cache.clear()
+        self._filter_cache.clear()
+        self._audit_log.add(action, task_id, before=before, after=_safe_copy(task))
+        logger.info(f"{LOG_PREFIX} {action}: {task_id!r}")
+        self._emit("task_updated", task_id)
+        self._emit("changed")
+        return True
+
+    @_log_crud("set_note")
+    def set_note(self, task_id: str, note: Optional[str]) -> bool:
+        """Anteckning (flera rader, max 50 000 tecken). Tom text tar bort anteckningen."""
+        text = str(note or "").replace("\r\n", "\n").replace("\r", "\n").strip()[:_EXTRA_TASK_MAX_LEN]
+        return self._set_optional_field(task_id, "note", text or None, "set_note")
+
+    @_log_crud("set_amount")
+    def set_amount(self, task_id: str, amount_cents: Optional[int]) -> bool:
+        """Belopp i ören (None/0 tar bort beloppet)."""
+        v = _coerce_amount(amount_cents)
+        return self._set_optional_field(task_id, "amount_cents", v or None, "set_amount")
+
     def _change_task_list(
         self, task_id: str, key: str, action: str, fn: Any, allow_archived: bool = True
     ) -> bool:
@@ -3016,7 +3065,8 @@ class TaskStore(QObject):
         # Query (text search)
         if q:
             tasks = [t for t in tasks if q in t["title"].lower() or
-                     any(q in tag.lower() for tag in t.get("tags", []))]
+                     any(q in tag.lower() for tag in t.get("tags", [])) or
+                     q in str(t.get("note") or "").lower()]
         # Sortering
         if sort_by == "pinned_first":
             # Pinned först, sedan enligt sort_by

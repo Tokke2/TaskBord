@@ -188,6 +188,13 @@ def _description(task: Dict[str, Any], inkl_datum: bool = True) -> str:
         topp.append(f"Prioritet: {prio}")
     if tags:
         topp.append("Taggar: " + ", ".join(tags))
+    try:
+        from core.amounts import task_amount
+        from core.payment_plan import format_amount
+        if task_amount(task):
+            topp.append("Belopp: " + format_amount(task_amount(task)).replace("\u00a0", " "))
+    except Exception:
+        pass
     if topp:
         rader.extend(topp)
         rader.append("")
