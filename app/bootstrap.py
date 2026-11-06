@@ -869,13 +869,14 @@ def run() -> int:
             )
             _shown = False
             with suppress(Exception):
-                _shown = InstanceMessenger().notify(default_key(), "SHOW")
+                from core.single_instance import tell_running_instance
+                _shown = tell_running_instance(autostart=("--autostart" in sys.argv))
             if not _shown and is_pyw:
                 with suppress(Exception):
                     import ctypes
                     ctypes.windll.user32.MessageBoxW(
                         None,
-                        "Ledgebord körs redan.\n\nEn andra instans startas inte.",
+                        "Ledgebord körs redan men svarade inte på \"visa dig\".\n\nTitta i systemfältet (tray) vid klockan — klicka på ikonen.",
                         APP_NAME,
                         0x00000040,
                     )
@@ -908,12 +909,9 @@ def run() -> int:
                 # befintliga instansen). Misslyckas det → gamla rutan kvar.
                 _notified = False
                 with suppress(Exception):
-                    from core.single_instance import (
-                        InstanceMessenger, default_key,
-                    )
-                    _notified = InstanceMessenger().notify(
-                        default_key(), "SHOW"
-                    )
+                    from core.single_instance import tell_running_instance
+                    _notified = tell_running_instance(
+                        autostart=("--autostart" in sys.argv))
                 if _notified:
                     log.info(
                         f"{LOG_PREFIX} befintlig instans signalerad — "
@@ -924,7 +922,7 @@ def run() -> int:
                         import ctypes
                         ctypes.windll.user32.MessageBoxW(
                             None,
-                            "En instans av Ledgebord körs redan.\n\nAvslutar.",
+                            "Ledgebord körs redan men svarade inte på \"visa dig\".\n\nTitta i systemfältet (tray) vid klockan — klicka på ikonen.",
                             APP_NAME,
                             0x00000040,  # MB_ICONINFORMATION
                         )
@@ -943,8 +941,9 @@ def run() -> int:
             )
             _notified2 = False
             with suppress(Exception):
-                from core.single_instance import InstanceMessenger, default_key
-                _notified2 = InstanceMessenger().notify(default_key(), "SHOW")
+                from core.single_instance import tell_running_instance
+                _notified2 = tell_running_instance(
+                    autostart=("--autostart" in sys.argv))
             if not _notified2 and is_pyw:
                 with suppress(Exception):
                     import ctypes

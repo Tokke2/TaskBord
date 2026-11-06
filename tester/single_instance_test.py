@@ -79,5 +79,28 @@ check("main.pyw avbryter om Ledgebord redan kör", "find_running_taskbord(8765, 
 check("bryggan startar alltid vid appstart", "_init_mail_bridge(at_startup=True)" in main and "_http_on = _watch_on = True" in main)
 check("brygg-omstart om porten var upptagen", "_retry_mail_bridge_start" in main)
 
+# --- andra start öppnar den som kör (tell_running_instance) ---------------------------------------------------------
+from core.single_instance import tell_running_instance  # noqa: E402
+
+calls = []
+check("andra start: levereras direkt → True, ett försök", tell_running_instance(notify=lambda k: calls.append(k) or True, sleep=lambda s: None) is True and len(calls) == 1)
+t = [0.0]
+tries = []
+def _late(k):
+    tries.append(t[0])
+    return t[0] >= 6.0          # den körande appen börjar lyssna först efter 6 s (fönstren byggs)
+def _sleep(s):
+    t[0] += s
+check("andra start: den körande appen är inte klar än → provar om tills den lyssnar (ingen ruta)",
+      tell_running_instance(notify=_late, sleep=_sleep, clock=lambda: t[0], total=15, step=0.5) is True and len(tries) == 13)
+t[0] = 0.0
+check("andra start: ingen lyssnar på 15 s → False (då visas rutan)", tell_running_instance(notify=lambda k: False, sleep=_sleep, clock=lambda: t[0], total=15, step=0.5) is False and t[0] >= 15)
+check("andra start: notify som kastar tas om hand", tell_running_instance(notify=lambda k: (_ for _ in ()).throw(OSError("x")), sleep=lambda s: None, clock=iter([0, 99]).__next__, total=1) is False)
+calls.clear()
+check("fördröjd autostart som kommer efter din egen start: inget SHOW (fönstret hoppar inte fram)", tell_running_instance(autostart=True, notify=lambda k: calls.append(k) or True) is True and not calls)
+bsrc = (ROOT / "app" / "bootstrap.py").read_text(encoding="utf-8")
+check("bootstrap: alla tre vägarna använder tell_running_instance", bsrc.count("tell_running_instance(") == 3 and ".notify(default_key()" not in bsrc)
+check("bootstrap: --autostart skickas vidare", bsrc.count('"--autostart" in sys.argv') == 3)
+
 print(f"\nsingle_instance_test: {ok} lyckades, {fail} misslyckades")
 sys.exit(1 if fail else 0)

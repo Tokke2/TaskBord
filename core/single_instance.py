@@ -300,6 +300,40 @@ class InstanceMessenger:
             return False
 
 
+def tell_running_instance(autostart: bool = False, key: Optional[str] = None, notify=None,
+                          total: float = 15.0, step: float = 0.5, sleep=None, clock=None) -> bool:
+    """
+    En ANDRA start av Ledgebord (en annan instans äger redan låset) ska ÖPPNA den som kör.
+
+    Den körande instansen lyssnar först när fönstren är byggda (några sekunder efter start) — därför
+    provas kanalen om och om igen i upp till ``total`` sekunder i stället för att ge upp direkt och visa
+    en ruta. Meddelandet ligger kvar i kanalen tills den körande appens händelseloop går igång.
+
+    * ``autostart=True`` (den fördröjda Starta-med-datorn-starten kom efter att du redan startat själv):
+      inget meddelande — fönstret är ju redan öppet och ska inte hoppa fram igen.
+    * Returnerar True när den körande instansen fick \"SHOW\" (eller när inget behövdes), annars False.
+    """
+    if autostart:
+        return True
+    import time as _t
+    sleep = sleep or _t.sleep
+    clock = clock or _t.monotonic
+    if notify is None:
+        def notify(k):  # noqa: E306
+            return InstanceMessenger().notify(k, "SHOW")
+    key = key or default_key()
+    end = clock() + max(0.0, float(total))
+    while True:
+        try:
+            if notify(key):
+                return True
+        except Exception as e:  # kastar aldrig vidare
+            logger.debug(f"{LOG_PREFIX} notify kastade: {e}")
+        if clock() >= end:
+            return False
+        sleep(step)
+
+
 # Qt-signalen måste vara en riktig PySide6-Signal — bygg upp klassen
 # dynamiskt när Qt finns (samma mönster som övriga moduler i projektet).
 try:

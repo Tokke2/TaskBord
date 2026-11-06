@@ -366,6 +366,16 @@ genvägen som `INSTALLERA.bat` skapar och Thunderbird-tillägget. Appen ger sig 
 * **Thunderbird:** tillägget heter nu *Ledgebord* (v1.2.0) – installera `Ledgebord-Thunderbird.xpi` en gång
   till (samma id, så det ersätter det gamla). Appen påminner om det.
 
+## 1️⃣ Bara en instans – starta igen = öppna den som kör
+
+Ledgebord kan bara köra **en gång åt gången** (namngivet lås + fillås i datamappen + koll av mail-bryggan). Startar du
+appen igen – genväg, `STARTA_HAR.bat`, Thunderbird-tillägget eller dubbelklick på `main.pyw` – startas ingen ny kopia:
+den nya starten säger till den som kör, och **den öppnar sitt fönster** (även om det låg i tray eller var dockat), ett
+kort tray-meddelande bekräftar. Är den första kopian fortfarande på väg upp (fönstren byggs några sekunder) väntar den
+nya starten upp till 15 s och försöker igen, så att du aldrig får en ruta i stället för fönstret. Den fördröjda
+Windows-starten (`--autostart`) som kommer efter att du redan startat själv avslutar sig tyst utan att flytta fönstret.
+Först om den körande kopian inte svarar alls (t.ex. en mycket gammal version) visas en ruta som pekar på tray-ikonen.
+
 ## ↔ Dockning vid skärmkant
 
 **Dra fönstret mot vänster, höger eller övre skärmkanten och släpp** – då dockas det: när musen lämnar
