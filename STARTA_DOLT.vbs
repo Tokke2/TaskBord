@@ -1,5 +1,5 @@
 ' Ledgebord - startar utan svart konsollfonster.
-' Kor FORSTA_START.bat /snabb i ett dolt fonster (hittar nyaste Python och startar pythonw).
+' Kor FORSTA_START.bat /snabb i ett dolt fonster (hittar systemets Python och startar pythonw).
 ' Gar det fel (t.ex. Python saknas) oppnar FORSTA_START.bat ett synligt installationsfonster.
 Dim sh, fso, dir
 Set sh = CreateObject("WScript.Shell")

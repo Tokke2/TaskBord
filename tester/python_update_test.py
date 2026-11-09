@@ -70,5 +70,10 @@ manual = (ROOT / "docs/MANUAL.md").read_text(encoding="utf-8")
 check("README säger att Python inte uppdateras", "Python uppdateras inte" in readme)
 check("manualen säger att Python inte uppdateras", "Python uppdateras inte" in manual)
 
+# systemets egen Python: den i PATH vinner, mapparna genomsöks bara om PATH saknar en användbar
+fp = bat.split("\n:find_python", 1)[1].split("\n:check_py", 1)[0] if "\n:find_python" in bat else ""
+check("find_python: PATH-Python först", fp.find("%~$PATH:X") != -1 and fp.find("%~$PATH:X") < fp.find("LOCALAPPDATA"))
+check("find_python: hittad PATH-Python används direkt (ingen jakt på nyare)", "if defined PY exit /b 0" in fp and fp.find("if defined PY exit /b 0") < fp.find("LOCALAPPDATA"))
+
 print(f"\npython_update_test: {ok} lyckades, {fail} misslyckades")
 sys.exit(1 if fail else 0)

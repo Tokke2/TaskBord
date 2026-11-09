@@ -117,7 +117,9 @@ exit /b 0
 
 
 REM ------------------------------------------------------------
-REM  Hitta den NYASTE installerade Python 3.10+.
+REM  Hitta systemets egen Python 3.10+: den som ligger forst i PATH (samma som
+REM  "python" i ett kommandofonster). Bara om PATH saknar en anvandbar Python
+REM  letas standardmapparna igenom (nyaste installerade).
 REM  Satter PY (sokvag) och PYNUM (minor*1000 + micro, t.ex. 15000).
 REM ------------------------------------------------------------
 :find_python
@@ -126,6 +128,7 @@ set "PYNUM=0"
 set "CAND="
 for %%X in (python.exe) do set "CAND=%%~$PATH:X"
 if defined CAND call :check_py "%CAND%"
+if defined PY exit /b 0
 for /d %%D in ("%LOCALAPPDATA%\Programs\Python\Python3*") do call :check_py "%%~fD\python.exe"
 for /d %%D in ("%ProgramFiles%\Python3*") do call :check_py "%%~fD\python.exe"
 exit /b 0
