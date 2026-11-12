@@ -20,5 +20,8 @@ client_secret*.json
 # Genvägen Ledgebord.lnk skapas lokalt av appen (Windows)
 /Ledgebord.lnk
 
+# Tryckfiler för logotypen byggs av icon/bygg_ikoner.py och laddas upp på releasen — inte i git/appen
+/logotyp/
+
 # Loggar (egen undermapp i appmappen) — lokala, ska inte i git
 /loggar/

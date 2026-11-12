@@ -137,3 +137,18 @@ def logo_stapel(variant: str = "farg", spot: str = "#000000") -> str:
             '<title>Ledgebord</title>'
             f'<defs>{_defs(p, "s")}</defs><g transform="translate({ix:.1f} 0)">{_icon_body(p, "s")}</g>'
             f'{_word(p, s, (W - w) / 2, base)}</svg>\n')
+
+
+def alla() -> Dict[str, str]:
+    """Alla logotypfiler som släpps: filnamn (utan .svg) → SVG-text."""
+    return {
+        "ledgebord-ikon": ikon(),
+        "ledgebord-ikon-svart": ikon("svart"),
+        "ledgebord-ikon-vit": ikon("vit"),
+        "ledgebord-logo": logo_liggande(),
+        "ledgebord-logo-vit": logo_liggande("vit"),
+        "ledgebord-logo-svart": logo_liggande("svart"),
+        "ledgebord-logo-stapel": logo_stapel(),
+        "ledgebord-logo-stapel-vit": logo_stapel("vit"),
+        "ledgebord-logo-stapel-svart": logo_stapel("svart"),
+    }

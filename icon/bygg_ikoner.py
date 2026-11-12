@@ -8,8 +8,8 @@ bygg_ikoner.py — bygger ALLA Ledgebords ikoner, logotyper och README-bilder fr
     python icon/bygg_ikoner.py
 
 Skriver:
-  logotyp/*.svg                                  logotyper som vektor-SVG för tryck (färg, vit, svart, spotfärg)
-  logotyp/png/*.png                              samma som genomskinliga PNG (ikon 1024 px, logotyper 3000 px)
+  logotyp/Ledgebord-logotyp.zip (+ SVG/, PNG/)   logotyper som vektor-SVG för tryck + PNG. Mappen ligger i .gitignore:
+                                                 filerna laddas upp på GitHub-releasen, de ingår inte i appen
   icon/ledgebord.ico + icon/ledgebord.png        appens ikon (fönster, tray, aktivitetsfält, genvägar, autostart)
   thunderbird-tillagg/icons/icon-16…128.png      Thunderbird-tilläggets ikoner
   docs/img/ikon.png, docs/img/banner.png         logotypen i README
@@ -77,23 +77,42 @@ def build_ico(sizes=ICO_SIZES) -> bytes:
     return head + table + blobs
 
 
-def write_svgs() -> list:
-    out = ROOT / "logotyp"
-    (out / "png").mkdir(parents=True, exist_ok=True)
-    files = {
-        "ledgebord-ikon": S.ikon(),
-        "ledgebord-ikon-svart": S.ikon("svart"),
-        "ledgebord-ikon-vit": S.ikon("vit"),
-        "ledgebord-logo": S.logo_liggande(),
-        "ledgebord-logo-vit": S.logo_liggande("vit"),
-        "ledgebord-logo-svart": S.logo_liggande("svart"),
-        "ledgebord-logo-stapel": S.logo_stapel(),
-        "ledgebord-logo-stapel-vit": S.logo_stapel("vit"),
-        "ledgebord-logo-stapel-svart": S.logo_stapel("svart"),
-    }
+LASMIG = """Ledgebord — logotyp för tryck
+===============================
+
+SVG/      vektorfiler (skalbara utan kvalitetsförlust) — använd dessa för tryck, skyltar, tröjor, broderi m.m.
+PNG/      samma som genomskinliga PNG (ikon 1024 px, logotyper 3000 px) för skärm och dokument.
+
+ledgebord-ikon          appikonen (rundad ruta)          -svart / -vit = enfärgat tryck / mörk botten
+ledgebord-logo          ikon + ordet "Ledgebord", liggande
+ledgebord-logo-stapel   ikonen över ordet
+
+Filerna är rena former och toningar: inga filter, inga bilder och ingen typsnittsfil — ordet "Ledgebord" är omritat
+till banor (Inter ExtraBold, SIL Open Font License 1.1, (c) The Inter Project Authors).
+Färger (RGB): indigo #4F46E5, violett #7C3AED, mörk indigo #2A2370, gul #FBBF24 / #F59E0B, vit #FFFFFF.
+För CMYK-tryck: öppna SVG:n i Inkscape/Illustrator och konvertera till tryckeriets färgprofil.
+
+Copyright (c) Rickard Langkvist, 2025-2026. Licens: MIT (se LICENSE i projektet).
+"""
+
+
+def write_logotyp(out: Path) -> list:
+    """Skriver logotyperna (SVG + PNG) och ``Ledgebord-logotyp.zip`` i ``out``. Mappen ligger INTE i git: zip-filen och
+    de två viktigaste SVG:erna laddas upp som filer på GitHub-releasen (se docs/MANUAL.md)."""
+    import zipfile
+    (out / "SVG").mkdir(parents=True, exist_ok=True)
+    (out / "PNG").mkdir(parents=True, exist_ok=True)
+    files = S.alla()
     for name, svg in files.items():
-        (out / f"{name}.svg").write_text(svg, encoding="utf-8")
-        raster(svg, 1024 if "ikon" in name else 3000).save(out / "png" / f"{name}.png", optimize=True)
+        (out / "SVG" / f"{name}.svg").write_text(svg, encoding="utf-8")
+        raster(svg, 1024 if "ikon" in name else 3000).save(out / "PNG" / f"{name}.png", optimize=True)
+    (out / "LASMIG.txt").write_text(LASMIG, encoding="utf-8")
+    zp = out / "Ledgebord-logotyp.zip"
+    with zipfile.ZipFile(zp, "w", zipfile.ZIP_DEFLATED) as z:
+        z.write(out / "LASMIG.txt", "LASMIG.txt")
+        for sub in ("SVG", "PNG"):
+            for f in sorted((out / sub).iterdir()):
+                z.write(f, f"{sub}/{f.name}")
     return sorted(files)
 
 
@@ -129,7 +148,7 @@ def banner(w: int = 1280, h: int = 320) -> Image.Image:
 
 
 def main(argv=None) -> int:
-    names = write_svgs()
+    names = write_logotyp(ROOT / "logotyp")
     (ROOT / "icon" / "ledgebord.ico").write_bytes(build_ico())
     sized(256).save(ROOT / "icon" / "ledgebord.png", optimize=True)
     for s_ in ADDON_SIZES:
@@ -138,7 +157,7 @@ def main(argv=None) -> int:
     img.mkdir(parents=True, exist_ok=True)
     sized(256).save(img / "ikon.png", optimize=True)
     banner().save(img / "banner.png", optimize=True)
-    print(f"klart: {len(names)} logotyper i logotyp/, icon/ledgebord.ico + .png, thunderbird-tillagg/icons/*, docs/img/*")
+    print(f"klart: {len(names)} logotyper + Ledgebord-logotyp.zip i logotyp/ (inte i git — ladda upp på releasen), icon/ledgebord.ico + .png, thunderbird-tillagg/icons/*, docs/img/*")
     return 0
 
 

@@ -59,7 +59,7 @@ uppgifterna, kopiera `js\` först.
 - [Manual](docs/MANUAL.md) — alla funktioner, genvägar och inställningar
 - [Thunderbird-tillägget](THUNDERBIRD.md) — skicka mail till Ledgebord
 - [Google Calendar](GOOGLE_CALENDAR.md) — koppla kalendern
-- [Logotyp som SVG för tryck](logotyp/) · [Ikoner](docs/MANUAL.md#-namn-och-ikon) · [Kodstruktur](docs/MANUAL.md#-kodstruktur-för-den-som-ändrar-koden)
+- [Logotyp som SVG för tryck](https://github.com/Tokke2/TaskBord/releases/latest) (under *Assets* på releasen) · [Ikoner](docs/MANUAL.md#-namn-och-ikon) · [Kodstruktur](docs/MANUAL.md#-kodstruktur-för-den-som-ändrar-koden)
 
 ## 💖 Stöd projektet
 

@@ -141,24 +141,22 @@ def icon_tests() -> None:
     # den medföljande ikonen är den nya (byggd från mallen), inte reservritningen
     check("medföljande ikonen är byggd från mallen (inte reservritningen)", ico != icon_art.build_ico())
     import xml.etree.ElementTree as ET
-    svgs = sorted((ROOT / "logotyp").glob("*.svg"))
-    check("logotyp/: nio SVG-filer (ikon, liggande, stapel × färg/vit/svart)", len(svgs) == 9, [f.name for f in svgs])
+    sys.path.insert(0, str(ROOT / "icon"))
+    import ledgebord_svg
+    svgs = ledgebord_svg.alla()
+    check("nio SVG-logotyper (ikon, liggande, stapel × färg/vit/svart)", len(svgs) == 9, sorted(svgs))
     bad = []
-    for f in svgs:
-        txt = f.read_text(encoding="utf-8")
+    for name, txt in svgs.items():
         root = ET.fromstring(txt)
         tags = {el.tag.split("}")[-1] for el in root.iter()}
         if tags & {"image", "filter", "text", "style", "script", "foreignObject"} or "font-family" in txt or "data:" in txt:
-            bad.append(f.name)
+            bad.append(name)
         if not root.get("viewBox"):
-            bad.append(f.name + ":viewBox")
+            bad.append(name + ":viewBox")
     check("SVG-logotyperna är rena vektorer för tryck (ingen bild/filter/text/typsnitt, har viewBox)", not bad, bad)
-    sys.path.insert(0, str(ROOT / "icon"))
-    import ledgebord_svg
-    check("ikon-SVG:n och logotypen är byggda av generatorn (ingen avdrift)",
-          (ROOT / "logotyp/ledgebord-ikon.svg").read_text(encoding="utf-8") == ledgebord_svg.ikon()
-          and (ROOT / "logotyp/ledgebord-logo.svg").read_text(encoding="utf-8") == ledgebord_svg.logo_liggande())
-    check("PNG-versioner av logotyperna finns", len(list((ROOT / "logotyp/png").glob("*.png"))) == 9)
+    check("tryckfilerna ligger INTE i repot/appen (de är filer på releasen)", not (ROOT / "logotyp").exists() or
+          subprocess.run(["git", "check-ignore", "-q", "logotyp/x"], cwd=ROOT).returncode == 0)
+    check("logotyp/ står i .gitignore", "/logotyp/" in (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines())
     for s_ in (16, 32, 48, 64, 128):
         ap = (ROOT / f"thunderbird-tillagg/icons/icon-{s_}.png").read_bytes()
         check(f"tilläggets icon-{s_}.png: {s_}×{s_}", ap[:8] == b"\x89PNG\r\n\x1a\n" and struct.unpack(">II", ap[16:24]) == (s_, s_))
