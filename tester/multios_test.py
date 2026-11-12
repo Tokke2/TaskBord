@@ -163,6 +163,11 @@ if real.startswith("linux"):
         r = subprocess.run([sys.executable, "-c", code], cwd=ROOT, env=env, capture_output=True, text=True, timeout=60)
         line = [l for l in r.stdout.splitlines() if l.startswith("R ")]
         check("Linux: autostart på → .desktop skapas, av → tas bort", line and line[-1] == "R True True True False", r.stdout[-300:] + r.stderr[-300:])
+        code2 = ("import sys,glob; sys.path.insert(0,'core'); sys.path.insert(0,'.'); import desktop as d; d.enable_autostart(); "
+                 "f=glob.glob(sys.argv[1]+'/.config/autostart/*.desktop'); print('D', open(f[0]).read() if f else '')")
+        r2 = subprocess.run([sys.executable, "-c", code2, str(home)], cwd=ROOT, env=env, capture_output=True, text=True, timeout=60)
+        check("Linux: autostart-posten har Ledgebords ikon (Icon=…/icon/ledgebord.png)",
+              f"Icon={ROOT}/icon/ledgebord.png" in r2.stdout, r2.stdout[-300:] + r2.stderr[-300:])
     finally:
         shutil.rmtree(home, ignore_errors=True)
 

@@ -4634,12 +4634,14 @@ def enable_autostart_linux(
     delay_line = (
         f"X-GNOME-Autostart-Delay={delay_sec}\n" if delay_sec > 0 else ""
     )
+    icon_png = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "icon", "ledgebord.png")
+    icon_line = f"Icon={icon_png}\n" if os.path.isfile(icon_png) else ""   # Ledgebords ikon i inställningar/aktivitetsvyer
     content = f"""[Desktop Entry]
 Type=Application
 Name=Ledgebord
 GenericName=Desktop Todo
 Comment=Desktop todo widget (autostart)
-Exec={cmd}
+{icon_line}Exec={cmd}
 Terminal=false
 StartupNotify=false
 X-GNOME-Autostart-enabled=true

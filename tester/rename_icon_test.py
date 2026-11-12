@@ -140,8 +140,25 @@ def icon_tests() -> None:
     check("reservikonen: samma sju storlekar som den medföljande", sorted(e[0] for e in fb) == sizes)
     # den medföljande ikonen är den nya (byggd från mallen), inte reservritningen
     check("medföljande ikonen är byggd från mallen (inte reservritningen)", ico != icon_art.build_ico())
-    mp = (ROOT / "icon/ledgebord-master.png").read_bytes()
-    check("mallen: PNG 1024×1024", mp[:8] == b"\x89PNG\r\n\x1a\n" and struct.unpack(">II", mp[16:24]) == (1024, 1024))
+    import xml.etree.ElementTree as ET
+    svgs = sorted((ROOT / "logotyp").glob("*.svg"))
+    check("logotyp/: nio SVG-filer (ikon, liggande, stapel × färg/vit/svart)", len(svgs) == 9, [f.name for f in svgs])
+    bad = []
+    for f in svgs:
+        txt = f.read_text(encoding="utf-8")
+        root = ET.fromstring(txt)
+        tags = {el.tag.split("}")[-1] for el in root.iter()}
+        if tags & {"image", "filter", "text", "style", "script", "foreignObject"} or "font-family" in txt or "data:" in txt:
+            bad.append(f.name)
+        if not root.get("viewBox"):
+            bad.append(f.name + ":viewBox")
+    check("SVG-logotyperna är rena vektorer för tryck (ingen bild/filter/text/typsnitt, har viewBox)", not bad, bad)
+    sys.path.insert(0, str(ROOT / "icon"))
+    import ledgebord_svg
+    check("ikon-SVG:n och logotypen är byggda av generatorn (ingen avdrift)",
+          (ROOT / "logotyp/ledgebord-ikon.svg").read_text(encoding="utf-8") == ledgebord_svg.ikon()
+          and (ROOT / "logotyp/ledgebord-logo.svg").read_text(encoding="utf-8") == ledgebord_svg.logo_liggande())
+    check("PNG-versioner av logotyperna finns", len(list((ROOT / "logotyp/png").glob("*.png"))) == 9)
     for s_ in (16, 32, 48, 64, 128):
         ap = (ROOT / f"thunderbird-tillagg/icons/icon-{s_}.png").read_bytes()
         check(f"tilläggets icon-{s_}.png: {s_}×{s_}", ap[:8] == b"\x89PNG\r\n\x1a\n" and struct.unpack(">II", ap[16:24]) == (s_, s_))
@@ -162,7 +179,7 @@ def qt_child() -> None:
     sizes = sorted({(s.width(), s.height()) for s in ico.availableSizes()})
     ck("Qt ser flera storlekar", len(sizes) >= 5, sizes)
     pm = ico.pixmap(48, 48)
-    ck("Qt: 48 px-pixmap har rätt färger (gul kantlist längst till vänster)", pm.toImage().pixelColor(7, 24).red() > 200, pm.toImage().pixelColor(7, 24).getRgb())
+    ck("Qt: 48 px-pixmap har rätt färger (gul kantlist längst till vänster)", pm.toImage().pixelColor(3, 24).red() > 200, pm.toImage().pixelColor(3, 24).getRgb())
 
     # AppIconMixin: bundlad ikon används; saknas den ritas den om (aldrig Python-ikon)
     import app.mixins.app_icon as AI

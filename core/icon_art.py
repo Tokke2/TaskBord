@@ -7,7 +7,7 @@ Motiv: en indigo rundad ruta med en gul KANTLIST längs vänsterkanten ("ledge")
 uppgiftskort med bockade rader.
 
 OBS: den medföljande ikonen (``icon/ledgebord.ico``, Thunderbird-tilläggets ikoner, README-bilderna) byggs numera
-av ``icon/bygg_ikoner.py`` från mallen ``icon/ledgebord-master.png``. Den här ritningen är RESERVIKONEN: appen
+av ``icon/bygg_ikoner.py`` ur vektorritningen ``icon/ledgebord_svg.py``. Den här ritningen är RESERVIKONEN: appen
 använder den (skriven till ``data/ledgebord.ico``) bara om ``icon/ledgebord.ico`` saknas, så att ett Pythonikon aldrig syns.
 
 * ``render(size)``      → RGBA-bytes (rad för rad, uppifrån), supersamplad för mjuka kanter

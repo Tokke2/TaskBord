@@ -59,7 +59,7 @@ uppgifterna, kopiera `js\` först.
 - [Manual](docs/MANUAL.md) — alla funktioner, genvägar och inställningar
 - [Thunderbird-tillägget](THUNDERBIRD.md) — skicka mail till Ledgebord
 - [Google Calendar](GOOGLE_CALENDAR.md) — koppla kalendern
-- [Ikoner och logotyp](docs/MANUAL.md#-namn-och-ikon) · [Kodstruktur](docs/MANUAL.md#-kodstruktur-för-den-som-ändrar-koden)
+- [Logotyp som SVG för tryck](logotyp/) · [Ikoner](docs/MANUAL.md#-namn-och-ikon) · [Kodstruktur](docs/MANUAL.md#-kodstruktur-för-den-som-ändrar-koden)
 
 ## 💖 Stöd projektet
 

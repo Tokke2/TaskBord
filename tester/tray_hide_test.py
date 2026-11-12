@@ -112,6 +112,12 @@ def child() -> None:
     w.contextMenuEvent(Ev())
     ck("högerklicksmenyn har 'Minimera till systemfältet'", any("systemfältet" in a for a in seen["acts"]), seen)
     ck("…och valet gömmer", len(got) == n + 1)
+    qgot: list = []
+    w.quit_requested.connect(lambda: qgot.append(1))
+    pick["t"] = "❌"
+    w.contextMenuEvent(Ev())
+    ck("högerklicksmenyn har '❌ Avsluta Ledgebord' (enda vägen att stänga utan systemfält)", any(a.startswith("❌") for a in seen["acts"]), seen)
+    ck("…och valet skickar quit_requested", qgot == [1])
 
     # ----- kontrollern (TrayHideMixin) -----
     from app.mixins.tray_hide import TrayHideMixin
@@ -147,6 +153,11 @@ def child() -> None:
 
     class Ctl(TrayHideMixin):
         _QSystemTrayIcon = type("T", (), {"MessageIcon": type("I", (), {"Information": 2})})
+        _QTimer = type("Q", (), {"singleShot": staticmethod(lambda ms, fn: fn())})
+        asked: list = []
+
+        def _ask_quit(self, no_tray=False):
+            self.asked.append(no_tray)
 
         def __init__(self, visible=True):
             self._tray = Tray(visible)
@@ -179,6 +190,54 @@ def child() -> None:
 
     c2 = Ctl(visible=False)
     ck("ingen tray-ikon → fönstret göms INTE (man skulle bli utelåst)", c2._hide_to_tray() is False and c2.sh.vis is True and not c2._is_hidden_to_tray())
+    ck("…och användaren får frågan om appen ska avslutas i stället (no_tray)", c2.asked == [True], c2.asked)
+    c2._hide_to_tray(notice=False)
+    ck("tyst försök (start minimerad) frågar inte", c2.asked == [True])
+
+    # _ask_quit: riktiga metoden mot en falsk QMessageBox
+    import PySide6.QtWidgets as QW
+    real_box = QW.QMessageBox
+    clicked = {"which": "Avsluta"}
+
+    class FakeBox:
+        Icon = real_box.Icon
+        ButtonRole = real_box.ButtonRole
+        texts: list = []
+
+        def __init__(self):
+            self.btn = {}
+
+        def setWindowTitle(self, t): pass
+        def setIcon(self, i): pass
+        def setText(self, t): FakeBox.texts.append(t)
+        def setInformativeText(self, t): FakeBox.texts.append(t)
+
+        def addButton(self, label, role):
+            self.btn[label] = object()
+            return self.btn[label]
+
+        def exec(self): return 0
+        def clickedButton(self): return self.btn[clicked["which"]]
+
+    class Ctl2(TrayHideMixin):
+        def __init__(self):
+            self._log = logging.getLogger("th")
+            self.down = 0
+
+        def shutdown(self):
+            self.down += 1
+
+    QW.QMessageBox = FakeBox
+    try:
+        q = Ctl2()
+        q._ask_quit(no_tray=True)
+        ck("_ask_quit (inget systemfält): 'Avsluta' avslutar appen", q.down == 1 and any("inget systemfält" in t for t in FakeBox.texts), FakeBox.texts)
+        clicked["which"] = "Behåll"
+        q._ask_quit()
+        ck("_ask_quit: 'Behåll' avslutar inte", q.down == 1)
+        ck("_ask_quit lämnar inte spärren låst", not getattr(q, "_quit_prompt_open", False))
+    finally:
+        QW.QMessageBox = real_box
 
     c3 = Ctl()
     c3.sm = True

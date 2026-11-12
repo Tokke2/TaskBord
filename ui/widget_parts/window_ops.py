@@ -98,6 +98,8 @@ class WindowOpsMixin:
             # NY v8: frivillig donation (öppnar ui/donate.py-dialogen)
             menu.addSeparator()
             act_donate = menu.addAction("💖 Stöd Ledgebord…")
+            act_quit = menu.addAction("❌ Avsluta Ledgebord")
+            act_quit.setToolTip("Stänger Ledgebord helt (påminnelser och mailbrygga stoppas). ✕ gömmer bara fönstret.")
             chosen = menu.exec(event.globalPos())
             if chosen is act_center:
                 self._center_window(reset_size=False)
@@ -107,6 +109,8 @@ class WindowOpsMixin:
                 self._toggle_lock()
             elif chosen is act_top:
                 self.top_toggle_requested.emit()
+            elif chosen is act_quit:
+                self.quit_requested.emit()
             elif chosen is act_pdf:
                 self._on_export_pdf()
             elif chosen is act_cal:

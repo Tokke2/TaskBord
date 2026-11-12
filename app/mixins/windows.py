@@ -204,6 +204,7 @@ class WindowsMixin:
                         # Knapparna – / ✕ + stäng-förfrågan → göm till systemfältet
                         with suppress(Exception):
                             w.hide_to_tray_requested.connect(self._hide_to_tray)
+                            w.quit_requested.connect(self._ask_quit)
                         self._log.info(
                             f"{LOG_PREFIX} widget {wid!r}: steg 2/4 — TodoWidget "
                             f"skapad utan krasch"

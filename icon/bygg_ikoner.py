@@ -1,36 +1,45 @@
 # -*- coding: utf-8 -*-
 # Copyright © Rickard Längkvist, 2025–2026
 """
-bygg_ikoner.py — bygger ALLA Ledgebords ikoner och README-bilder från en enda mallbild (utvecklarverktyg, kräver Pillow).
+bygg_ikoner.py — bygger ALLA Ledgebords ikoner, logotyper och README-bilder från vektorritningen i icon/ledgebord_svg.py
+(utvecklarverktyg).
 
-    pip install pillow
-    python icon/bygg_ikoner.py                      # bygger allt från icon/ledgebord-master.png
-
-Mallbilden ``icon/ledgebord-master.png`` är en kvadratisk PNG (1024 px, rundade hörn, genomskinliga hörn). Ny mall från
-en vanlig bild:  python icon/bygg_ikoner.py --ny-mall bild.png [--mitt X,Y --storlek N]
+    pip install pillow resvg-py
+    python icon/bygg_ikoner.py
 
 Skriver:
+  logotyp/*.svg                                  logotyper som vektor-SVG för tryck (färg, vit, svart, spotfärg)
+  logotyp/png/*.png                              samma som genomskinliga PNG (ikon 1024 px, logotyper 3000 px)
   icon/ledgebord.ico + icon/ledgebord.png        appens ikon (fönster, tray, aktivitetsfält, genvägar, autostart)
   thunderbird-tillagg/icons/icon-16…128.png      Thunderbird-tilläggets ikoner
   docs/img/ikon.png, docs/img/banner.png         logotypen i README
 
-Själva appen behöver inte Pillow: ikonfilerna ligger färdiga i repot (och ``core/icon_art.py`` ritar en reservikon
-om filen skulle saknas).
+Varje storlek ritas direkt från vektorn (inte nedskalad); 16–64 px använder en förenklad, grövre variant så att raderna
+syns i aktivitetsfältet. Själva appen behöver varken Pillow eller resvg: filerna ligger färdiga i repot (och
+``core/icon_art.py`` ritar en reservikon om ikonfilen skulle saknas).
 """
 from __future__ import annotations
 
-import argparse
+import io
+import struct
 import sys
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
+import resvg_py
+
 ROOT = Path(__file__).resolve().parent.parent
-MASTER = ROOT / "icon" / "ledgebord-master.png"
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "icon"))
+import ledgebord_svg as S  # noqa: E402
+from core import icon_art  # noqa: E402
+
 ICO_SIZES = (16, 24, 32, 48, 64, 128, 256)
 ADDON_SIZES = (16, 32, 48, 64, 128)
 FONT_BOLD = ("DejaVuSans-Bold.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", "seguisb.ttf", "arialbd.ttf")
 FONT_REG = ("DejaVuSans.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "segoeui.ttf", "arial.ttf")
+SMALL_MAX = 64    # upp till så här många px används den förenklade ikonen
 
 
 def _font(names, size):
@@ -42,36 +51,21 @@ def _font(names, size):
     return ImageFont.load_default(size)
 
 
-def make_master(src: Path, out: Path, center=None, size=None, radius=0.22) -> None:
-    """Beskär en kvadrat ur ``src`` och rundar hörnen → 1024 px mall."""
-    im = Image.open(src).convert("RGB")
-    w, h = im.size
-    size = size or min(w, h)
-    cx, cy = center or (w // 2, h // 2)
-    box = (cx - size // 2, cy - size // 2, cx + size // 2, cy + size // 2)
-    sq = im.crop(box).resize((1024, 1024), Image.LANCZOS)
-    mask = Image.new("L", sq.size, 0)
-    ImageDraw.Draw(mask).rounded_rectangle((0, 0, 1023, 1023), int(1024 * radius), fill=255)
-    out_im = sq.convert("RGBA")
-    out_im.putalpha(mask)
-    out_im.save(out, optimize=True)
+def raster(svg: str, width: int) -> Image.Image:
+    """Ritar en SVG-sträng till en RGBA-bild med given bredd (genomskinlig bakgrund)."""
+    data = bytes(resvg_py.svg_to_bytes(svg_string=svg, width=width))
+    return Image.open(io.BytesIO(data)).convert("RGBA")
 
 
-def sized(master: Image.Image, s: int) -> Image.Image:
-    im = master.resize((s, s), Image.LANCZOS)
-    if s <= 48:   # små storlekar: lite skärpa så att kanterna inte flyter ut
-        im = im.filter(ImageFilter.UnsharpMask(radius=0.6, percent=80, threshold=0))
-    return im
+def sized(s: int) -> Image.Image:
+    return raster(S.ikon(liten=s <= SMALL_MAX), s)
 
 
-def build_ico(master: Image.Image, sizes=ICO_SIZES) -> bytes:
+def build_ico(sizes=ICO_SIZES) -> bytes:
     """Samma ICO-uppbyggnad som core/icon_art.py: BMP-poster ≤128 px, PNG-post för 256 px (fungerar med LoadImage)."""
-    sys.path.insert(0, str(ROOT))
-    import struct
-    from core import icon_art
     entries = []
     for s in sizes:
-        rgba = sized(master, s).tobytes()
+        rgba = sized(s).tobytes()
         entries.append((s, icon_art.build_png(s, rgba) if s >= 256 else icon_art._bmp_entry(s, rgba)))
     head = struct.pack("<HHH", 0, 1, len(entries))
     offset = 6 + 16 * len(entries)
@@ -83,7 +77,27 @@ def build_ico(master: Image.Image, sizes=ICO_SIZES) -> bytes:
     return head + table + blobs
 
 
-def banner(master: Image.Image, w: int = 1280, h: int = 320) -> Image.Image:
+def write_svgs() -> list:
+    out = ROOT / "logotyp"
+    (out / "png").mkdir(parents=True, exist_ok=True)
+    files = {
+        "ledgebord-ikon": S.ikon(),
+        "ledgebord-ikon-svart": S.ikon("svart"),
+        "ledgebord-ikon-vit": S.ikon("vit"),
+        "ledgebord-logo": S.logo_liggande(),
+        "ledgebord-logo-vit": S.logo_liggande("vit"),
+        "ledgebord-logo-svart": S.logo_liggande("svart"),
+        "ledgebord-logo-stapel": S.logo_stapel(),
+        "ledgebord-logo-stapel-vit": S.logo_stapel("vit"),
+        "ledgebord-logo-stapel-svart": S.logo_stapel("svart"),
+    }
+    for name, svg in files.items():
+        (out / f"{name}.svg").write_text(svg, encoding="utf-8")
+        raster(svg, 1024 if "ikon" in name else 3000).save(out / "png" / f"{name}.png", optimize=True)
+    return sorted(files)
+
+
+def banner(w: int = 1280, h: int = 320) -> Image.Image:
     """README-banner: indigo → violett, ikonen till vänster, namn + en rad text."""
     bg = Image.new("RGB", (w, h))
     px = bg.load()
@@ -97,38 +111,34 @@ def banner(master: Image.Image, w: int = 1280, h: int = 320) -> Image.Image:
     glow = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     ImageDraw.Draw(glow).ellipse((w - 520, -160, w + 160, 520), fill=(167, 139, 250, 55))
     bg = Image.alpha_composite(bg.convert("RGBA"), glow)
-    ic = master.resize((200, 200), Image.LANCZOS)
+    ic = raster(S.ikon(), 200)
     shadow = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     ImageDraw.Draw(shadow).rounded_rectangle((86, 74, 286, 274), 44, fill=(0, 0, 0, 90))
     bg = Image.alpha_composite(bg, shadow.filter(ImageFilter.GaussianBlur(14)))
     bg.paste(ic, (80, 60), ic)
     d = ImageDraw.Draw(bg)
-    d.text((330, 78), "Ledgebord", font=_font(FONT_BOLD, 92), fill=(255, 255, 255))
+    sc = 0.05    # samma omritade ord som i logotypen (Inter ExtraBold)
+    ww, wh = int(S.WORD_ADV * sc) + 4, 150
+    word = raster(f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {ww} {wh}" width="{ww}" height="{wh}">'
+                  f'<path transform="translate(0 {1490 * sc + 6:.1f}) scale({sc})" fill="#FFFFFF" d="{S.WORD_PATH}"/></svg>', ww)
+    bg.paste(word, (330, 70), word)
+    d = ImageDraw.Draw(bg)
     d.rectangle((334, 196, 394, 202), fill=(252, 211, 77))
     d.text((332, 214), "Uppgiftslistan som ligger på skrivbordet", font=_font(FONT_REG, 34), fill=(224, 220, 255))
     return bg.convert("RGB")
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__.split("\n")[1])
-    ap.add_argument("--ny-mall", metavar="BILD", help="gör en ny mall (icon/ledgebord-master.png) av en vanlig bild")
-    ap.add_argument("--mitt", metavar="X,Y", help="mittpunkt för beskärningen (pixlar)")
-    ap.add_argument("--storlek", type=int, help="beskärningens sidlängd (pixlar)")
-    a = ap.parse_args(argv)
-    if a.ny_mall:
-        c = tuple(int(v) for v in a.mitt.split(",")) if a.mitt else None
-        make_master(Path(a.ny_mall), MASTER, c, a.storlek)
-        print("skrev", MASTER)
-    master = Image.open(MASTER).convert("RGBA")
-    (ROOT / "icon" / "ledgebord.ico").write_bytes(build_ico(master))
-    sized(master, 256).save(ROOT / "icon" / "ledgebord.png", optimize=True)
-    for s in ADDON_SIZES:
-        sized(master, s).save(ROOT / "thunderbird-tillagg" / "icons" / f"icon-{s}.png", optimize=True)
+    names = write_svgs()
+    (ROOT / "icon" / "ledgebord.ico").write_bytes(build_ico())
+    sized(256).save(ROOT / "icon" / "ledgebord.png", optimize=True)
+    for s_ in ADDON_SIZES:
+        sized(s_).save(ROOT / "thunderbird-tillagg" / "icons" / f"icon-{s_}.png", optimize=True)
     img = ROOT / "docs" / "img"
     img.mkdir(parents=True, exist_ok=True)
-    sized(master, 256).save(img / "ikon.png", optimize=True)
-    banner(master).save(img / "banner.png", optimize=True)
-    print("klart: icon/ledgebord.ico, icon/ledgebord.png, thunderbird-tillagg/icons/*, docs/img/ikon.png, docs/img/banner.png")
+    sized(256).save(img / "ikon.png", optimize=True)
+    banner().save(img / "banner.png", optimize=True)
+    print(f"klart: {len(names)} logotyper i logotyp/, icon/ledgebord.ico + .png, thunderbird-tillagg/icons/*, docs/img/*")
     return 0
 
 

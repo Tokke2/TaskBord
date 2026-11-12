@@ -171,7 +171,8 @@ kör du `./starta.sh` igen installeras nya paket bara om kraven ändrats. Debian
 | Funktion | Windows | macOS | Linux |
 |---|---|---|---|
 | Uppgifter, backup, mail-brygga, kalender, uppdatering | ✅ | ✅ | ✅ |
-| Start med datorn | Startup-genväg med ikon | LaunchAgent | `~/.config/autostart` |
+| Stäng/minimera → systemfältet | ✅ tray | ✅ menyraden | ✅ om skrivbordet har ett systemfält (GNOME behöver tillägget *AppIndicator*); annars se nedan |
+| Start med datorn | Startup-genväg med ikon | LaunchAgent | `~/.config/autostart` (med ikon) |
 | "Visa över andra appar" (kryssruta) / på skrivbordet | Win32 (på skrivbordet) | Qt-flaggor (överst; "bakom" ignoreras av macOS) | Qt-flaggor (X11 fullt, Wayland beroende på skrivbord) |
 | Globala snabbtangenter (Ctrl+Alt+…) | ✅ | ❌ (använd tray-menyn) | ❌ (använd tray-menyn) |
 | Google-nyckel (`token.json`) | krypterad (DPAPI) | filrättighet 0600 | filrättighet 0600 |
@@ -336,7 +337,8 @@ Knapparna **–** (minimera) och **✕** (stäng) uppe till höger, högerklicks
 stäng-förfrågan (Alt+F4) **gömmer fönstret till tray**. Ledgebord fortsätter köra (påminnelser, mailbrygga,
 snabbtangenter). Tillbaka: klicka på **tray-ikonen**, tray-menyn → *Visa*, snabbtangenten för ny uppgift eller starta
 appen igen. **Avsluta** helt: tray-menyn → ❌ Avsluta. Win+D gömmer fortfarande inte fönstret — bara dessa knappar.
-Finns ingen tray-ikon göms inget (så du aldrig blir utelåst).
+Finns ingen tray-ikon göms inget (så du aldrig blir utelåst) — i stället frågar Ledgebord om du vill **avsluta** (så går appen
+alltid att stänga, även på ett skrivbord utan systemfält). Du kan också högerklicka i fönstret → **❌ Avsluta Ledgebord**.
 
 **Start med datorn → minimerad:** när Ledgebord startar med Windows (tray → *Starta med datorn*) startar den direkt
 i systemfältet, utan fönster (kommandot får flaggan `--autostart`; befintliga autostart-poster skrivs om automatiskt
@@ -426,10 +428,16 @@ uppgiftskort – ligger i `icon\ledgebord.ico` och används överallt: fönster,
 genvägen som `INSTALLERA.bat` skapar, autostart-genvägen och README-bilderna. Appen ger sig själv ett eget
 *AppUserModelID* (annars visar Windows Pythons ikon för `pythonw.exe`).
 
-* **Alla ikoner byggs från en mall:** `icon/ledgebord-master.png` (1024 px). `python icon/bygg_ikoner.py` (kräver
-  `pip install pillow`, bara för den som ändrar ikonen) skriver om `icon/ledgebord.ico` + `.png`,
+* **Logotyp som vektor (för tryck):** mappen `logotyp/` innehåller logotypen som **SVG** — ikon, liggande logotyp
+  (ikon + ordet) och stående — i färg, vit (för mörk botten) och svart (enfärgat tryck), plus genomskinliga PNG i
+  `logotyp/png/`. SVG:erna är rena former och toningar (inga filter, inga bilder, ingen typsnittsfil): ordet
+  "Ledgebord" är omritat till banor (Inter ExtraBold, SIL OFL 1.1), så filerna ser likadana ut överallt och kan
+  skickas direkt till tryckeriet. Färger: indigo `#4F46E5`, violett `#7C3AED`, mörk indigo `#2A2370`, gul `#FBBF24`/`#F59E0B`.
+  För CMYK-tryck: öppna SVG:n i Inkscape/Illustrator och konvertera till tryckeriets färgprofil.
+* **Allt byggs från en ritning:** `icon/ledgebord_svg.py` (ren text, inga paket). `python icon/bygg_ikoner.py` (kräver
+  `pip install pillow resvg-py`, bara för den som ändrar ikonen) skriver om `logotyp/`, `icon/ledgebord.ico` + `.png`
+  (varje storlek ritas direkt från vektorn; 16–64 px använder en grövre variant som syns i aktivitetsfältet),
   Thunderbird-tilläggets `icon-16…128.png` och README-bilderna `docs/img/ikon.png` och `docs/img/banner.png`.
-  Ny mall av en vanlig bild: `python icon/bygg_ikoner.py --ny-mall bild.png --mitt X,Y --storlek N`.
 * **Reservikon:** saknas ikonfilen eller går den inte att läsa ritar appen en liknande ikon själv
   (`core/icon_art.py`, bara standardbiblioteket) till `data/ledgebord.ico` — aldrig en Python-ikon.
 * **Aktivitetshanteraren:** i *Processer* och *Detaljer* kommer ikonen från programfilen `pythonw.exe`, som Windows

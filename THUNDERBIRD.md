@@ -264,7 +264,7 @@ Felsökningskonsol` (Ctrl+Shift+J) visar tilläggets `console.info`-rader
 | `thunderbird-tillagg/background.js` | All logik: meny, kö, notiser, HTTP mot bryggan |
 | `thunderbird-tillagg/popup.html` / `popup.js` | Popupen (prioritet/datum/taggar + snabbuppgift) |
 | `thunderbird-tillagg/options.html` / `options.js` | Inställningar (klistra in JSON, testa anslutning) |
-| `thunderbird-tillagg/icons/` | Ikoner (byggs från `icon/ledgebord-master.png` av `skapa_ikoner.py`) |
+| `thunderbird-tillagg/icons/` | Ikoner (byggs av `skapa_ikoner.py` från `icon/ledgebord_svg.py`) |
 | `core/mail_bridge.py` | Appens brygga: HTTP-server, dedup-register, inkorgsbevakning |
 | `core/email_import.py` | Befintlig `.eml`/`.msg`-import (återanvänds av bryggan) |
 | `skapa_xpi.py` / `SKAPA_XPI.bat` | Packar tillägget till `Ledgebord-Thunderbird.xpi` |
