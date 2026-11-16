@@ -56,8 +56,20 @@ if not defined PY goto :python_not_found
 echo [1/5] Python finns redan: %PY% - Python uppdateras inte, den installerade anvands.
 goto :python_ok
 
-REM -- Python saknas: installera senaste stabila --
+REM -- Python saknas: visa vad som provades, fraga sedan om senaste stabila ska installeras --
 :python_not_found
+echo [INFO] Ingen Python 3.10+ hittades. Detta provades:
+echo   - python i PATH:
+where python.exe 2>nul
+echo   - py-startprogrammet (py -0p):
+py -0p 2>nul
+echo   - mappen %LOCALAPPDATA%\Programs\Python:
+dir /b "%LOCALAPPDATA%\Programs\Python" 2>nul
+echo   - varje kandidat (version som Python svarar med):
+set "LEDGEBORD_DEBUG=1"
+call :find_python
+set "LEDGEBORD_DEBUG="
+echo.
 call :get_latest
 if not defined PYVER goto :python_missing
 echo [1/5] Python saknas. Senaste stabila enligt python.org: %PYVER%
@@ -133,8 +145,10 @@ exit /b 0
 
 REM ------------------------------------------------------------
 REM  Hitta systemets egen Python 3.10+: den som ligger forst i PATH (samma som
-REM  "python" i ett kommandofonster). Bara om PATH saknar en anvandbar Python
-REM  letas standardmapparna igenom (nyaste installerade).
+REM  "python" i ett kommandofonster). Annars py-startprogrammets standardval,
+REM  sedan standardmapparna (nyaste) och till sist Windows-registret.
+REM  Versionsfragan kor "call <exe> ..." sa att cmd inte strippar citattecken
+REM  (gav "Python saknas" trots installerad Python).
 REM  Satter PY (sokvag) och PYNUM (minor*1000 + micro, t.ex. 15000).
 REM ------------------------------------------------------------
 :find_python
@@ -144,8 +158,18 @@ set "CAND="
 for %%X in (python.exe) do set "CAND=%%~$PATH:X"
 if defined CAND call :check_py "%CAND%"
 if defined PY exit /b 0
+REM -- py-startprogrammet (py -0p listar installationerna; py -3 = dess standardval) --
+set "CAND="
+where py.exe >nul 2>&1
+if not errorlevel 1 for /f "delims=" %%P in ('py -3 -c "import sys;print(sys.executable)" 2^>nul') do set "CAND=%%P"
+if defined CAND call :check_py "%CAND%"
+if defined PY exit /b 0
+REM -- standardmapparna --
 for /d %%D in ("%LOCALAPPDATA%\Programs\Python\Python3*") do call :check_py "%%~fD\python.exe"
 for /d %%D in ("%ProgramFiles%\Python3*") do call :check_py "%%~fD\python.exe"
+if defined PY exit /b 0
+REM -- Windows-registret (python.org-installationer registrerar sig dar) --
+for %%R in (HKCU HKLM) do for /f "tokens=2,*" %%A in ('reg query "%%R\Software\Python\PythonCore" /s /v ExecutablePath 2^>nul') do if /i "%%A"=="REG_SZ" call :check_py "%%B"
 exit /b 0
 
 :check_py
@@ -153,7 +177,8 @@ if not exist "%~1" exit /b 0
 set "CMAJ="
 set "CMIN="
 set "CMIC="
-for /f "tokens=1,2,3" %%A in ('"%~1" -c "import sys;print(sys.version_info[0],sys.version_info[1],sys.version_info[2])" 2^>nul') do (set "CMAJ=%%A" & set "CMIN=%%B" & set "CMIC=%%C")
+for /f "tokens=1,2,3" %%A in ('call "%~1" -c "import sys;print(sys.version_info[0],sys.version_info[1],sys.version_info[2])" 2^>nul') do (set "CMAJ=%%A" & set "CMIN=%%B" & set "CMIC=%%C")
+if defined LEDGEBORD_DEBUG echo        [kollar] %~1 =^> version "%CMAJ%.%CMIN%.%CMIC%"
 if not defined CMIC exit /b 0
 if not "%CMAJ%"=="3" exit /b 0
 set /a "CNUM=%CMIN%*1000+%CMIC%"

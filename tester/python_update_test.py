@@ -82,5 +82,15 @@ check("bat: frågan ligger i python_not_found, före installationen", "choice /c
 check("bat: nej (och fel/avbrutet) → python_declined utan installation", "if errorlevel 2 goto :python_declined" in pn and ":python_declined" in bat)
 check("bat: python_ok/snabb-vägen har ingen fråga (Python finns)", "choice" not in bat.split("\n:python_ok", 1)[1].lower())
 
+# Robust Python-sökning (Python fanns men hittades inte): call-prefix, py-startprogrammet, registret, diagnos
+cp = bat.split("\n:check_py", 1)[1].split("\nexit /b 0\n", 1)[0] if "\n:check_py" in bat else ""
+check("check_py: versionsfrågan körs med 'call' (cmd strippar annars citattecknen runt exe-sökvägen)", "in ('call \"%~1\" -c" in cp, cp[:200])
+check("find_python: py-startprogrammet (py -3) är en källa", "py -3 -c" in fp and "where py.exe" in fp)
+check("find_python: Windows-registret (PythonCore ExecutablePath) är en källa", "PythonCore" in fp and "ExecutablePath" in fp)
+check("find_python: PATH → py → mappar → registret i den ordningen",
+      fp.index("%~$PATH:X") < fp.index("py -3 -c") < fp.index("LOCALAPPDATA") < fp.index("PythonCore"))
+check("saknas Python: visar vad som provades (where/py -0p/mapp/kandidater) innan frågan",
+      all(k in pn for k in ("where python.exe", "py -0p", "LEDGEBORD_DEBUG")) and pn.index("py -0p") < pn.lower().index("choice /c"))
+
 print(f"\npython_update_test: {ok} lyckades, {fail} misslyckades")
 sys.exit(1 if fail else 0)
