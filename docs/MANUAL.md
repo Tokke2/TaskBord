@@ -13,6 +13,7 @@
 - [⌨️ Styra listan med tangentbordet](#-styra-listan-med-tangentbordet)
 - [✅ Klar och nästa (Ctrl+D)](#-klar-och-nästa-ctrld)
 - [📆 Kalender – se vilka dagar som är tunga](#-kalender--se-vilka-dagar-som-är-tunga)
+- [📝 Fliken Anteckningar (egna anteckningar)](#-fliken-anteckningar-egna-anteckningar)
 - [💸 Delbetalningsplan (faktura i flera betalningar)](#-delbetalningsplan-faktura-i-flera-betalningar)
 - [🏷 Taggfärger](#-taggfärger)
 - [🌗 Temat följer Windows (live)](#-temat-följer-windows-live)
@@ -244,6 +245,22 @@ Tredje fliken **📆 Kalender** visar en månad i taget (mån–sön, med veckon
 * Klicka på en dag → dagens uppgifter listas under (hög prioritet först). **Dubbelklicka** på en uppgift → du hamnar i *Aktiva* med uppgiften markerad.
 * **➕ Ny uppgift den här dagen** skapar en uppgift med dagen som förfallodatum.
 * ◀ ▶ byter månad, **Idag** hoppar tillbaka. Kalendern bara visar – uppgifterna ändras i *Aktiva*. Klara uppgifter räknas inte.
+
+## 📝 Fliken Anteckningar (egna anteckningar)
+
+Fliken **📝 Anteckningar** (längst till höger) är till för egna anteckningar som inte hör till en viss uppgift — mötesanteckningar, idéer,
+inköpslistor, telefonnummer. (Anteckningen *på en uppgift*, 📝 på kortet, finns kvar och beskrivs under [📝 Anteckningar](#-anteckningar).)
+
+- **Skapa:** klicka **➕ Ny anteckning** (eller `Ctrl+N` i fliken). Skriv en rubrik (valfri) och texten.
+- **Redigera:** klicka på en anteckning i listan. Texten får vara hur lång som helst (upp till 200 000 tecken) och ha flera rader.
+- **Sparas av sig själv:** ca 0,7 sekunder efter sista tangenttryckningen, när du går tillbaka, byter flik, gömmer fönstret, avslutar
+  eller uppdaterar appen. Du behöver aldrig trycka "Spara". Under texten ser du "✓ Sparat".
+- **📌 Fäst** lägger anteckningen överst. Annars ligger den senast ändrade först.
+- **🔍 Sök** filtrerar på rubrik och text. **📋 Kopiera** lägger rubrik + text i urklipp. **🗑 Radera** frågar först.
+- **Var:** `notes.json` i samma datamapp som uppgifterna (`js\`, inne i appmappen). Filen skrivs säkert (temporärfil → byt ut), så en krasch
+  mitt i en sparning förstör den inte. Är den ändå skadad flyttas den undan som `notes.json.skadad-<tid>` och en tom lista startar.
+- **Backup:** anteckningarna ingår i både egna och automatiska backuper. Vid återställning *slås de ihop* med dem du har nu — ingen
+  anteckning försvinner, och den senast ändrade versionen vinner.
 
 ## 💸 Delbetalningsplan (faktura i flera betalningar)
 
@@ -538,7 +555,7 @@ igenom den innan du skickar den.
 
 Högerklicka på fönstret (eller tray-ikonen) → **💾 Backup av uppgifter…**
 
-* **Säkerhetskopiera nu** — sparar alla aktiva och arkiverade uppgifter i en ZIP-fil i
+* **Säkerhetskopiera nu** — sparar alla aktiva och arkiverade uppgifter (och fliken 📝 Anteckningar) i en ZIP-fil i
   `backups/uppgifter/` bredvid `active.json` (de 30 senaste behålls).
 * **Spara kopia som…** — lägg en kopia på ett USB-minne eller i en molnmapp (OneDrive, Dropbox …).
 * **Återställ** — välj en backup i listan eller en egen ZIP-fil. Filen kontrolleras först, och

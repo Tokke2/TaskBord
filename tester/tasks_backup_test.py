@@ -146,7 +146,7 @@ def main() -> int:
     check("ändring → ny kopia", z2 is not None and z2 != z1)
 
     # befintliga giltiga filer rörs aldrig
-    check("inget görs när allt finns", tb.restore_if_missing(js, source=ext) == {"active": False, "settings": False, "from": ""})
+    check("inget görs när allt finns", tb.restore_if_missing(js, source=ext) == {"active": False, "settings": False, "notes": False, "from": ""})
 
     # "uppdatering": hela js/-mappen försvinner
     import shutil

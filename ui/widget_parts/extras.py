@@ -30,6 +30,34 @@ except ImportError:  # pragma: no cover
 class ExtrasMixin:
     """Belopp, anteckningar och klickbara kontaktuppgifter."""
 
+    # ------------------------------------------------------------ fliken 📝 Anteckningar
+    NOTES_TAB_INDEX = 3
+
+    def _build_notes_tab(self) -> None:
+        """Skapa fliken (egna anteckningar, notes.json i datamappen). Misslyckas den visas appen ändå utan fliken."""
+        try:
+            from core.notes import NotesStore
+            from ui.notes_view import NotesView
+            self.notes_store = NotesStore(self.store.data_dir)
+            self.notes_view = NotesView(self.notes_store, self)
+            self.tabs.addTab(self.notes_view, "📝 Anteckningar")
+            self.tabs.setTabToolTip(
+                self.NOTES_TAB_INDEX, "Egna anteckningar: skapa och redigera — allt sparas automatiskt"
+            )
+        except Exception as e:
+            self.notes_store = None
+            self.notes_view = None
+            logger.warning(f"{LOG_PREFIX} anteckningsfliken kunde inte skapas: {e}", exc_info=True)
+
+    def _flush_notes(self) -> None:
+        """Spara osparad text i anteckningsfliken (före avslut/uppdatering/flikbyte)."""
+        nv = getattr(self, "notes_view", None)
+        if nv is not None:
+            try:
+                nv.flush()
+            except Exception as e:
+                logger.warning(f"{LOG_PREFIX} _flush_notes: {e}")
+
     # ------------------------------------------------------------ chips på kortet
     def _add_extra_rows(self, container: Any, vbox: Any, task: Dict[str, Any], archived: bool) -> None:
         """Rader med 💰 belopp, 📝 anteckning, 📞 telefonnummer och 📍 adresser (bara det som finns)."""

@@ -237,7 +237,7 @@ def child() -> None:
     shell.show()
     app.processEvents()
     w._rebuild_task_list()
-    ck("tre flikar: Aktiva, Arkiverade, Kalender", w.tabs.count() == 3 and "Kalender" in w.tabs.tabText(2))
+    ck("fyra flikar: Aktiva, Arkiverade, Kalender, Anteckningar", w.tabs.count() == 4 and "Kalender" in w.tabs.tabText(2) and "Anteckningar" in w.tabs.tabText(3))
     ck("Arkiverade-flikens räknare fungerar fortfarande på index 1", (w._update_archive_tab_count(3), w.tabs.tabText(1))[1].startswith("Arkiverade"))
     ck("kalenderfliken ritas inte medan den är dold (smutsflagga)", getattr(w, "_calendar_dirty", False) is True)
     w.tabs.setCurrentIndex(2)

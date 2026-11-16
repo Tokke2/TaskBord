@@ -108,6 +108,13 @@ class ThemeMixin:
                         is_dark, accent_hex, t["fg"], t["muted"], t["surface_edge"], t["surface"],
                         _scaled_px(12),
                     )
+            with suppress(Exception):  # anteckningsfliken har egen QSS (ui/notes_view.py)
+                _nv = getattr(self, "notes_view", None)
+                if _nv is not None:
+                    _nv.apply_theme(
+                        is_dark, accent_hex, t["fg"], t["muted"], t["surface_edge"], t["surface"],
+                        _scaled_px(12),
+                    )
             tab_tint = _hex_rgba(accent_hex, 0.17 if is_dark else 0.14)
             tab_edge = _hex_rgba(accent_hex, 0.45)
 

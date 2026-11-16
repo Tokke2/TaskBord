@@ -787,6 +787,13 @@ class AppController(
         self._log.info(
             f"{LOG_PREFIX} Stänger ner {APP_NAME} efter {uptime_sv}..."
         )
+        # Osparad text i anteckningsfliken (📝) sparas först
+        with suppress(Exception):
+            with self._widget_lock:
+                _ws = list(self._widgets.values())
+            for _w in _ws:
+                if hasattr(_w, "_flush_notes"):
+                    _w._flush_notes()
         # FIX v7-fix11: slutgiltig save av store — tidigare sparades ALDRIG
         # vid nedstängning (dataförlust). Autosave-timern hinner kanske inte
         # köra klart innan processen dör, därför sparas här synkront.

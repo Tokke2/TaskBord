@@ -34,6 +34,7 @@ logger = logging.getLogger("Ledgebord")
 LOG_PREFIX = "[TASKS-BACKUP]"
 
 FILES = ("active.json", "archive.json")
+NOTES_FILE = "notes.json"   # 📝 Anteckningar (valfri fil i backupen)
 MANIFEST = "manifest.json"
 SUBDIR = "uppgifter"
 PREFIX = "ledgebord-uppgifter-"
@@ -115,10 +116,14 @@ def create_backup(store: Any, dest: Any = None, label: str = "", prune: bool = T
             blobs[fname] = raw
     if "active.json" not in blobs:
         raise TasksBackupError("Det finns inga sparade uppgifter att säkerhetskopiera ännu.")
+    notes_raw = _notes_raw(store)
+    if notes_raw is not None:
+        blobs[NOTES_FILE] = notes_raw
     manifest = {
         "app": "Ledgebord", "version": 1,
         "created": datetime.now().astimezone().isoformat(timespec="seconds"),
         "active": counts.get("active.json", 0), "archive": counts.get("archive.json", 0),
+        "notes": _notes_count(notes_raw),
     }
     try:
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -135,6 +140,28 @@ def create_backup(store: Any, dest: Any = None, label: str = "", prune: bool = T
         _prune(default_dir(store))
     logger.info(f"{LOG_PREFIX} backup skapad: {target} ({manifest['active']} aktiva, {manifest['archive']} arkiverade)")
     return target
+
+
+def _notes_raw(store: Any) -> Optional[bytes]:
+    """Innehållet i notes.json (om den finns och är giltig) — annars None."""
+    try:
+        p = _data_dir(store) / NOTES_FILE
+        if p.is_file() and p.stat().st_size > 0:
+            raw = p.read_bytes()
+            from core import notes as _n
+            _n.parse(raw)
+            return raw
+    except Exception as e:
+        logger.warning(f"{LOG_PREFIX} anteckningar kunde inte läsas för backup: {e}")
+    return None
+
+
+def _notes_count(raw: Optional[bytes]) -> int:
+    try:
+        from core import notes as _n
+        return len(_n.parse(raw)) if raw else 0
+    except Exception:
+        return 0
 
 
 def _globs(folder: Path, *prefixes: str) -> List[Path]:
@@ -170,7 +197,9 @@ def inspect_backup(path: Any) -> Dict[str, Any]:
             names = set(z.namelist())
             if "active.json" not in names:
                 raise TasksBackupError("Det här är ingen Ledgebord-uppgiftsbackup (active.json saknas).")
-            res: Dict[str, Any] = {"active": 0, "archive": 0, "created": ""}
+            res: Dict[str, Any] = {"active": 0, "archive": 0, "created": "", "notes": 0}
+            if NOTES_FILE in names:
+                res["notes"] = _notes_count(z.read(NOTES_FILE))
             for fname, key in (("active.json", "active"), ("archive.json", "archive")):
                 if fname in names:
                     try:
@@ -263,6 +292,7 @@ def restore_backup(store: Any, path: Any) -> Dict[str, Any]:
             if fname not in names and fname != "archive.json":
                 continue
             raws[fname] = z.read(fname) if fname in names else b'{"tasks": []}'
+        notes_in = z.read(NOTES_FILE) if NOTES_FILE in names else None
     # Arkiverade uppgifter är historik som aldrig tas bort: de som är arkiverade NU men inte
     # finns i backupen läggs till i arkivet (en gammal backup får inte radera nyare historik).
     if current_archived and "active.json" in raws:
@@ -278,6 +308,22 @@ def restore_backup(store: Any, path: Any) -> Dict[str, Any]:
         tmp.write_bytes(raw)
         os.replace(str(tmp), str(dest))
         os.utime(str(dest), None)  # ny mtime → store läser om filen
+    if notes_in is not None:
+        # Anteckningar slås ihop (inget försvinner): backupens + de som finns nu, nyaste ändringen vinner
+        try:
+            from core import notes as _n
+            dest = _data_dir(store) / NOTES_FILE
+            cur = dest.read_bytes() if dest.is_file() and dest.stat().st_size > 0 else None
+            try:
+                merged = _n.merge_raw(cur, notes_in)
+            except Exception:
+                merged = _n.merge_raw(None, notes_in)
+            tmp = dest.with_name(f".{dest.name}.{os.getpid()}.restore")
+            tmp.write_bytes(merged)
+            os.replace(str(tmp), str(dest))
+            info["notes"] = _notes_count(merged)
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} anteckningar kunde inte återställas: {e}")
     for attr in ("_active_mtime", "_archive_mtime"):  # tvinga omläsning (grov mtime-upplösning)
         try:
             setattr(store, attr, 0.0)
@@ -391,6 +437,9 @@ def snapshot_external(data_dir: Any, dest: Any = None, keep: int = AUTO_KEEP) ->
     sett = _read_valid(dd / "settings.json", tasks=False)
     if sett is not None:
         blobs["settings.json"] = sett
+    nraw = _notes_raw(type("D", (), {"data_dir": str(dd)})())
+    if nraw is not None:
+        blobs[NOTES_FILE] = nraw
     digest = _content_hash(blobs)
     zips = _auto_zips(folder)
     if zips and _auto_manifest(zips[0]).get("hash") == digest:
@@ -399,6 +448,7 @@ def snapshot_external(data_dir: Any, dest: Any = None, keep: int = AUTO_KEEP) ->
         "app": "Ledgebord", "version": 1, "kind": "auto", "hash": digest,
         "created": datetime.now().astimezone().isoformat(timespec="seconds"),
         "active": _count(active), "archive": _count(arch) if arch else 0,
+        "notes": _notes_count(nraw),
     }
     target = _unique(folder / f"{AUTO_PREFIX}{_stamp()}.zip")
     try:
@@ -444,10 +494,11 @@ def restore_if_missing(data_dir: Any, source: Any = None) -> Dict[str, Any]:
     """
     dd = Path(str(data_dir))
     folder = Path(str(source)) if source else auto_dir()
-    res: Dict[str, Any] = {"active": False, "settings": False, "from": ""}
+    res: Dict[str, Any] = {"active": False, "settings": False, "notes": False, "from": ""}
     need_active = _read_valid(dd / "active.json", tasks=True) is None
     need_settings = _read_valid(dd / "settings.json", tasks=False) is None
-    if not (need_active or need_settings):
+    need_notes = _notes_raw(type("D", (), {"data_dir": str(dd)})()) is None
+    if not (need_active or need_settings or need_notes):
         return res
     for z in _auto_zips(folder):
         try:
@@ -461,6 +512,11 @@ def restore_if_missing(data_dir: Any, source: Any = None) -> Dict[str, Any]:
                     _count(raw)
                     todo["active.json"] = raw
                     todo["archive.json"] = zf.read("archive.json") if "archive.json" in names else b'{"tasks": []}'
+                if need_notes and not res["notes"] and NOTES_FILE in names:
+                    nb = zf.read(NOTES_FILE)
+                    from core import notes as _n
+                    if _n.parse(nb):
+                        todo[NOTES_FILE] = nb
                 if need_settings and not res["settings"] and "settings.json" in names:
                     raw = zf.read("settings.json")
                     if isinstance(json.loads(raw.decode("utf-8")), dict):
@@ -484,12 +540,15 @@ def restore_if_missing(data_dir: Any, source: Any = None) -> Dict[str, Any]:
                 res["active"] = True
             elif name == "settings.json":
                 res["settings"] = True
+            elif name == NOTES_FILE:
+                res["notes"] = True
             res["from"] = str(z)
-        if (res["active"] or not need_active) and (res["settings"] or not need_settings):
+        if (res["active"] or not need_active) and (res["settings"] or not need_settings) \
+                and (res["notes"] or not need_notes or NOTES_FILE not in names):
             break
-    if res["active"] or res["settings"]:
+    if res["active"] or res["settings"] or res["notes"]:
         logger.warning(
             f"{LOG_PREFIX} återställde från automatisk backup {res['from']}: "
-            f"uppgifter={res['active']}, inställningar={res['settings']}"
+            f"uppgifter={res['active']}, inställningar={res['settings']}, anteckningar={res['notes']}"
         )
     return res

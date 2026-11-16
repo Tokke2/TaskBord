@@ -377,6 +377,8 @@ class UpdateMixin:
                 with suppress(Exception):
                     if hasattr(_w, "_save_geometry_now"):
                         _w._save_geometry_now()
+                    if hasattr(_w, "_flush_notes"):
+                        _w._flush_notes()
             ok = None
             if self.settings is not None and hasattr(self.settings, "save"):
                 ok = self.settings.save()

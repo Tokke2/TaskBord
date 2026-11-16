@@ -538,6 +538,11 @@ class TaskActionsMixin:
         self._active_tab_index = index
         if index == getattr(self, "CALENDAR_TAB_INDEX", 2):
             self._refresh_calendar(force=True)
+        if old_index == getattr(self, "NOTES_TAB_INDEX", 3) and index != old_index:
+            self._flush_notes()
+        if index == getattr(self, "NOTES_TAB_INDEX", 3):
+            with suppress(Exception):
+                self.notes_view.refresh()
         self._audit.add(
             "tab_changed", {"from": old_index, "to": index}
         )

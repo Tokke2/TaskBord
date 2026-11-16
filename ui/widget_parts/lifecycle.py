@@ -391,6 +391,8 @@ class LifecycleMixin:
         self.tabs.setTabToolTip(
             2, "Månadsvy: se vilka dagar som är tunga (antal uppgifter per förfallodag)"
         )
+        # Flik 4: egna anteckningar (ui/notes_view.py, sparas i notes.json i datamappen)
+        self._build_notes_tab()
         self.tabs.currentChanged.connect(self._on_tab_changed)
         self.content_stack.addWidget(self.tabs)
         # Sida 1: Focus Mode (1 task stort + nav-knappar)

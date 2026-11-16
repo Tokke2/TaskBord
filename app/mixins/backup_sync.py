@@ -44,10 +44,10 @@ class BackupSyncMixin:
     def _restore_from_external_backup(self) -> None:
         from core import tasks_backup as _tb
         r = _tb.restore_if_missing(JS_DIR)
-        if r.get("active") or r.get("settings"):
+        if r.get("active") or r.get("settings") or r.get("notes"):
             self._log.warning(
                 f"{LOG_PREFIX} ♻ Återställde från automatisk backup ({r.get('from')}): "
-                f"uppgifter={r.get('active')}, inställningar={r.get('settings')}"
+                f"uppgifter={r.get('active')}, inställningar={r.get('settings')}, anteckningar={r.get('notes')}"
             )
 
     def _external_backup(self, reason: str = "") -> None:

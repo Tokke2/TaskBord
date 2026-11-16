@@ -31,6 +31,7 @@ påminner dig, tar emot uppgifter från mail och sparar allt i en mapp på din e
 | 🏷 **Ordning** | Prioritet, taggar med färger, förfallodatum, delmoment, återkommande uppgifter, sök, arkiv som sparas för alltid. |
 | 🔔 **Påminnelser** | Påminner tills uppgiften är klar. Siffra på tray-ikonen visar hur många som väntar. |
 | 📆 **Kalender** | Månadsvy som visar vilka dagar som är tunga, med röda dagar. Skicka uppgifter till Google Calendar eller `.ics`. |
+| 📝 **Anteckningsflik** | Egen flik för fria anteckningar: skapa, redigera, fäst och sök. Sparas automatiskt och ingår i backup. |
 | 📧 **Mail** | Högerklicka ett mail i Thunderbird → uppgift. Datum i mailet blir påminnelser. |
 | 💸 **Delbetalning** | Dela en faktura i flera betalningar — varje del blir en uppgift med datum och belopp. |
 | 💰 **Belopp** | Belopp på uppgifter med summor per månad och tagg ("att fakturera"). |
