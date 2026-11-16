@@ -6,7 +6,8 @@ REM   1. Kollar FORST om Python 3.10+ finns installerad
 REM   2. Finns den: anvands den som den ar. Python UPPDATERAS INTE har
 REM      (ingen patch-uppdatering, ingen ny version) - det sker inte vid
 REM      start och inte i veckounderhallet.
-REM   3. Saknas Python: installerar senaste stabila fran python.org
+REM   3. Saknas Python: FRAGAR om senaste stabila ska installeras fran
+REM      python.org (J/N). Finns Python fragas det aldrig.
 REM   4. Installerar/uppgraderar alla paket (requirements.txt
 REM      och requirements-optional.txt) till senaste version
 REM   5. Startar Ledgebord
@@ -60,6 +61,13 @@ REM -- Python saknas: installera senaste stabila --
 call :get_latest
 if not defined PYVER goto :python_missing
 echo [1/5] Python saknas. Senaste stabila enligt python.org: %PYVER%
+echo.
+echo   Ledgebord behover Python 3.10 eller nyare, och den finns inte pa den har datorn.
+echo   Python %PYVER% kan installeras at dig nu (bara for ditt konto, ingen admin behovs).
+echo   (Har datorn redan Python fragar den har filen aldrig om detta.)
+choice /c JN /n /m "  Installera Python %PYVER% nu? [J/N] "
+if errorlevel 2 goto :python_declined
+echo.
 echo [2/5] Installerar Python %PYVER% ...
 call :install_python
 call :find_python
@@ -69,6 +77,13 @@ goto :fail_python
 :python_missing
 echo [FEL] Ingen Python hittad och senaste version kunde inte hamtas.
 goto :fail_python
+
+:python_declined
+echo.
+echo   Okej - ingen Python installeras. Ledgebord kan inte startas utan Python.
+echo   Installera den sjalv fran https://www.python.org/downloads/
+echo   (kryssa i "Add python.exe to PATH") och kor denna fil igen.
+goto :fail
 
 :python_ok
 echo [2/5] Anvander Python: %PY%

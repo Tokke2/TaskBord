@@ -14,8 +14,9 @@ påminner dig, tar emot uppgifter från mail och sparar allt i en mapp på din e
 ## 🚀 Kom igång (Windows)
 
 1. **Ladda ner:** klicka på den gröna knappen **Code → Download ZIP** här på GitHub och packa upp mappen var du vill.
-2. **Första gången:** dubbelklicka på **`FORSTA_START.bat`**. Den installerar Python om det saknas, installerar
-   tilläggen som behövs och startar Ledgebord. Det tar någon minut.
+2. **Första gången:** dubbelklicka på **`FORSTA_START.bat`**. Saknas Python på datorn **frågar** den om du vill
+   att senaste Python installeras (J/N); finns Python frågar den aldrig. Sedan installeras tilläggen och Ledgebord startar.
+   Det tar någon minut.
 3. **Nästa gång:** dubbelklicka på **`STARTA_HAR.bat`** (inget svart fönster) — eller bocka i *Starta med datorn* i
    tray-menyn så startar appen själv.
 

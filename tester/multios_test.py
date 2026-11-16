@@ -152,6 +152,47 @@ check(".venv ligger i .gitignore", ".venv/" in (ROOT / ".gitignore").read_text(e
 req = (ROOT / "requirements.txt").read_text(encoding="utf-8")
 check("pywin32 krävs bara på Windows", any("pywin32" in l and 'sys_platform == "win32"' in l for l in req.splitlines()))
 
+# ------------------------------------------------------- starta.sh: erbjuder Python bara när den SAKNAS ------
+if shutil.which("bash"):
+    def run_sh(extra_env, tmpbin, stdin=subprocess.DEVNULL):
+        work = Path(tempfile.mkdtemp(prefix="ledgebord_sh_"))
+        try:
+            shutil.copy(ROOT / "starta.sh", work / "starta.sh")
+            (work / "main.pyw").write_text("", encoding="utf-8")
+            env = dict(os.environ, PATH=f"{tmpbin}:{os.environ['PATH']}", **extra_env)
+            return subprocess.run(["bash", str(work / "starta.sh"), "--forgrund"], cwd=work, env=env, stdin=stdin,
+                                  capture_output=True, text=True, timeout=60)
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
+
+    # 1) Python saknas, ingen terminal, inget svar → ingen installation, tydligt besked, exit 1 (hänger inte)
+    tb = Path(tempfile.mkdtemp(prefix="ledgebord_bin_"))
+    try:
+        r = run_sh({"LEDGEBORD_PY_KANDIDATER": "finns_inte_py"}, tb)
+        check("starta.sh: Python saknas → säger det, installerar inget utan ja, exit 1",
+              r.returncode == 1 and "hittades inte" in r.stdout and "Installerar Python" not in r.stdout, r.stdout[-300:])
+        # 2) Python saknas + 'j' + falsk pakethanterare → installerar, hittar sedan Python och går vidare
+        (tb / "sudo").write_text('#!/bin/sh\nexec "$@"\n')
+        (tb / "apt-get").write_text('#!/bin/sh\necho FAKE-APT "$@" >> "$FAKELOG"\n'
+                                    'printf "#!/bin/sh\\nif [ \\"\\$1\\" = -c ]; then exit 0; fi\\necho FAKEPY \\"\\$@\\"\\nexit 1\\n" > "$FAKEBIN/fakepy3"\n'
+                                    'chmod +x "$FAKEBIN/fakepy3"\n')
+        for f in ("sudo", "apt-get"):
+            (tb / f).chmod(0o755)
+        log = tb / "log.txt"
+        r = run_sh({"LEDGEBORD_PY_KANDIDATER": "fakepy3", "LEDGEBORD_SVAR": "j", "FAKELOG": str(log), "FAKEBIN": str(tb)}, tb)
+        if sys.platform != "darwin":
+            check("starta.sh: svar 'j' → pakethanteraren körs och den nya Pythonen används",
+                  "FAKE-APT" in (log.read_text() if log.exists() else "") and "Installerar Python" in r.stdout and "FAKEPY" in r.stdout + r.stderr,
+                  r.stdout[-300:] + r.stderr[-200:])
+        # 3) Python FINNS → frågar aldrig (ingen fråga, ingen installation), även om svaret skulle vara 'j'
+        r = run_sh({"LEDGEBORD_PY_KANDIDATER": "fakepy3", "LEDGEBORD_SVAR": "j", "FAKELOG": str(log), "FAKEBIN": str(tb)}, tb)
+        check("starta.sh: Python finns → ingen fråga och ingen installation", "hittades inte" not in r.stdout and "Installera Python nu" not in r.stdout
+              and (log.read_text().count("FAKE-APT") == 1), r.stdout[-300:])
+    finally:
+        shutil.rmtree(tb, ignore_errors=True)
+ssh = (ROOT / "starta.sh").read_text(encoding="utf-8")
+check("starta.sh: systemets egen python3 prövas först", "python3 python python3.14" in ssh)
+
 # ------------------------------------------------------- Linux: autostart (XDG) ------------
 if real.startswith("linux"):
     home = Path(tempfile.mkdtemp(prefix="taskbord_home_"))

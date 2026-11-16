@@ -11,7 +11,8 @@
 #    ./starta.sh --installera  tvingar ominstallation/uppgradering av paketen
 #    ./starta.sh --hjalp
 #
-#  Kräver Python 3.10 eller nyare (python3 med venv-stöd).
+#  Kräver Python 3.10 eller nyare (python3 med venv-stöd). Saknas Python erbjuder skriptet att installera den (frågar
+#  då en gång); finns Python frågar det aldrig. Svar utan terminal: LEDGEBORD_SVAR=j.
 # ============================================================================
 set -u
 cd "$(dirname "$0")" || exit 1
@@ -33,18 +34,55 @@ done
 [ -f "$APPDIR/main.pyw" ] || { echo "main.pyw saknas i $APPDIR"; exit 1; }
 
 # --- hitta Python 3.10+ ------------------------------------------------------
-PY=""
-for c in python3.14 python3.13 python3.12 python3.11 python3.10 python3 python; do
-  if command -v "$c" >/dev/null 2>&1 && "$c" -c 'import sys; sys.exit(0 if sys.version_info >= (3,10) else 1)' 2>/dev/null; then
-    PY="$(command -v "$c")"; break
+# Systemets egen Python (python3 / python i PATH) används om den duger; först om den är för gammal letar vi efter
+# versionsnamn. Python uppdateras aldrig härifrån.
+hitta_python() {
+  PY=""
+  for c in ${LEDGEBORD_PY_KANDIDATER:-python3 python python3.14 python3.13 python3.12 python3.11 python3.10}; do
+    if command -v "$c" >/dev/null 2>&1 && "$c" -c 'import sys; sys.exit(0 if sys.version_info >= (3,10) else 1)' 2>/dev/null; then
+      PY="$(command -v "$c")"; return 0
+    fi
+  done
+  return 1
+}
+
+# Saknas Python: FRÅGA om den ska installeras (bara då — finns Python frågas det aldrig).
+# Svar utan terminal: LEDGEBORD_SVAR=j (installera) eller n.
+erbjud_python() {
+  local OS cmd="" pre="" svar="" mgr=""
+  OS="$(uname -s)"
+  [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1 && pre="sudo "
+  if [ "$OS" = "Darwin" ]; then
+    command -v brew >/dev/null 2>&1 && { cmd="brew install python"; mgr="Homebrew"; pre=""; }
+  elif command -v apt-get >/dev/null 2>&1; then cmd="${pre}apt-get install -y python3 python3-venv python3-pip"; mgr="apt"
+  elif command -v dnf >/dev/null 2>&1; then cmd="${pre}dnf install -y python3 python3-pip"; mgr="dnf"
+  elif command -v pacman >/dev/null 2>&1; then cmd="${pre}pacman -S --noconfirm python python-pip"; mgr="pacman"
+  elif command -v zypper >/dev/null 2>&1; then cmd="${pre}zypper install -y python3 python3-pip"; mgr="zypper"
+  elif command -v apk >/dev/null 2>&1; then cmd="${pre}apk add python3 py3-pip"; mgr="apk"
   fi
-done
-if [ -z "$PY" ]; then
-  echo "Python 3.10 eller nyare hittades inte."
-  echo "  macOS:   brew install python   (eller https://www.python.org/downloads/)"
-  echo "  Debian/Ubuntu: sudo apt install python3 python3-venv"
-  echo "  Fedora:  sudo dnf install python3"
-  exit 1
+  echo "Python 3.10 eller nyare hittades inte på den här datorn."
+  if [ -z "$cmd" ]; then
+    echo "  Installera Python själv: https://www.python.org/downloads/  och kör sedan ./starta.sh igen."
+    return 1
+  fi
+  echo "  Ledgebord kan installera den åt dig med $mgr:  $cmd"
+  echo "  (Har datorn redan Python frågar skriptet aldrig om detta.)"
+  svar="${LEDGEBORD_SVAR:-}"
+  if [ -z "$svar" ]; then
+    if [ -t 0 ]; then read -r -p "  Installera Python nu? [j/N] " svar; else svar="n"; fi
+  fi
+  case "$svar" in
+    j|J|ja|Ja|JA|y|Y|yes) ;;
+    *) echo "  Okej — ingen Python installeras. Installera den själv och kör ./starta.sh igen."; return 1 ;;
+  esac
+  echo "Installerar Python …"
+  if ! eval "$cmd"; then echo "Installationen misslyckades. Installera Python själv: https://www.python.org/downloads/"; return 1; fi
+  hitta_python
+}
+
+if ! hitta_python; then
+  erbjud_python || exit 1
+  [ -n "$PY" ] || { echo "Python hittades fortfarande inte efter installationen. Öppna en ny terminal och kör ./starta.sh igen."; exit 1; }
 fi
 
 # --- skapa den lokala miljön -------------------------------------------------

@@ -46,7 +46,8 @@
 2. Dubbelklicka på **`FORSTA_START.bat`**. Filen:
    - **kollar först om Python redan finns.** Finns den används den som den är: **Python uppdateras inte** (varken
      här, vid start eller i veckounderhållet) och ingen ny Python installeras bredvid. **Bara om Python saknas**
-     hämtas och installeras senaste stabila från python.org (inget versionsnummer är hårdkodat),
+     *frågar* filen (J/N) om senaste stabila ska installeras från python.org (bara för ditt konto, ingen admin; inget
+     versionsnummer är hårdkodat). Säger du nej installeras inget. Finns Python frågar filen aldrig,
    - installerar eller uppgraderar alla paket i `requirements.txt` och `requirements-optional.txt` till senaste version,
    - startar Ledgebord med systemets egen Python (den som ligger först i `PATH`, samma som `python` i ett kommandofönster; bara om den saknas letas standardmapparna igenom).
 3. Nästa gång: dubbelklicka på **`STARTA_HAR.bat`**. Den startar med systemets egen Python och installerar bara om Python saknas. **En gång i veckan — helst måndag 08:00, inte vid varje start — kollas Pythons tillägg** (paketen i `requirements.txt` / `requirements-optional.txt`; Python själv uppdateras inte) och uppdateras, tyst, med den installerade Pythons egen pip (`core/pip_update.py`). **Ingen egen miljö (venv)**: allt ligger i samma Python som övriga program. Veckan börjar måndag 08:00; är veckans underhåll inte gjort är det "dags":
@@ -160,6 +161,8 @@ Appen körs på alla tre. Installation/start på **macOS och Linux** (Python 3.1
 
 ```bash
 ./starta.sh              # första gången: skapar .venv i appmappen, installerar paket, startar
+                         # (saknas Python frågar skriptet om den ska installeras — brew/apt/dnf/pacman/zypper/apk;
+                         #  finns Python frågar det aldrig; utan terminal: LEDGEBORD_SVAR=j)
 ./starta.sh --forgrund   # starta i terminalen (visar fel direkt)
 ```
 

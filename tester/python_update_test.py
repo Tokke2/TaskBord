@@ -75,5 +75,12 @@ fp = bat.split("\n:find_python", 1)[1].split("\n:check_py", 1)[0] if "\n:find_py
 check("find_python: PATH-Python först", fp.find("%~$PATH:X") != -1 and fp.find("%~$PATH:X") < fp.find("LOCALAPPDATA"))
 check("find_python: hittad PATH-Python används direkt (ingen jakt på nyare)", "if defined PY exit /b 0" in fp and fp.find("if defined PY exit /b 0") < fp.find("LOCALAPPDATA"))
 
+# Saknas Python: FRÅGA (J/N) innan något installeras; finns Python frågas det aldrig
+check("bat: exakt en fråga (choice) i hela filen", bat.lower().count("choice /c") == 1)
+pn = bat.split("\n:python_not_found", 1)[1].split("\n:python_ok", 1)[0] if "\n:python_not_found" in bat else ""
+check("bat: frågan ligger i python_not_found, före installationen", "choice /c jn" in pn.lower() and pn.lower().index("choice /c") < pn.index("call :install_python"))
+check("bat: nej (och fel/avbrutet) → python_declined utan installation", "if errorlevel 2 goto :python_declined" in pn and ":python_declined" in bat)
+check("bat: python_ok/snabb-vägen har ingen fråga (Python finns)", "choice" not in bat.split("\n:python_ok", 1)[1].lower())
+
 print(f"\npython_update_test: {ok} lyckades, {fail} misslyckades")
 sys.exit(1 if fail else 0)
