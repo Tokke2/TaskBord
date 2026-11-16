@@ -80,6 +80,8 @@ class WindowOpsMixin:
             # NY v8: backup av uppgifter
             act_backup = menu.addAction("💾 Backup av uppgifter…")
             act_help = menu.addAction("⌨️ Tangentöversikt (F1)")
+            # frivillig donation: egen dialog (ui/donate.py), direkt under hjälpen
+            act_donate = menu.addAction("💖 Stöd Ledgebord (Swish, PayPal, Ko-fi)…")
             act_hide = menu.addAction("🗕 Minimera till systemfältet")
             act_dock = menu.addAction("↔ Docka vid skärmkant")
             act_dock.setCheckable(True)
@@ -95,9 +97,7 @@ class WindowOpsMixin:
                 "När du klistrar in en webbadress hämtas sidans titel (ett anrop till just den sidan).\n"
                 "Av = länken visas med bara värdnamnet."
             )
-            # NY v8: frivillig donation (öppnar ui/donate.py-dialogen)
             menu.addSeparator()
-            act_donate = menu.addAction("💖 Stöd Ledgebord…")
             act_quit = menu.addAction("❌ Avsluta Ledgebord")
             act_quit.setToolTip("Stänger Ledgebord helt (påminnelser och mailbrygga stoppas). ✕ gömmer bara fönstret.")
             chosen = menu.exec(event.globalPos())

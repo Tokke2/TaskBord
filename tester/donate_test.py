@@ -70,8 +70,12 @@ def pure() -> None:
     m = re.search(r"PROTECTED_TOP[^=]*=\s*frozenset\(\{([^}]*)\}\)", updater)
     check("uppdateraren skyddar INTE donationsfilerna (en lokalt ändrad fil skrivs över av originalet)",
           bool(m) and "donate" not in m.group(1) and '"core"' not in m.group(1) and '"ui"' not in m.group(1), m.group(0)[:200] if m else "")
-    for f in ("app/mixins/tray.py", "ui/widget_parts/window_ops.py"):
+    for f in ("app/mixins/tray.py", "ui/widget_parts/window_ops.py", "ui/shortcut_help_dialog.py"):
         check(f"stödvalet finns i {f}", "Stöd Ledgebord" in (ROOT / f).read_text(encoding="utf-8"))
+    wo = (ROOT / "ui/widget_parts/window_ops.py").read_text(encoding="utf-8")
+    check("menyn: stödvalet ligger direkt under hjälpen (Tangentöversikt)", wo.index("act_help = menu.addAction") < wo.index("act_donate = menu.addAction") < wo.index("act_hide = menu.addAction"))
+    tr = (ROOT / "app/mixins/tray.py").read_text(encoding="utf-8")
+    check("tray-menyn: stödvalet ligger direkt efter hjälpen", tr.index("_help_act = ") < tr.index("donate_action = ") < tr.index("about_action = "))
     check("Om-rutan säger inte längre 'Donation: inaktiverad'", "Donation: inaktiverad" not in (ROOT / "app/mixins/diagnostics.py").read_text(encoding="utf-8"))
     check("segno finns i requirements.txt (QR för Swish)", "segno" in (ROOT / "requirements.txt").read_text(encoding="utf-8"))
     for f in ("README.md", "docs/MANUAL.md"):
@@ -95,22 +99,29 @@ def child() -> None:
     opened: list = []
     D._open_url = lambda u: opened.append(u) or True
 
+    from PySide6.QtWidgets import QLabel, QPushButton
+
+    def has_pm(lbl):
+        pm = lbl.pixmap()
+        return pm is not None and not pm.isNull()
+
     dlg = D.DonateDialog()
     dlg.show()
     app.processEvents()
     ck("dialogen skapas, lås OK", dlg._lock_ok and "låsta" in dlg.lock_label.text())
     ck("standardbelopp 50 kr är valt (genväg markerad)", dlg.belopp() == 50 and dlg.chips[50].isChecked() and not dlg.chips[25].isChecked())
-    ck("banner med ikon", dlg.logo.pixmap() is not None and not dlg.logo.pixmap().isNull())
-    ck("Swish-QR visas direkt (standard) med bild", dlg.qr_box.isVisible() and dlg.qr_label.pixmap() is not None and not dlg.qr_label.pixmap().isNull())
-    ck("det finns ingen Swish-knapp — bara QR; bara PayPal och Ko-fi som knappar", not hasattr(dlg, "btn_swish"))
-    from PySide6.QtWidgets import QLabel, QPushButton
+    ck("banner med ikon", has_pm(dlg.logo))
+    ck("tre QR-koder visas: Swish, PayPal och Ko-fi", all(has_pm(x) and x.isVisible() for x in (dlg.qr_swish, dlg.qr_paypal, dlg.qr_kofi)))
+    ck("knappar för PayPal och Ko-fi finns; Swish har bara QR (ingen knapp)", dlg.btn_paypal.isVisible() and dlg.btn_kofi.isVisible() and not hasattr(dlg, "btn_swish"))
+    ck("PayPal-knappen visar beloppet", "50 kr" in dlg.btn_paypal.text())
     alltext = " ".join([w.text() + " " + w.toolTip() for w in dlg.findChildren(QLabel)] + [w.text() + " " + w.toolTip() for w in dlg.findChildren(QPushButton)])
     ck("Swish-numret står inte som text någonstans i dialogen", "0721817177" not in alltext and "072-181" not in alltext and "721817177" not in alltext)
-    q50 = dlg.qr_label.pixmap().toImage()
-    ck("PayPal-knappen visar beloppet", "50 kr" in dlg.btn_paypal.text())
+    ck("texten förklarar frivillighet, ingen reklam och att inget låses upp", all(t in alltext for t in ("gratis", "frivilligt", "Ingen reklam", "Inget låses upp")))
+    sw50, pp50, kf50 = (x.pixmap().toImage() for x in (dlg.qr_swish, dlg.qr_paypal, dlg.qr_kofi))
     dlg.chips[200].click()
-    ck("QR:n ritas om när beloppet ändras", dlg.qr_label.pixmap().toImage() != q50)
     ck("klick på genväg sätter beloppet", dlg.belopp() == 200 and dlg.chips[200].isChecked() and not dlg.chips[50].isChecked() and "200 kr" in dlg.btn_paypal.text())
+    ck("Swish- och PayPal-QR ritas om vid nytt belopp, Ko-fi-QR är oförändrad",
+       dlg.qr_swish.pixmap().toImage() != sw50 and dlg.qr_paypal.pixmap().toImage() != pp50 and dlg.qr_kofi.pixmap().toImage() == kf50)
     dlg.eget.setValue(75)
     ck("eget belopp avmarkerar genvägarna", dlg.belopp() == 75 and not any(b.isChecked() for b in dlg.chips.values()) and "75 kr" in dlg.info.text())
     dlg.eget.setValue(100)
@@ -118,12 +129,19 @@ def child() -> None:
     dlg.eget.setValue(75)
     dlg.btn_paypal.click()
     dlg.btn_kofi.click()
-    ck("PayPal öppnar rätt länk med valt belopp", opened[0] == "https://paypal.me/Rickard3dPrint/75SEK", opened)
-    ck("Ko-fi öppnar rätt länk", opened[1] == "https://ko-fi.com/tokke2", opened)
+    ck("PayPal öppnar rätt länk med valt belopp", opened[:1] == ["https://paypal.me/Rickard3dPrint/75SEK"], opened)
+    ck("Ko-fi öppnar rätt länk", opened[1:2] == ["https://ko-fi.com/tokke2"], opened)
     ck("spinrutan går inte under 1 eller över 99 999", (dlg.eget.setValue(-5), dlg.eget.value())[1] == 1 and (dlg.eget.setValue(10**7), dlg.eget.value())[1] == 99_999)
     dlg.close()
 
-    # ändrade mottagare → knappar av + varning, inget öppnas
+    # QR-innehåll: avkoda inte (ingen läsare här) men kontrollera att koderna kommer från rätt text
+    import segno
+    ck("QR-bytes för Swish/PayPal/Ko-fi är PNG och innehåller inte numret i klartext",
+       all(x and x[:8] == b"\x89PNG\r\n\x1a\n" and b"0721817177" not in x for x in (D.swish_qr_png(75), D.paypal_qr_png(75), D.kofi_qr_png())))
+    ck("Ko-fi-QR = QR av Ko-fi-länken, PayPal-QR = QR av PayPal-länken med belopp",
+       D.kofi_qr_png() == D.qr_png("https://ko-fi.com/tokke2") and D.paypal_qr_png(75) == D.qr_png("https://paypal.me/Rickard3dPrint/75SEK") and segno.make("x") is not None)
+
+    # ändrade mottagare → knappar av + varning, inget öppnas, inga QR-koder
     saved = DI.PAYPAL_BAS
     DI.PAYPAL_BAS = "https://paypal.me/Annan"
     try:
@@ -131,22 +149,18 @@ def child() -> None:
         bad.show()
         n = len(opened)
         bad._open_paypal()
-        bad._show_qr()
-        ck("ändrade mottagare: betalknapparna är avstängda", not bad.btn_paypal.isEnabled() and not bad.btn_kofi.isEnabled() and not bad.qr_box.isVisible())
-        ck("…varnar tydligt och öppnar ingenting", "stämmer inte" in bad.lock_label.text() and len(opened) == n)
+        ck("ändrade mottagare: betalknapparna är avstängda", not bad.btn_paypal.isEnabled() and not bad.btn_kofi.isEnabled())
+        ck("…inga QR-koder ritas, varnar tydligt och öppnar ingenting", not any(has_pm(x) for x in (bad.qr_swish, bad.qr_paypal, bad.qr_kofi)) and "stämmer inte" in bad.lock_label.text() and len(opened) == n)
         bad.close()
     finally:
         DI.PAYPAL_BAS = saved
 
-    png = D.swish_qr_png(75)
-    ck("Swish-QR är en PNG", bool(png) and png[:8] == b"\x89PNG\r\n\x1a\n")
-    ck("QR-bytes innehåller inte numret i klartext", b"0721817177" not in png)
     shot = os.environ.get("DONATE_SHOT")
     if shot:
         dlg3 = D.DonateDialog()
         dlg3.show()
         app.processEvents()
-        dlg3.grab().save(shot)
+        dlg3.inner.grab().save(shot)
         dlg3.close()
 
     dlg2 = D.DonateDialog()

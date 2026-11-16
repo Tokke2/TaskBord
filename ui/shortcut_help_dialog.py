@@ -43,6 +43,10 @@ if _QT:
             kopiera = QPushButton("📋 Kopiera som text", self)
             kopiera.clicked.connect(self._kopiera)
             rad.addWidget(kopiera)
+            stod = QPushButton("💖 Stöd Ledgebord…", self)
+            stod.setToolTip("Frivillig donation: Swish, PayPal eller Ko-fi.")
+            stod.clicked.connect(self._stod)
+            rad.addWidget(stod)
             rad.addStretch(1)
             stang = QPushButton("Stäng", self)
             stang.setDefault(True)
@@ -52,6 +56,13 @@ if _QT:
 
         def text(self) -> str:
             return sh.as_text(self._sections)
+
+        def _stod(self) -> None:
+            try:
+                from ui.donate import open_donate_dialog
+                open_donate_dialog(self)
+            except Exception as e:  # pragma: no cover
+                logger.warning(f"{LOG_PREFIX} kunde inte öppna stöddialogen: {e}")
 
         def _kopiera(self) -> None:
             try:

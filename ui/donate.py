@@ -24,6 +24,7 @@ from core import donate_info as DI
 logger = logging.getLogger("Ledgebord")
 LOG_PREFIX = "[DONATE]"
 
+QR_BOX = 180
 DONATE_TITLE: str = "💖 Stöd Ledgebord"
 ICON_PNG = Path(__file__).resolve().parent.parent / "icon" / "ledgebord.png"
 
@@ -31,7 +32,8 @@ try:
     from PySide6.QtCore import Qt, QUrl
     from PySide6.QtGui import QDesktopServices, QPixmap
     from PySide6.QtWidgets import (
-        QButtonGroup, QDialog, QFrame, QHBoxLayout, QLabel, QPushButton, QSpinBox, QVBoxLayout, QWidget,
+        QButtonGroup, QDialog, QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSizePolicy, QSpinBox, QVBoxLayout,
+        QWidget,
     )
     _QT_AVAILABLE: bool = True
 except ImportError:  # pragma: no cover - Qt saknas (t.ex. i tester)
@@ -43,25 +45,45 @@ QFrame#donBanner { border-radius: 14px;
 QLabel#donTitle { color: #FFFFFF; font-size: 22px; font-weight: 800; background: transparent; }
 QLabel#donSub { color: #E6E3FF; font-size: 13px; background: transparent; }
 QLabel#donHead { font-size: 15px; font-weight: 800; }
+QLabel#donIntro { font-size: 13px; }
 QPushButton#donChip { border: 2px solid palette(mid); border-radius: 17px; padding: 8px 18px; font-weight: 700;
     background: palette(base); color: palette(text); }
 QPushButton#donChip:hover { border-color: #4F46E5; }
 QPushButton#donChip:checked { background: #4F46E5; color: #FFFFFF; border-color: #4338CA; }
 QSpinBox#donEget { border: 2px solid palette(mid); border-radius: 17px; padding: 6px 10px; font-weight: 700; min-width: 120px;
     background: palette(base); color: palette(text); }
-QFrame#donFact { border: 1px solid palette(mid); border-radius: 10px; }
+QFrame#donCard { border: 1px solid palette(mid); border-radius: 14px; background: palette(base); }
+QFrame#donCard QLabel { background: transparent; }
+QLabel#donCardTitle { font-size: 15px; font-weight: 800; }
+QLabel#donCardNote { font-size: 12px; }
+QLabel#donQr { background: #FFFFFF; border-radius: 10px; }
+QLabel#donFacts { font-size: 12px; }
 QLabel#donLock { font-size: 12px; }
 """
 
 
+def _btn_css(bg: str, hover: str) -> str:
+    return ("QPushButton { background: %s; color: #FFFFFF; border: none; border-radius: 12px; padding: 11px 14px; "
+            "font-weight: 800; font-size: 14px; } QPushButton:hover { background: %s; } "
+            "QPushButton:disabled { background: #6B7280; color: #FFFFFF; }" % (bg, hover))
+
+
 STYLE_FOR = {
-    "donSwish": "QPushButton { background: #047857; color: #FFFFFF; border: none; border-radius: 12px; padding: 12px 14px; font-weight: 800; font-size: 14px; }"
-                "QPushButton:hover { background: #065F46; } QPushButton:disabled { background: #6B7280; color: #FFFFFF; }",
-    "donPaypal": "QPushButton { background: #0070BA; color: #FFFFFF; border: none; border-radius: 12px; padding: 12px 14px; font-weight: 800; font-size: 14px; }"
-                 "QPushButton:hover { background: #005C99; } QPushButton:disabled { background: #6B7280; color: #FFFFFF; }",
-    "donKofi": "QPushButton { background: #C62828; color: #FFFFFF; border: none; border-radius: 12px; padding: 12px 14px; font-weight: 800; font-size: 14px; }"
-               "QPushButton:hover { background: #A81F1F; } QPushButton:disabled { background: #6B7280; color: #FFFFFF; }",
+    "donPaypal": _btn_css("#0070BA", "#005C99"),
+    "donKofi": _btn_css("#C62828", "#A81F1F"),
 }
+
+INTRO_HTML = (
+    "<b>Ledgebord är gratis, utan reklam och utan konto — och ska förbli det.</b><br>"
+    "Jag utvecklar och underhåller appen själv: nya funktioner, rättningar och tester. "
+    "Sparar den tid för dig är en donation — stor eller liten — ett uppskattat tack som hjälper mig att fortsätta. "
+    "Det är helt frivilligt och ändrar ingenting i appen."
+)
+FACTS_TEXT = (
+    "🚫 Ingen reklam, ingen inloggning, inga prenumerationer.   🎁 Inget låses upp — appen är lika bra utan donation.\n"
+    "🔒 Betalningen sker i Swish-appen eller hos PayPal/Ko-fi. Ledgebord ser inga betalningsuppgifter. "
+    "Du kan alltid ändra beloppet hos betaltjänsten."
+)
 
 
 def _open_url(url: str) -> bool:
@@ -75,36 +97,66 @@ def _open_url(url: str) -> bool:
         return False
 
 
-def swish_qr_png(kr: int) -> Optional[bytes]:
-    """PNG-bytes med Swish-QR för beloppet, eller None (inget Swish-nummer inlagt / paketet ``segno`` saknas)."""
-    if not DI.swish_aktiv():
-        return None
+def qr_png(payload: str, max_px: int = QR_BOX - 8) -> Optional[bytes]:
+    """PNG-bytes med en QR-kod för ``payload`` (ritas lokalt med paketet ``segno``), eller None om det saknas.
+    Hela pixlar per ruta (skarpt, inga sneda skalningar) — största skalan som ryms i ``max_px``."""
     try:
         import segno
+        code = segno.make(payload, error="m")
+        scale = 2
+        for sc in range(8, 1, -1):
+            if code.symbol_size(scale=sc, border=2)[0] <= max_px:
+                scale = sc
+                break
         buf = io.BytesIO()
-        segno.make(DI.swish_payload(kr), error="m").save(buf, kind="png", scale=6, border=3)
+        code.save(buf, kind="png", scale=scale, border=2)
         return buf.getvalue()
     except Exception as e:
-        logger.info(f"{LOG_PREFIX} Swish-QR kunde inte ritas: {e}")
+        logger.info(f"{LOG_PREFIX} QR-kod kunde inte ritas: {e}")
         return None
+
+
+def swish_qr_png(kr: int) -> Optional[bytes]:
+    """Swish-QR för beloppet, eller None (inget Swish-nummer / ``segno`` saknas)."""
+    return qr_png(DI.swish_payload(kr)) if DI.swish_aktiv() else None
+
+
+def paypal_qr_png(kr: int) -> Optional[bytes]:
+    return qr_png(DI.paypal_url(kr))
+
+
+def kofi_qr_png() -> Optional[bytes]:
+    return qr_png(DI.kofi_url())
 
 
 if _QT_AVAILABLE:
     class DonateDialog(QDialog):
-        """Snygg, ärlig stöddialog: valfritt belopp → Swish (QR) / PayPal / Ko-fi. Mottagarna är låsta."""
+        """Egen stöddialog: valfritt belopp → Swish (QR), PayPal (QR + knapp) och Ko-fi (QR + knapp). Mottagarna är låsta."""
 
         def __init__(self, parent: Optional[QWidget] = None) -> None:
             super().__init__(parent)
             self.setWindowTitle("Ledgebord — Stöd projektet")
             self.setModal(True)
-            self.setMinimumWidth(560)
+            self.setMinimumWidth(700)
             self.setStyleSheet(STYLE)
             self._lock_ok = DI.las_ok()
             if not self._lock_ok:
-                logger.error(f"{LOG_PREFIX} donationsmottagarna stämmer inte med kontrollsumman — betalknappar avstängda")
+                logger.error(f"{LOG_PREFIX} donationsmottagarna stämmer inte med kontrollsumman — betalning avstängd")
+            self.swish_available = DI.swish_aktiv()
 
-            root = QVBoxLayout(self)
-            root.setContentsMargins(18, 16, 18, 14)
+            # Innehållet ligger i en rullningsyta så dialogen aldrig blir högre än skärmen.
+            outer = QVBoxLayout(self)
+            outer.setContentsMargins(0, 0, 0, 10)
+            outer.setSpacing(6)
+            self.scroll = QScrollArea(self)
+            self.scroll.setWidgetResizable(True)
+            self.scroll.setFrameShape(QFrame.Shape.NoFrame)
+            self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            self.inner = QWidget()
+            self.scroll.setWidget(self.inner)
+            outer.addWidget(self.scroll, 1)
+            root = QVBoxLayout(self.inner)
+            root.setContentsMargins(18, 16, 18, 8)
             root.setSpacing(12)
 
             # --- banner ---
@@ -125,15 +177,21 @@ if _QT_AVAILABLE:
             tl.setSpacing(2)
             title = QLabel(DONATE_TITLE, banner)
             title.setObjectName("donTitle")
-            sub = QLabel("Gratis, utan reklam och utan konto.\nEtt frivilligt tack håller appen vid liv.", banner)
+            sub = QLabel("Tack för att du vill stödja Ledgebord.\nVälj belopp och sätt: Swish, PayPal eller Ko-fi.", banner)
             sub.setObjectName("donSub")
             tl.addWidget(title)
             tl.addWidget(sub)
             bl.addLayout(tl, 1)
             root.addWidget(banner)
 
+            intro = QLabel(INTRO_HTML, self)
+            intro.setObjectName("donIntro")
+            intro.setTextFormat(Qt.TextFormat.RichText)
+            intro.setWordWrap(True)
+            root.addWidget(intro)
+
             # --- belopp ---
-            head = QLabel("Välj belopp — eller skriv ett eget", self)
+            head = QLabel("1. Välj belopp — eller skriv ett eget", self)
             head.setObjectName("donHead")
             root.addWidget(head)
             row = QHBoxLayout()
@@ -161,85 +219,109 @@ if _QT_AVAILABLE:
             row.addStretch(1)
             root.addLayout(row)
             self.info = QLabel("", self)
+            self.info.setTextFormat(Qt.TextFormat.RichText)
             root.addWidget(self.info)
 
-            self.swish_available = DI.swish_aktiv()
-            # --- Swish-QR (standard, visas direkt; numret visas aldrig i text) ---
-            self.qr_box = QFrame(self)
-            ql = QVBoxLayout(self.qr_box)
-            ql.setAlignment(Qt.AlignmentFlag.AlignHCenter)
-            self.qr_label = QLabel(self.qr_box)
-            self.qr_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.qr_label.setStyleSheet("background: #FFFFFF; border-radius: 10px; padding: 8px;")
-            self.qr_note = QLabel("💚 Swish — skanna QR-koden med Swish-appen. Beloppet är förifyllt men kan ändras i appen.", self.qr_box)
-            self.qr_note.setWordWrap(True)
-            self.qr_note.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            ql.addWidget(self.qr_label)
-            ql.addWidget(self.qr_note)
-            self.qr_box.setVisible(self.swish_available)
-            root.addWidget(self.qr_box)
-
-            # --- övriga sätt: knappar (öppnar betaltjänstens sida i webbläsaren) ---
-            self.other_label = QLabel("Andra sätt att stödja:", self)
-            self.other_label.setObjectName("donHead")
-            self.other_label.setVisible(self.swish_available)
-            root.addWidget(self.other_label)
-            pay = QHBoxLayout()
-            pay.setSpacing(8)
-            self.btn_paypal = QPushButton("", self)
+            # --- sätt att stödja: tre kort ---
+            head2 = QLabel("2. Välj sätt — skanna QR-koden eller klicka på knappen", self)
+            head2.setObjectName("donHead")
+            root.addWidget(head2)
+            cards = QHBoxLayout()
+            cards.setSpacing(10)
+            self.qr_swish, self.btn_swish_none = self._card(
+                cards, "💚 Swish", "#047857", "Skanna med Swish-appen.\nBeloppet är förifyllt.", None)
+            self.qr_paypal, self.btn_paypal = self._card(
+                cards, "💙 PayPal", "#0070BA", "Skanna eller klicka — öppnas hos PayPal med valt belopp.", "donPaypal")
+            self.qr_kofi, self.btn_kofi = self._card(
+                cards, "☕ Ko-fi", "#C62828", "Skanna eller klicka — valfritt belopp, engångs eller månadsvis.", "donKofi")
             self.btn_paypal.clicked.connect(self._open_paypal)
-            self.btn_kofi = QPushButton("☕ Ko-fi", self)
-            self.btn_kofi.clicked.connect(lambda: _open_url(DI.kofi_url()))
-            for b, extra in ((self.btn_paypal, "donPaypal"), (self.btn_kofi, "donKofi")):
-                b.setProperty("kind", extra)
-                b.setCursor(Qt.CursorShape.PointingHandCursor)
-                b.setStyleSheet(STYLE_FOR[extra])
-                pay.addWidget(b, 1)
-            root.addLayout(pay)
+            self.btn_kofi.clicked.connect(lambda: _open_url(DI.kofi_url()) if self._lock_ok else None)
+            self.btn_paypal.setToolTip(DI.paypal_url(DI.BELOPP_STANDARD))
+            self.btn_kofi.setToolTip(DI.kofi_url())
+            root.addLayout(cards)
+            self.qr_swish.parentWidget().setVisible(self.swish_available)
 
-            # --- ärliga fakta ---
-            for icon, text in (
-                ("🚫", "Ingen reklam, ingen inloggning, inga prenumerationer."),
-                ("🎁", "Appen fungerar exakt lika bra utan donation — inget låses upp."),
-                ("🔒", "Betalningen sker i Swish-appen, hos PayPal eller Ko-fi. Ledgebord ser inga betalningsuppgifter."),
-            ):
-                f = QFrame(self)
-                f.setObjectName("donFact")
-                fl = QHBoxLayout(f)
-                fl.setContentsMargins(10, 6, 10, 6)
-                ic = QLabel(icon, f)
-                ic.setFixedWidth(24)
-                tx = QLabel(text, f)
-                tx.setWordWrap(True)
-                fl.addWidget(ic)
-                fl.addWidget(tx, 1)
-                root.addWidget(f)
+            facts = QLabel(FACTS_TEXT, self)
+            facts.setObjectName("donFacts")
+            facts.setWordWrap(True)
+            root.addWidget(facts)
 
-            # --- lås-status ---
             self.lock_label = QLabel("", self)
             self.lock_label.setObjectName("donLock")
             self.lock_label.setWordWrap(True)
             root.addWidget(self.lock_label)
 
             close_row = QHBoxLayout()
+            close_row.setContentsMargins(18, 0, 18, 0)
             close_row.addStretch(1)
             btn_close = QPushButton("Stäng", self)
             btn_close.setDefault(True)
             btn_close.clicked.connect(self.accept)
             close_row.addWidget(btn_close)
-            root.addLayout(close_row)
+            outer.addLayout(close_row)
 
             if self._lock_ok:
                 self.lock_label.setText("🔒 Mottagarna är inbyggda och låsta — de kan inte ändras i appen.")
             else:
                 self.lock_label.setText(
-                    "⚠ Donationsmottagarna i den här kopian av Ledgebord stämmer inte med originalet, så betalknapparna är "
-                    "avstängda. Kör <b>Sök ny version</b> för att återställa originalfilerna, eller hämta appen från "
+                    "⚠ Donationsmottagarna i den här kopian av Ledgebord stämmer inte med originalet, så betalningen är "
+                    "avstängd. Kör <b>Sök ny version</b> för att återställa originalfilerna, eller hämta appen från "
                     "github.com/Tokke2/TaskBord.")
                 self.lock_label.setTextFormat(Qt.TextFormat.RichText)
                 for b in (self.btn_paypal, self.btn_kofi):
                     b.setEnabled(False)
             self._sync_chips(self.eget.value())
+
+        def showEvent(self, event) -> None:  # type: ignore[override]
+            """Storlek efter innehållet (radbrytande etiketter ger fel förslag före första visningen), men aldrig högre än skärmen."""
+            super().showEvent(event)
+            try:
+                self.inner.layout().activate()
+                hint = self.inner.sizeHint()
+                scr = self.screen().availableGeometry() if self.screen() else None
+                h = hint.height() + 56
+                w = hint.width() + 6
+                if scr is not None:
+                    h = min(h, scr.height() - 60)
+                    w = min(w, scr.width() - 40)
+                self.resize(max(w, 700), max(h, 360))
+            except Exception as e:  # pragma: no cover
+                logger.info(f"{LOG_PREFIX} storlek: {e}")
+
+        def _card(self, layout, title: str, color: str, note: str, kind: Optional[str]):
+            """Ett kort: rubrik, QR-ruta, förklaring och (om ``kind``) en knapp. Returnerar (QR-label, knapp eller None)."""
+            card = QFrame(self)
+            card.setObjectName("donCard")
+            card.setMinimumHeight(QR_BOX + 175)
+            cl = QVBoxLayout(card)
+            cl.setContentsMargins(12, 12, 12, 12)
+            cl.setSpacing(8)
+            t = QLabel(title, card)
+            t.setObjectName("donCardTitle")
+            t.setStyleSheet(f"color: {color};")
+            t.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            cl.addWidget(t)
+            qr = QLabel(card)
+            qr.setObjectName("donQr")
+            qr.setFixedSize(QR_BOX, QR_BOX)
+            qr.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            cl.addWidget(qr, 0, Qt.AlignmentFlag.AlignHCenter)
+            n = QLabel(note, card)
+            n.setObjectName("donCardNote")
+            n.setWordWrap(True)
+            n.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            n.setMinimumHeight(58)
+            n.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.MinimumExpanding)
+            cl.addWidget(n, 1)
+            btn = None
+            if kind:
+                btn = QPushButton("", card)
+                btn.setCursor(Qt.CursorShape.PointingHandCursor)
+                btn.setMinimumHeight(42)
+                btn.setStyleSheet(STYLE_FOR[kind])
+                cl.addWidget(btn)
+            layout.addWidget(card, 1)
+            return qr, btn
 
         # -------------------------------------------------------------
         def belopp(self) -> int:
@@ -248,38 +330,34 @@ if _QT_AVAILABLE:
         def _pick(self, kr: int) -> None:
             self.eget.setValue(kr)
 
+        def _set_qr(self, label: "QLabel", data: Optional[bytes]) -> None:
+            if data and self._lock_ok:
+                pm = QPixmap()
+                pm.loadFromData(data, "PNG")
+                label.setPixmap(pm)
+            else:
+                label.clear()
+                label.setText("QR-koden kunde inte ritas" if self._lock_ok else "avstängd")
+
         def _sync_chips(self, v: int) -> None:
-            """Markera genvägen som motsvarar beloppet (eller ingen vid eget belopp) och uppdatera texter."""
+            """Markera genvägen som motsvarar beloppet, och rita om belopp-beroende QR-koder och knappar."""
             self.group.setExclusive(False)
             for kr, b in self.chips.items():
                 b.setChecked(kr == v)
             self.group.setExclusive(True)
             kr = self.belopp()
-            self.info.setText(f"Valt: <b>{kr} kr</b> — tack! 💚 (du kan ändra beloppet hos betaltjänsten)")
-            self.info.setTextFormat(Qt.TextFormat.RichText)
+            self.info.setText(f"Valt: <b>{kr} kr</b> — tack! 💚")
             self.btn_paypal.setText(f"💙 PayPal — {kr} kr")
             self.btn_paypal.setToolTip(DI.paypal_url(kr))
-            self.btn_kofi.setToolTip(DI.kofi_url())
+            self.btn_kofi.setText("☕ Ko-fi")
             if self.swish_available:
-                self._show_qr()
+                self._set_qr(self.qr_swish, swish_qr_png(kr))
+            self._set_qr(self.qr_paypal, paypal_qr_png(kr))
+            self._set_qr(self.qr_kofi, kofi_qr_png())
 
         def _open_paypal(self) -> None:
             if self._lock_ok:
                 _open_url(DI.paypal_url(self.belopp()))
-
-        def _show_qr(self) -> None:
-            if not self._lock_ok:
-                self.qr_box.setVisible(False)
-                return
-            data = swish_qr_png(self.belopp())
-            if not data:
-                self.qr_label.setText("QR-koden kunde inte ritas (paketet 'segno' saknas).")
-                self.qr_box.setVisible(True)
-                return
-            pm = QPixmap()
-            pm.loadFromData(data, "PNG")
-            self.qr_label.setPixmap(pm)
-            self.qr_box.setVisible(True)
 
 
 def open_donate_dialog(parent: Optional["QWidget"] = None) -> bool:
