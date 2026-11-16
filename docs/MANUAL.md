@@ -654,16 +654,16 @@ finns i två mixins (annars vinner en tyst), inga odefinierade namn, sökvägar 
 
 Ledgebord är gratis och utan reklam. Donationer är helt frivilliga och går till utveckling och underhåll. Appen fungerar exakt lika bra utan donation.
 
-- 💙 **PayPal:** https://paypal.me/Rickard3dPrint
-- ☕ **Ko-fi:** https://ko-fi.com/tokke2
-
-Du hittar samma länkar i appen: högerklicka på fönstret eller använd tray-menyn och välj **💖 Stöd Ledgebord…**.
-Dialogen har belopp-genvägar (25/50/100/200 kr) och eget belopp (1–99 999 kr); beloppet följer med in i PayPal-länken.
+Allt görs i appen — det finns ingen egen donationssida: högerklicka på fönstret eller använd tray-menyn och välj
+**💖 Stöd Ledgebord…**. **Swish är standard:** en Swish-QR-kod visas direkt (numret visas aldrig som text) och du
+skannar den med Swish-appen. Dialogen har belopp-genvägar (25/50/100/200 kr) och eget belopp (1–99 999 kr); beloppet
+är förifyllt i QR-koden. Under den finns två knappar, PayPal (med valt belopp) och Ko-fi, som öppnar betaltjänsten i webbläsaren.
 **Mottagarna är låsta:** de står bara inbyggda i koden (`core/donate_info.py`), finns ingen inställning eller datafil
 för dem, och en kontrollsumma kontrolleras varje gång dialogen öppnas — är filen ändrad stängs betalknapparna av och
 dialogen varnar. Uppdateringen från releasen lägger tillbaka originalfilen. (Ledgebord är öppen källkod, så den som
 själv ändrar koden kan förstås göra en egen version — låset skyddar mot oavsiktliga och tysta ändringar.)
-Ett Swish-nummer kan läggas in av ägaren i `SWISH_NUMMER` (då visas en Swish-QR med valt belopp; kräver paketet `segno`).
+QR-koden ritas lokalt med paketet `segno` (ingen tjänst på nätet anlitas). Ägaren ändrar mottagare i `core/donate_info.py`
+och kör filen för att få en ny kontrollsumma.
 
 ## 📄 Licens
 

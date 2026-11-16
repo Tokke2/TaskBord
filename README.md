@@ -64,9 +64,8 @@ uppgifterna, kopiera `js\` först.
 
 ## 💖 Stöd projektet
 
-Ledgebord är gratis och utan reklam. Donationer är helt frivilliga:
-[PayPal](https://paypal.me/Rickard3dPrint) · [Ko-fi](https://ko-fi.com/tokke2) — eller i appen: högerklicka → **💖 Stöd Ledgebord…**
-(välj belopp, mottagarna är inbyggda och låsta).
+Ledgebord är gratis och utan reklam. Donationer är helt frivilliga och görs i appen: högerklicka på fönstret
+(eller tray-ikonen) → **💖 Stöd Ledgebord…** → välj belopp och skanna Swish-QR-koden. Mottagaren är inbyggd och låst.
 
 ## 📄 Licens
 

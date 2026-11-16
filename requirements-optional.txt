@@ -11,4 +11,3 @@ reportlab>=4.0             # PDF-export av checklistan (📄)
 # inga konton eller nycklar hos någon mellanhand.
 google-api-python-client>=2.100   # skicka/läsa händelser
 google-auth-oauthlib>=1.2         # själva inloggningen (OAuth 2.0)
-segno>=1.6                 # QR-kod för Swish i stöddialogen (bara om ett Swish-nummer är inlagt)

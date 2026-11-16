@@ -163,44 +163,45 @@ if _QT_AVAILABLE:
             self.info = QLabel("", self)
             root.addWidget(self.info)
 
-            # --- betala ---
-            pay = QHBoxLayout()
-            pay.setSpacing(8)
-            self.btn_swish = QPushButton("💚 Swish (QR)", self)
-            self.btn_swish.clicked.connect(self._show_qr)
-            self.btn_paypal = QPushButton("", self)
-            self.btn_paypal.clicked.connect(self._open_paypal)
-            self.btn_kofi = QPushButton("☕ Ko-fi", self)
-            self.btn_kofi.clicked.connect(lambda: _open_url(DI.kofi_url()))
-            for b, extra in ((self.btn_swish, "donSwish"), (self.btn_paypal, "donPaypal"), (self.btn_kofi, "donKofi")):
-                b.setProperty("kind", extra)
-                b.setCursor(Qt.CursorShape.PointingHandCursor)
-                b.setStyleSheet(STYLE_FOR[extra])
-                pay.addWidget(b, 1)
             self.swish_available = DI.swish_aktiv()
-            self.btn_swish.setVisible(self.swish_available)
-            root.addLayout(pay)
-
-            # Swish-QR (visas efter klick)
+            # --- Swish-QR (standard, visas direkt; numret visas aldrig i text) ---
             self.qr_box = QFrame(self)
             ql = QVBoxLayout(self.qr_box)
             ql.setAlignment(Qt.AlignmentFlag.AlignHCenter)
             self.qr_label = QLabel(self.qr_box)
             self.qr_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self.qr_label.setStyleSheet("background: #FFFFFF; border-radius: 10px; padding: 8px;")
-            self.qr_note = QLabel("Skanna med Swish-appen. Beloppet är förifyllt men kan ändras i appen.", self.qr_box)
+            self.qr_note = QLabel("💚 Swish — skanna QR-koden med Swish-appen. Beloppet är förifyllt men kan ändras i appen.", self.qr_box)
             self.qr_note.setWordWrap(True)
             self.qr_note.setAlignment(Qt.AlignmentFlag.AlignCenter)
             ql.addWidget(self.qr_label)
             ql.addWidget(self.qr_note)
-            self.qr_box.setVisible(False)
+            self.qr_box.setVisible(self.swish_available)
             root.addWidget(self.qr_box)
+
+            # --- övriga sätt: knappar (öppnar betaltjänstens sida i webbläsaren) ---
+            self.other_label = QLabel("Andra sätt att stödja:", self)
+            self.other_label.setObjectName("donHead")
+            self.other_label.setVisible(self.swish_available)
+            root.addWidget(self.other_label)
+            pay = QHBoxLayout()
+            pay.setSpacing(8)
+            self.btn_paypal = QPushButton("", self)
+            self.btn_paypal.clicked.connect(self._open_paypal)
+            self.btn_kofi = QPushButton("☕ Ko-fi", self)
+            self.btn_kofi.clicked.connect(lambda: _open_url(DI.kofi_url()))
+            for b, extra in ((self.btn_paypal, "donPaypal"), (self.btn_kofi, "donKofi")):
+                b.setProperty("kind", extra)
+                b.setCursor(Qt.CursorShape.PointingHandCursor)
+                b.setStyleSheet(STYLE_FOR[extra])
+                pay.addWidget(b, 1)
+            root.addLayout(pay)
 
             # --- ärliga fakta ---
             for icon, text in (
                 ("🚫", "Ingen reklam, ingen inloggning, inga prenumerationer."),
                 ("🎁", "Appen fungerar exakt lika bra utan donation — inget låses upp."),
-                ("🔒", "Betalningen sker hos PayPal, Ko-fi eller Swish. Ledgebord ser inga betalningsuppgifter."),
+                ("🔒", "Betalningen sker i Swish-appen, hos PayPal eller Ko-fi. Ledgebord ser inga betalningsuppgifter."),
             ):
                 f = QFrame(self)
                 f.setObjectName("donFact")
@@ -236,7 +237,7 @@ if _QT_AVAILABLE:
                     "avstängda. Kör <b>Sök ny version</b> för att återställa originalfilerna, eller hämta appen från "
                     "github.com/Tokke2/TaskBord.")
                 self.lock_label.setTextFormat(Qt.TextFormat.RichText)
-                for b in (self.btn_swish, self.btn_paypal, self.btn_kofi):
+                for b in (self.btn_paypal, self.btn_kofi):
                     b.setEnabled(False)
             self._sync_chips(self.eget.value())
 
@@ -259,7 +260,7 @@ if _QT_AVAILABLE:
             self.btn_paypal.setText(f"💙 PayPal — {kr} kr")
             self.btn_paypal.setToolTip(DI.paypal_url(kr))
             self.btn_kofi.setToolTip(DI.kofi_url())
-            if self.qr_box.isVisible():
+            if self.swish_available:
                 self._show_qr()
 
         def _open_paypal(self) -> None:
@@ -268,6 +269,7 @@ if _QT_AVAILABLE:
 
         def _show_qr(self) -> None:
             if not self._lock_ok:
+                self.qr_box.setVisible(False)
                 return
             data = swish_qr_png(self.belopp())
             if not data:

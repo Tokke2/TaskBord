@@ -13,7 +13,7 @@ tillbaka den ursprungliga filen vid nästa uppdateringskontroll.
 version. Låset skyddar mot oavsiktliga/tysta ändringar och mot att inställningar eller datafiler styr om betalningar.
 
 Ändra mottagare (bara ägaren): redigera konstanterna nedan och kör ``python core/donate_info.py`` — skriv sedan in den
-utskrivna kontrollsumman i ``_LAS_HASH``. Ett Swish-nummer i ``SWISH_NUMMER`` gör att Swish-QR visas i dialogen.
+utskrivna kontrollsumman i ``_LAS_HASH``. Swish är standard: QR-koden visas direkt i dialogen (numret visas aldrig som text).
 """
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ from urllib.parse import quote
 
 PAYPAL_BAS: Final[str] = "https://paypal.me/Rickard3dPrint"
 KOFI_URL: Final[str] = "https://ko-fi.com/tokke2"
-SWISH_NUMMER: Final[str] = ""            # t.ex. "1234567890" — tomt = Swish visas inte
+SWISH_NUMMER: Final[str] = "0721817177"  # visas ALDRIG som text i appen — bara inbakat i QR-koden
 SWISH_MEDDELANDE: Final[str] = "Ledgebord"
 
 BELOPP_VAL: Final[Tuple[int, ...]] = (25, 50, 100, 200)
@@ -32,7 +32,7 @@ BELOPP_STANDARD: Final[int] = 50
 BELOPP_MIN: Final[int] = 1
 BELOPP_MAX: Final[int] = 99_999
 
-_LAS_HASH: Final[str] = "853ecafa75499a122080eaf196ff794440731d0a878cec7449bff9dce8b215c7"
+_LAS_HASH: Final[str] = "10745a5601e42d246df0b8c0bb318f610f81c96c1abb243f5d10afa184221777"
 
 
 def las_sträng() -> str:

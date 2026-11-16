@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-donate_test.py — stöddialogen 💖: valfritt belopp, PayPal/Ko-fi/Swish, och att MOTTAGARNA ÄR LÅSTA.
+donate_test.py — stöddialogen 💖: valfritt belopp, Swish-QR som standard (+ knapparna PayPal/Ko-fi), och att MOTTAGARNA ÄR LÅSTA.
 
 Kör:  python tester/donate_test.py
 Del 1 (ren Python): core/donate_info.py — kontrollsumma, belopp, länkar, Swish-payload, att inget kan styra om mottagarna.
@@ -40,21 +40,21 @@ def pure() -> None:
     check("PayPal-länk med belopp", DI.paypal_url(50) == "https://paypal.me/Rickard3dPrint/50SEK" and DI.paypal_url(1234) == "https://paypal.me/Rickard3dPrint/1234SEK")
     check("belopp begränsas 1…99 999 och skräp → standard", DI.clamp_belopp(0) == 1 and DI.clamp_belopp(10**9) == 99_999 and DI.clamp_belopp("abc") == 50 and DI.clamp_belopp(None) == 50 and DI.clamp_belopp("75") == 75)
     check("genvägarna är 25/50/100/200 och standard 50", DI.BELOPP_VAL == (25, 50, 100, 200) and DI.BELOPP_STANDARD == 50)
-    check("inget Swish-nummer inlagt → Swish visas inte (inget påhittat nummer)", DI.SWISH_NUMMER == "" and not DI.swish_aktiv())
+    check("Swish är standard: nummer inlagt och aktivt", DI.swish_nummer() == "0721817177" and DI.swish_aktiv())
+    check("Swish-payload i officiellt C-format (belopp förifyllt, nummer låst = mask 6)", DI.swish_payload(75) == "C0721817177;75;Ledgebord;6", DI.swish_payload(75))
 
     # ändrad mottagare upptäcks (kontrollsumman är kopplad till alla fält)
     saved = (DI.PAYPAL_BAS, DI.KOFI_URL, DI.SWISH_NUMMER, DI.SWISH_MEDDELANDE)
     try:
         for fld, val in (("PAYPAL_BAS", "https://paypal.me/Annan"), ("KOFI_URL", "https://ko-fi.com/annan"),
-                         ("SWISH_NUMMER", "1230000000"), ("SWISH_MEDDELANDE", "x")):
+                         ("SWISH_NUMMER", "0700000000"), ("SWISH_MEDDELANDE", "x")):
             old = getattr(DI, fld)
             setattr(DI, fld, val)
             check(f"ändrad {fld} → las_ok() är False", DI.las_ok() is False)
             setattr(DI, fld, old)
         check("…och efter återställning är den True igen", DI.las_ok())
-        DI.SWISH_NUMMER = "123 456 78 90"
-        check("Swish-nummer med mellanslag rensas till siffror", DI.swish_nummer() == "1234567890" and DI.swish_aktiv())
-        check("Swish-payload i officiellt C-format (nummer låst = mask 6)", DI.swish_payload(75) == "C1234567890;75;Ledgebord;6", DI.swish_payload(75))
+        DI.SWISH_NUMMER = "072-181 71 77"
+        check("Swish-nummer med streck/mellanslag rensas till siffror", DI.swish_nummer() == "0721817177" and DI.swish_aktiv())
     finally:
         DI.PAYPAL_BAS, DI.KOFI_URL, DI.SWISH_NUMMER, DI.SWISH_MEDDELANDE = saved
 
@@ -73,7 +73,11 @@ def pure() -> None:
     for f in ("app/mixins/tray.py", "ui/widget_parts/window_ops.py"):
         check(f"stödvalet finns i {f}", "Stöd Ledgebord" in (ROOT / f).read_text(encoding="utf-8"))
     check("Om-rutan säger inte längre 'Donation: inaktiverad'", "Donation: inaktiverad" not in (ROOT / "app/mixins/diagnostics.py").read_text(encoding="utf-8"))
-    check("segno finns i requirements-optional (QR för Swish)", "segno" in (ROOT / "requirements-optional.txt").read_text(encoding="utf-8"))
+    check("segno finns i requirements.txt (QR för Swish)", "segno" in (ROOT / "requirements.txt").read_text(encoding="utf-8"))
+    for f in ("README.md", "docs/MANUAL.md"):
+        t = (ROOT / f).read_text(encoding="utf-8")
+        check(f"{f}: ingen egen donationssida/länkar till PayPal eller Ko-fi", "paypal.me" not in t and "ko-fi.com" not in t)
+        check(f"{f}: Swish-numret står inte i klartext", "0721817177" not in t and "072-181" not in t)
 
 
 def child() -> None:
@@ -97,9 +101,15 @@ def child() -> None:
     ck("dialogen skapas, lås OK", dlg._lock_ok and "låsta" in dlg.lock_label.text())
     ck("standardbelopp 50 kr är valt (genväg markerad)", dlg.belopp() == 50 and dlg.chips[50].isChecked() and not dlg.chips[25].isChecked())
     ck("banner med ikon", dlg.logo.pixmap() is not None and not dlg.logo.pixmap().isNull())
-    ck("Swish visas inte utan nummer", dlg.btn_swish.isHidden() and not dlg.qr_box.isVisible())
+    ck("Swish-QR visas direkt (standard) med bild", dlg.qr_box.isVisible() and dlg.qr_label.pixmap() is not None and not dlg.qr_label.pixmap().isNull())
+    ck("det finns ingen Swish-knapp — bara QR; bara PayPal och Ko-fi som knappar", not hasattr(dlg, "btn_swish"))
+    from PySide6.QtWidgets import QLabel, QPushButton
+    alltext = " ".join([w.text() + " " + w.toolTip() for w in dlg.findChildren(QLabel)] + [w.text() + " " + w.toolTip() for w in dlg.findChildren(QPushButton)])
+    ck("Swish-numret står inte som text någonstans i dialogen", "0721817177" not in alltext and "072-181" not in alltext and "721817177" not in alltext)
+    q50 = dlg.qr_label.pixmap().toImage()
     ck("PayPal-knappen visar beloppet", "50 kr" in dlg.btn_paypal.text())
     dlg.chips[200].click()
+    ck("QR:n ritas om när beloppet ändras", dlg.qr_label.pixmap().toImage() != q50)
     ck("klick på genväg sätter beloppet", dlg.belopp() == 200 and dlg.chips[200].isChecked() and not dlg.chips[50].isChecked() and "200 kr" in dlg.btn_paypal.text())
     dlg.eget.setValue(75)
     ck("eget belopp avmarkerar genvägarna", dlg.belopp() == 75 and not any(b.isChecked() for b in dlg.chips.values()) and "75 kr" in dlg.info.text())
@@ -122,38 +132,22 @@ def child() -> None:
         n = len(opened)
         bad._open_paypal()
         bad._show_qr()
-        ck("ändrade mottagare: betalknapparna är avstängda", not bad.btn_paypal.isEnabled() and not bad.btn_kofi.isEnabled() and not bad.btn_swish.isEnabled())
-        ck("…varnar tydligt och öppnar ingenting", "stämmer inte" in bad.lock_label.text() and len(opened) == n and not bad.qr_box.isVisible())
+        ck("ändrade mottagare: betalknapparna är avstängda", not bad.btn_paypal.isEnabled() and not bad.btn_kofi.isEnabled() and not bad.qr_box.isVisible())
+        ck("…varnar tydligt och öppnar ingenting", "stämmer inte" in bad.lock_label.text() and len(opened) == n)
         bad.close()
     finally:
         DI.PAYPAL_BAS = saved
 
-    # Swish med nummer (testnummer) → QR ritas
-    DI.SWISH_NUMMER = "1234567890"
-    import hashlib
-    real_hash = DI._LAS_HASH
-    DI._LAS_HASH = hashlib.sha256(DI.las_sträng().encode()).hexdigest()   # testet "ändrar ägaren"
-    try:
-        sd = D.DonateDialog()
-        sd.show()
+    png = D.swish_qr_png(75)
+    ck("Swish-QR är en PNG", bool(png) and png[:8] == b"\x89PNG\r\n\x1a\n")
+    ck("QR-bytes innehåller inte numret i klartext", b"0721817177" not in png)
+    shot = os.environ.get("DONATE_SHOT")
+    if shot:
+        dlg3 = D.DonateDialog()
+        dlg3.show()
         app.processEvents()
-        ck("med Swish-nummer: Swish-knappen visas", not sd.btn_swish.isHidden())
-        png = D.swish_qr_png(75)
-        ck("Swish-QR är en PNG", bool(png) and png[:8] == b"\x89PNG\r\n\x1a\n")
-        sd.eget.setValue(75)
-        sd.btn_swish.click()
-        ck("klick visar QR-rutan med bild", sd.qr_box.isVisible() and sd.qr_label.pixmap() is not None and not sd.qr_label.pixmap().isNull())
-        a = sd.qr_label.pixmap().toImage()
-        sd.eget.setValue(125)
-        b = sd.qr_label.pixmap().toImage()
-        ck("QR:n ritas om när beloppet ändras", a != b)
-        shot = os.environ.get("DONATE_SHOT")
-        if shot:
-            sd.grab().save(shot)
-        sd.close()
-    finally:
-        DI.SWISH_NUMMER = ""
-        DI._LAS_HASH = real_hash
+        dlg3.grab().save(shot)
+        dlg3.close()
 
     dlg2 = D.DonateDialog()
     dlg2.show()
