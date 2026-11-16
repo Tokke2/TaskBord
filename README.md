@@ -65,7 +65,14 @@ uppgifterna, kopiera `js\` först.
 ## 💖 Stöd projektet
 
 Ledgebord är gratis och utan reklam. Donationer är helt frivilliga:
-[PayPal](https://paypal.me/Rickard3dPrint) · [Ko-fi](https://ko-fi.com/tokke2)
+[PayPal](https://paypal.me/Rickard3dPrint) · [Ko-fi](https://ko-fi.com/tokke2) — eller i appen: högerklicka → **💖 Stöd Ledgebord…**
+(välj belopp, mottagarna är inbyggda och låsta).
+
+## 📄 Licens
+
+**MIT** — se [`LICENSE`](LICENSE). Du får använda, kopiera, ändra och dela Ledgebord **både privat och kommersiellt**
+(till exempel i ditt företag), utan avgift. Enda villkoret: behåll copyright- och licenstexten i kopior av programmet.
+Programmet levereras utan garanti.
 
 ---
 

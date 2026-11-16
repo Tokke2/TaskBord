@@ -9,7 +9,7 @@ Glasmorphism (DWM Blur / Mica / Acrylic), hotkeys, visuell feedback,
 Windows-version-detektering, anti-deadlock timeouts, robust multi-OS autostart,
 ANTI-OCCLUSION (widgeten får ALDRIG dölja ikoner).
 
-DONATION: inaktiverad (R4 pausad 2026-08-11)
+STÖD: frivillig donation via ui/donate.py (mottagarna är låsta i core/donate_info.py)
 
 DESIGN-FILOSOFI (R2 5000% bättre)
 ====================================

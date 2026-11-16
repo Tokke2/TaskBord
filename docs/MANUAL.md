@@ -39,6 +39,7 @@
 - [☁️ Google Calendar (lokal koppling)](#-google-calendar-lokal-koppling)
 - [🧱 Kodstruktur (för den som ändrar koden)](#-kodstruktur-för-den-som-ändrar-koden)
 - [💖 Stöd projektet](#-stöd-projektet)
+- [📄 Licens](#-licens)
 
 ## 🚀 Installation (Windows)
 
@@ -656,7 +657,18 @@ Ledgebord är gratis och utan reklam. Donationer är helt frivilliga och går ti
 - 💙 **PayPal:** https://paypal.me/Rickard3dPrint
 - ☕ **Ko-fi:** https://ko-fi.com/tokke2
 
-Du hittar samma länkar i appen: högerklicka på fönstret och välj **💖 Stöd Ledgebord…**.
+Du hittar samma länkar i appen: högerklicka på fönstret eller använd tray-menyn och välj **💖 Stöd Ledgebord…**.
+Dialogen har belopp-genvägar (25/50/100/200 kr) och eget belopp (1–99 999 kr); beloppet följer med in i PayPal-länken.
+**Mottagarna är låsta:** de står bara inbyggda i koden (`core/donate_info.py`), finns ingen inställning eller datafil
+för dem, och en kontrollsumma kontrolleras varje gång dialogen öppnas — är filen ändrad stängs betalknapparna av och
+dialogen varnar. Uppdateringen från releasen lägger tillbaka originalfilen. (Ledgebord är öppen källkod, så den som
+själv ändrar koden kan förstås göra en egen version — låset skyddar mot oavsiktliga och tysta ändringar.)
+Ett Swish-nummer kan läggas in av ägaren i `SWISH_NUMMER` (då visas en Swish-QR med valt belopp; kräver paketet `segno`).
+
+## 📄 Licens
+
+MIT (filen `LICENSE`): fri användning **privat och kommersiellt**, ändring och vidaredelning är tillåten så länge
+copyright- och licenstexten behålls. Ingen garanti.
 
 ---
 

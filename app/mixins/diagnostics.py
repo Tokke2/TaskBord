@@ -457,11 +457,19 @@ class DiagnosticsMixin:
                 f"  • Multi-window + tray-icon\n"
                 f"  • BUGG 19/26-fix: widget alltid synlig, aldrig över ikoner\n"
                 f"\n"
-                f"Donation: inaktiverad (R4 pausad 2026-08-11)\n"
+                f"Stöd projektet: tray-menyn eller högerklick → 💖 Stöd Ledgebord…\n"
             )
             self._QMessageBox.about(None, f"Om {APP_NAME}", msg)
         except Exception as e:
             self._log.error(f"show_about misslyckades: {e}")
+
+    def show_donate(self) -> None:
+        """Öppna stöddialogen (💖) från tray-menyn. Mottagarna är låsta i core/donate_info.py."""
+        try:
+            from ui.donate import open_donate_dialog
+            open_donate_dialog(None)
+        except Exception as e:
+            self._log.error(f"show_donate misslyckades: {e}")
 
     def _dump_subsystem_status(self) -> None:
         """Dump subsystem-status till logg (diagnostics-läge, NY v6.4: orjson)."""

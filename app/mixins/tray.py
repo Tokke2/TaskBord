@@ -724,6 +724,11 @@ class TrayMixin:
             self._resolve_action = resolve_action
             self._tray_menu.addAction(resolve_action)
 
+            donate_action = self._QAction("💖  Stöd Ledgebord…", self._tray_menu)
+            donate_action.setToolTip("Frivillig donation (PayPal, Ko-fi). Appen fungerar lika bra utan.")
+            donate_action.triggered.connect(self.show_donate)
+            self._tray_menu.addAction(donate_action)
+
             about_action = self._QAction("ℹ  Om…", self._tray_menu)
             about_action.triggered.connect(self.show_about)
             self._tray_menu.addAction(about_action)

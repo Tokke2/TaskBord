@@ -7,7 +7,7 @@ Copyright Rickard Längkvist, 2025–2026
 Backup-hantering med rotation, restore, export/import.
 Stödjer ZIP-baserade snapshots av data + settings.
 
-DONATION: inaktiverad (R4 pausad 2026-08-11)
+STÖD: frivillig donation via ui/donate.py (mottagarna är låsta i core/donate_info.py)
 
 DESIGN-FILOSOFI (R2 5000% bättre)
 ====================================
