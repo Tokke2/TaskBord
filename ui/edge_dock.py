@@ -155,6 +155,29 @@ if _QT:
             self.dock_to(edge, scr)
             return True
 
+        def dock_now(self, edge: str) -> str:
+            """Docka direkt i vald kant på skärmen där fönstret ligger (menyval). '' = klart, annars förklaring."""
+            if edge not in geo.EDGES:
+                return "Okänd kant."
+            rect = self._rect()
+            screens = self._screens_fn()
+            scr = geo.screen_for(rect, [a for a, _ in screens])
+            if scr is None:
+                return "Hittade ingen skärm."
+            full = next(f for a, f in screens if a == scr)
+            if edge not in geo.outer_edges(full, [f for _, f in screens]):
+                return ("Den kanten gränsar mot din andra skärm — då skulle fönstret synas där i stället.\n"
+                        "Välj en kant som ligger ytterst (t.ex. övre kanten eller kanten längst bort).")
+            if edge in ("left", "right") and rect[2] > scr[2] * 0.8:
+                return "Fönstret är för brett för att gömmas åt sidan. Gör det smalare först."
+            if edge == "top" and rect[3] > scr[3] * 0.9:
+                return "Fönstret är för högt för att gömmas uppåt. Gör det lägre först."
+            setter = getattr(self.settings, "set_edge_dock_enabled", None)
+            if callable(setter) and not self._enabled():
+                setter(True)
+            self.dock_to(edge, scr)
+            return ""
+
         def dock_to(self, edge: str, avail: Rect, grace: float = 0.0) -> None:
             self._stop_anim()
             rect = self._rect()

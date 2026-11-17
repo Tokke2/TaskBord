@@ -85,7 +85,18 @@ class WindowOpsMixin:
             # frivillig donation: egen dialog (ui/donate.py), direkt under hjälpen
             act_donate = menu.addAction("💖 Stöd Ledgebord (Swish, PayPal, Ko-fi)…")
             act_hide = menu.addAction("🗕 Minimera till systemfältet")
-            act_dock = menu.addAction("↔ Docka vid skärmkant")
+            dock_menu = menu.addMenu("↔ Dölj i skärmkanten")
+            dock_menu.setToolTip(
+                "Fönstret gömmer sig i skärmkanten och glider fram när du för musen mot kanten.\n"
+                "Välj kant här — eller dra fönstret mot kanten och släpp."
+            )
+            act_edge = {}
+            for _e, _label in (("left", "◀  Dölj vid vänster kant"), ("right", "▶  Dölj vid höger kant"),
+                               ("top", "▲  Dölj vid övre kanten")):
+                act_edge[_e] = dock_menu.addAction(_label)
+            act_undock = dock_menu.addAction("✖  Visa som vanligt (sluta dölja)")
+            dock_menu.addSeparator()
+            act_dock = dock_menu.addAction("Dockning på (även när du drar fönstret mot en kant)")
             act_dock.setCheckable(True)
             act_dock.setChecked(bool(getattr(self.settings, "edge_dock_enabled", lambda: True)()))
             act_dock.setToolTip(
@@ -125,6 +136,10 @@ class WindowOpsMixin:
                 self._on_open_payment_plan()
             elif chosen is act_tagcol:
                 self._on_open_tag_colors()
+            elif chosen in act_edge.values():
+                self._dock_to_edge_now(next(e for e, a in act_edge.items() if a is chosen))
+            elif chosen is act_undock:
+                self._edge_dock_release()
             elif chosen is act_dock:
                 self.settings.set_edge_dock_enabled(act_dock.isChecked())
                 if not act_dock.isChecked():
@@ -202,6 +217,16 @@ class WindowOpsMixin:
             self._ensure_edge_dock().on_drag_release()
         except Exception as e:
             logger.warning(f"{LOG_PREFIX} _edge_dock_after_drag: {_describe_widget_error(e)}")
+
+    def _dock_to_edge_now(self, edge: str) -> None:
+        """Menyval: dölj fönstret i vald kant (utan att dra). Går kanten inte → förklara varför."""
+        try:
+            why = self._ensure_edge_dock().dock_now(edge)
+            if why:
+                from PySide6.QtWidgets import QMessageBox
+                QMessageBox.information(self, "↔ Dölj i skärmkanten", why)
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} _dock_to_edge_now: {_describe_widget_error(e)}")
 
     def _edge_dock_reveal(self) -> None:
         dk = getattr(self, "_edge_dock", None)

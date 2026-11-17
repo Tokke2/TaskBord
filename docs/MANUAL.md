@@ -502,15 +502,17 @@ Först om den körande kopian inte svarar alls (t.ex. en mycket gammal version) 
 
 ## ↔ Dockning vid skärmkant
 
-**Dra fönstret mot vänster, höger eller övre skärmkanten och släpp** – då dockas det: när musen lämnar
+**Enklast: högerklicka fönstret → ↔ Dölj i skärmkanten → välj ◀ vänster, ▶ höger eller ▲ övre kanten.** Fönstret
+flyttas till kanten och gömmer sig när musen lämnar det; för musen mot kanten så glider det fram. (*✖ Visa som vanligt*
+avslutar det.) Du kan också **dra fönstret mot kanten och släppa** – då dockas det av sig självt: när musen lämnar
 fönstret glider det ut ur bild (en smal 5 px-list syns kvar) och glider in igen när musen **nuddar
 kanten** på fönstrets höjd/bredd. Passar bra tillsammans med *Alltid överst*.
 * Gömmer sig inte medan en dialog/meny är öppen, du drar i fönstret, redigerar en titel eller har text i
   inmatningsfältet. Håller du **Ctrl+Alt+V** glider det fram och stannar så länge tangenten hålls.
 * Visas inte om du håller en musknapp nedtryckt (så att rullisten/andra fönster inte råkar trigga det).
 * Dra bort fönstret från kanten (eller *Centrera*) så är det vanligt igen. Stäng av helt:
-  **högerklicka → ↔ Docka vid skärmkant**.
-* Med flera skärmar dockas bara **yttre** kanter (aldrig kanten mot grannskärmen). Underkanten används inte.
+  **högerklicka → ↔ Dölj i skärmkanten → Dockning på** (urkryssad).
+* Med flera skärmar dockas bara **yttre** kanter (aldrig kanten mot grannskärmen — väljer du den får du en förklaring). Underkanten används inte.
 * Det *synliga* läget sparas alltid (aldrig det utglidna), och dockningen återupptas efter omstart/uppdatering.
 
 ## 📋 Lägg till från urklipp

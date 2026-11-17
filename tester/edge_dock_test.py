@@ -291,6 +291,43 @@ def child() -> None:
     ck("hjälpen nämner dockningen", "kant" in __import__("core.shortcut_help", fromlist=["x"]).as_text(
         __import__("core.shortcut_help", fromlist=["x"]).build_sections(settings, platform="linux")))
 
+    # --- menyval: dölj i vald kant utan att dra ------------------------------------------------------------------------------
+    screens[:] = [(S, S)]
+    sm, stm, shm, wm, dkm = build("m")
+    place(shm, 500, 120, 340, 648)
+    ck("dock_now left: ok (tom förklaring)", dkm.dock_now("left") == "" and dkm.state == "shown" and dkm.edge == "left")
+    ck("…fönstret flyttas till kanten och kanten sparas", shm.x() == 0 and shm.y() == 120 and sm.edge_dock_edge() == "left")
+    cursor["p"] = (900, 500)
+    ck("…och gömmer sig när musen är borta", wait(lambda: dkm.state == "hidden"))
+    cursor["p"] = (0, 300)
+    ck("…och kommer fram när musen nuddar kanten", wait(lambda: dkm.state == "shown"))
+    cursor["p"] = (900, 500)
+    wait(lambda: dkm.state == "hidden")
+    place(shm, 500, 120, 340, 648) if dkm.state == "idle" else None
+    dkm.undock()
+    place(shm, 500, 120, 340, 648)
+    ck("dock_now right", dkm.dock_now("right") == "" and dkm.edge == "right" and shm.x() == 1536 - 340, (dkm.edge, shm.x()))
+    dkm.undock()
+    place(shm, 500, 300, 340, 400)
+    ck("dock_now top", dkm.dock_now("top") == "" and dkm.edge == "top" and shm.y() == 0, (dkm.edge, shm.y()))
+    dkm.undock()
+    sm.set_edge_dock_enabled(False)
+    place(shm, 500, 120, 340, 648)
+    ck("dock_now slår på dockningen om den var av", dkm.dock_now("left") == "" and sm.edge_dock_enabled() is True)
+    dkm.undock()
+    place(shm, 500, 120, 1300, 648)
+    ck("för brett fönster ger förklaring (inte dockat)", "för brett" in dkm.dock_now("left") and dkm.state == "idle")
+    place(shm, 500, 120, 340, 648)
+    ck("okänd kant ger förklaring", dkm.dock_now("bottom") != "" and dkm.state == "idle")
+    screens[:] = [((0, 0, 1536, 864), (0, 0, 1536, 864)), ((1536, 0, 1536, 864), (1536, 0, 1536, 864))]
+    place(shm, 500, 120, 340, 648)
+    ck("kant mot andra skärmen nekas med förklaring", "andra skärm" in dkm.dock_now("right") and dkm.state == "idle")
+    ck("yttre kant på samma skärm går bra", dkm.dock_now("left") == "" and dkm.edge == "left")
+    dkm.undock()
+    screens[:] = [(S, S)]
+    src = (ROOT / "ui/widget_parts/window_ops.py").read_text(encoding="utf-8")
+    ck("högerklicksmenyn har 'Dölj i skärmkanten' med tre kanter", "↔ Dölj i skärmkanten" in src and "Dölj vid vänster kant" in src and "Dölj vid övre kanten" in src and "_dock_to_edge_now" in src)
+
     bad = [n for n, ok in res if not ok]
     print("CHILD", len(res) - len(bad), len(bad))
     for n in bad:

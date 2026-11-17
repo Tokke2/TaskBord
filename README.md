@@ -36,7 +36,7 @@ påminner dig, tar emot uppgifter från mail och sparar allt i en mapp på din e
 | 💸 **Delbetalning** | Dela en faktura i flera betalningar — varje del blir en uppgift med datum och belopp. |
 | 💰 **Belopp** | Belopp på uppgifter med summor per månad och tagg ("att fakturera"). |
 | 📝 **Anteckningar** | Längre text per uppgift. Telefonnummer och adresser blir klickbara (ring, SMS, Google Maps). |
-| 🖥 **Skrivbordet** | Ligger bakom dina fönster, eller överst om du vill. Dockar mot skärmkanten. Följer Windows ljusa/mörka tema. |
+| 🖥 **Skrivbordet** | Ligger bakom dina fönster, eller överst om du vill. Gömmer sig i skärmkanten och glider fram när musen nuddar den. Följer Windows ljusa/mörka tema. |
 | 🔄 **Uppdatering** | Hittar nya versioner själv och uppdaterar tyst. Dina uppgifter och inställningar rörs aldrig. |
 | 💾 **Säkert** | Automatiska backuper, felloggar och självläkning. Bara en instans åt gången — startar du igen öppnas den som kör. |
 | 🗣 **Naturliga datum** | Skriv `fre 14`, `om 3 dagar` eller `nästa mån` — överallt där ett datum skrivs. |
