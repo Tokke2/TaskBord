@@ -285,9 +285,7 @@ class TaskMenuMixin:
             for label, iso in self._due_choices():
                 act = start_menu.addAction(label)
                 act.triggered.connect(
-                    lambda _c, i=iso: self._store_call(
-                        "set_start_date", tid, i, _what="startdatum"
-                    )
+                    lambda _c, i=iso: self._move_start_date(tid, i)
                 )
             if task.get("start_date"):
                 act = start_menu.addAction("✖ Ta bort startdatum")
@@ -502,10 +500,38 @@ class TaskMenuMixin:
             return None
         return cal.selectedDate().toString("yyyy-MM-dd")
 
+    def _ask_move_due(self, iso: str, due: str) -> bool:
+        from PySide6.QtWidgets import QMessageBox
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Question)
+        box.setWindowTitle("▶ Flytta uppgiften")
+        box.setText(
+            f"Startdatumet ({iso}) ligger efter förfallodatumet ({due}).\n\n"
+            f"Flytta även förfallodatumet till {iso}?\n"
+            "(Annars visar kalendern fortfarande den gamla dagen.)"
+        )
+        yes = box.addButton("✓ Ja, flytta båda", QMessageBox.ButtonRole.YesRole)
+        box.addButton("Nej, bara startdatum", QMessageBox.ButtonRole.NoRole)
+        box.exec()
+        return box.clickedButton() is yes
+
+    def _move_start_date(self, task_id: str, iso: str) -> None:
+        """Sätt startdatum. Hamnar det efter förfallodatumet (”flytta till nästa vecka”) frågas om förfallodatumet
+        ska följa med — annars skulle kalendern (även Google Calendar) fortfarande visa den gamla dagen.
+        Själva Google-uppdateringen sker automatiskt via store.dates_changed (core/gcal_autosync.py)."""
+        move_due = False
+        with suppress(Exception):
+            t = self.store.find_task(task_id) or {}
+            due = str(t.get("due_date") or "")[:10]
+            if due and iso > due:
+                move_due = self._ask_move_due(iso, due)
+        if move_due:
+            self._store_call("set_due_date", task_id, iso, _what="förfallodatum följer startdatum")
+        self._store_call("set_start_date", task_id, iso, _what="startdatum")
+
     def _prompt_and_set_start(self, task_id: str) -> None:
         """NY v8: välj startdatum i en kalender (valfritt, för kalendern)."""
         try:
-            from PySide6.QtWidgets import QMessageBox
             current = ""
             with suppress(Exception):
                 t = self.store.find_task(task_id) or {}
@@ -513,17 +539,7 @@ class TaskMenuMixin:
             iso = self._pick_date("▶ Startdatum", current)
             if not iso:
                 return
-            self._store_call("set_start_date", task_id, iso, _what="startdatum")
-            with suppress(Exception):
-                t = self.store.find_task(task_id) or {}
-                due = str(t.get("due_date") or "")[:10]
-                if due and iso > due:
-                    QMessageBox.information(
-                        self,
-                        "▶ Startdatum",
-                        "Startdatumet ligger efter förfallodatumet.\n"
-                        "I kalendern används då bara förfallodatumet.",
-                    )
+            self._move_start_date(task_id, iso)
         except Exception as e:
             logger.warning(f"{LOG_PREFIX} _prompt_and_set_start: {e}")
 

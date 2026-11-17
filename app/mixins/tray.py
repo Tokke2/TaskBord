@@ -228,6 +228,17 @@ class TrayMixin:
             )
             self._tray_menu.addAction(self._google_calendar_action)
 
+            _sync_act = self._QAction("      ↳ Flytta händelsen när datum ändras", self._tray_menu)
+            _sync_act.setCheckable(True)
+            _sync_act.setChecked(bool(self.settings.pref("gcal_autosync")))
+            _sync_act.setToolTip(
+                "På: ändrar du start- eller förfallodatum på en uppgift som du redan skickat till\n"
+                "Google Calendar flyttas händelsen dit automatiskt (bara datumet, inget annat).\n"
+                "Uppgifter som aldrig skickats påverkas inte."
+            )
+            _sync_act.toggled.connect(lambda on: self.settings.set_pref("gcal_autosync", bool(on)))
+            self._tray_menu.addAction(_sync_act)
+
             # (Uppdatera-raden ligger överst i menyn — se "UPPDATERA" ovan.)
             _auto_upd_on = bool(self.settings.update_check_enabled())
             _auto_upd = self._QAction(

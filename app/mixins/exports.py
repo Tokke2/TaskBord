@@ -4,7 +4,10 @@
 
 from __future__ import annotations
 
+import collections
 import os
+import threading
+from contextlib import suppress
 from datetime import datetime as _datetime
 from pathlib import Path
 
@@ -245,3 +248,78 @@ class ExportsMixin:
             )
         except Exception:
             pass
+
+    # -----------------------------------------------------------------------
+    # ☁️ Datum ändrat → flytta händelsen i Google Calendar (core/gcal_autosync.py)
+    # -----------------------------------------------------------------------
+
+    def _connect_gcal_autosync(self) -> None:
+        """Koppla store.dates_changed → AutoSync. Körs en gång vid start; allt nät sker i en egen tråd."""
+        try:
+            if not hasattr(self.store, "dates_changed"):
+                return
+            self._gcal_events = collections.deque(maxlen=20)
+            self._gcal_sync = None
+            self.store.dates_changed.connect(self._on_task_dates_changed)
+            self._log.info(f"{LOG_PREFIX} Google Calendar-synk av datumändringar kopplad")
+            # uppgifter som inte hann synkas förra gången provas igen strax efter start
+            _t = threading.Timer(20.0, self._gcal_resume)
+            _t.daemon = True
+            _t.start()
+        except Exception as e:
+            self._log.warning(f"{LOG_PREFIX} kunde inte koppla kalendersynk: {e}")
+
+    def _gcal_autosync(self):
+        """Skapa AutoSync vid första behov (först då behövs data-mappen)."""
+        a = getattr(self, "_gcal_sync", None)
+        if a is None:
+            from core.gcal_autosync import AutoSync, options_from_settings
+            data = getattr(self.store, "_data_dir", None)
+            if not data:
+                return None
+            a = AutoSync(
+                data,
+                find_task=lambda tid: self.store.find_task(tid),
+                get_options=lambda: options_from_settings(self.settings, data),
+                notify=self._gcal_events.append,   # deque.append är trådsäkert; tray visas från GUI-tråden
+            )
+            self._gcal_sync = a
+        return a
+
+    def _gcal_resume(self) -> None:
+        with suppress(Exception):
+            a = self._gcal_autosync()
+            if a is not None and a._opts().get("enabled", True):
+                a.resume(delay=0.0)
+
+    def _on_task_dates_changed(self, task_id: str = "") -> None:
+        """Start-/förfallodatum ändrat. Kan komma från vilken tråd som helst → rör inget Qt här."""
+        with suppress(Exception):
+            a = self._gcal_autosync()
+            if a is not None:
+                a.request(task_id)
+
+    def _drain_gcal_sync_results(self) -> None:
+        """GUI-tråden: visa vad synken gjort (liten tray-notis; tyst om inget hänt)."""
+        ev = getattr(self, "_gcal_events", None)
+        while ev:
+            try:
+                r = ev.popleft()
+            except IndexError:
+                break
+            with suppress(Exception):
+                if self._tray is None:
+                    continue
+                titel = str(r.get("title") or "")[:50]
+                ok = bool(r.get("ok"))
+                if r.get("action") == "uppdaterad":
+                    text = f"📅 “{titel}” flyttad i Google Calendar → {r.get('when', '')}"
+                elif r.get("action") == "hoppad" and ok:
+                    continue
+                else:
+                    text = f"📅 “{titel}”: {r.get('message', '')}"
+                self._tray.showMessage(
+                    APP_NAME, text,
+                    self._QSystemTrayIcon.MessageIcon.Information if ok else self._QSystemTrayIcon.MessageIcon.Warning,
+                    4000,
+                )

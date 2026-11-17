@@ -172,6 +172,8 @@ class MailBridgeMixin:
     def _poll_mail_bridge(self) -> None:
         """NY v7-fix90: töm notiskön och visa resultatet i tray/widget."""
         try:
+            with suppress(Exception):
+                self._drain_gcal_sync_results()   # ☁️ notiser från datumsynken (exports.py)
             if getattr(self, "_store_changed_in_thread", False):
                 # FIX v8: store ändrades av bryggtråden → rita om + autospara HÄR (GUI-tråden)
                 self._store_changed_in_thread = False

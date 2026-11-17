@@ -1298,6 +1298,7 @@ class TaskStore(QObject):
         task_updated = Signal(str)
         tags_changed = Signal()
         archive_changed = Signal()
+        dates_changed = Signal(str)   # start- eller förfallodatum ändrat (Google Calendar-synk)
     else:
         def __getattr__(self, name: str) -> Any:
             # v7-fix11: returnera CACHEAD dummy-signal. Tidigare skapades en
@@ -1399,7 +1400,7 @@ class TaskStore(QObject):
         if not _QT_AVAILABLE:
             for _sig_name in (
                 "changed", "task_added", "task_removed", "task_toggled",
-                "task_updated", "tags_changed", "archive_changed",
+                "task_updated", "tags_changed", "archive_changed", "dates_changed",
             ):
                 self._dummy_signals[_sig_name] = _DummySignal()
 
@@ -2370,6 +2371,7 @@ class TaskStore(QObject):
         self._audit_log.add("set_due_date", task_id, before=before, after=_safe_copy(task))
         logger.info(f"{LOG_PREFIX} set_due_date: {task_id!r} → {nd}")
         self._emit("task_updated", task_id)
+        self._emit("dates_changed", task_id)
         self._emit("changed")  # v7-fix11 (UI-refresh)
         return True
 
@@ -2394,6 +2396,7 @@ class TaskStore(QObject):
         self._audit_log.add("set_start_date", task_id, before=before, after=_safe_copy(task))
         logger.info(f"{LOG_PREFIX} set_start_date: {task_id!r} → {nd}")
         self._emit("task_updated", task_id)
+        self._emit("dates_changed", task_id)
         self._emit("changed")
         return True
 

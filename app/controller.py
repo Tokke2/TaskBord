@@ -599,6 +599,7 @@ class AppController(
                     f"{LOG_PREFIX} store saknar 'changed'-signal — "
                     f"live-refresh/autosave avstängt"
                 )
+            self._connect_gcal_autosync()
             self._log.debug("Signaler kopplade")
 
     def _get_qt_class(self, class_name: str) -> Optional[type]:

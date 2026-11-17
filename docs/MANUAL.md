@@ -714,6 +714,20 @@ Första gången du startar Ledgebord på en ny dator öppnas en kort **👋 Väl
 * Den finns alltid kvar: högerklicka fönstret eller tray-ikonen → **👋 Välkomstguide**.
 * Är listan tom visar den en förklarande vy (hur du skriver en uppgift, Ctrl+Alt+N, högerklick) i stället för bara "Inga uppgifter".
 
+### 🔄 Ändra datum → händelsen flyttas med
+
+Har du redan skickat en uppgift till Google Calendar följer händelsen med när du ändrar datum — du behöver inte skicka om den.
+
+*Exempel: ”Vindrutebyte idag”, kunden är sjuk → högerklicka → **📅 Förfallodatum** (eller **▶ Startdatum**) → *Nästa vecka*. Händelsen i kalendern flyttas av sig själv och en liten notis i tray visar nya dagen.*
+
+* **Gäller bara det du själv skickat.** En uppgift som aldrig skickats till kalendern skapas inte av sig själv — du väljer fortfarande vad som skickas.
+* **Bara datumet ändras.** Rubrik, beskrivning och färg som du ändrat inne i Google lämnas orörda.
+* **Startdatum efter förfallodatum:** flyttar du *start* till nästa vecka men förfallodatumet ligger kvar frågar Ledgebord om förfallodatumet ska följa med — annars visar kalendern fortfarande den gamla dagen.
+* **Inget nät?** Ledgebord provar igen efter 30 s, 2 min och 10 min, och sedan nästa gång programmet startar. Appen väntar aldrig på Google.
+* **Borttagen i Google?** Då skapas den inte på nytt — kopplingen släpps bara och du får en notis.
+* Alla flyttar syns i **Historik** (”Datum flyttades automatiskt till …”).
+* **Stäng av:** tray-menyn → ☁️ Google Calendar → *Flytta händelsen när datum ändras*.
+
 ## 🎨 Teman och utseende (+ ♿ tillgänglighet)
 
 Högerklicka fönstret eller tray-ikonen → **🎨 Teman och utseende…**. Allt slår igenom direkt medan du drar och sparas.
