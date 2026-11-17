@@ -10,13 +10,14 @@ en annan app har fokus kan också gömmas av Windows.
 
 Så här gör vi: ett appövergripande filter ser varje dialog som visas och lägger den överst (Windows:
 HWND_TOPMOST). Medan dialogen är öppen lägger `restack()` den överst igen efter varje omläggning av huvudfönstret.
-Menyer rörs inte (de ligger redan överst). Inget Qt-fönster skapas här; allt är valfritt utanför Windows.
+Öppna menyer läggs överst utan fokus och följer med vid varje omläggning. Inget Qt-fönster skapas här; allt är valfritt utanför Windows.
 """
 from __future__ import annotations
 
 import logging
 import sys
 import weakref
+from contextlib import suppress
 from typing import Any, Callable, List, Optional
 
 logger = logging.getLogger("Ledgebord")
@@ -39,9 +40,34 @@ def native_topmost(hwnd: int) -> bool:
         return False
 
 
+def native_topmost_quiet(hwnd: int) -> bool:
+    """Som native_topmost men utan att ta fokus (för menyer: de håller själva musfångsten)."""
+    if not hwnd or sys.platform != "win32":
+        return False
+    try:
+        import ctypes
+        user32 = ctypes.windll.user32
+        if not user32.IsWindow(hwnd):
+            return False
+        # HWND_TOPMOST | NOMOVE | NOSIZE | NOACTIVATE | SHOWWINDOW
+        user32.SetWindowPos(hwnd, -1, 0, 0, 0, 0, 0x0002 | 0x0001 | 0x0010 | 0x0040)
+        return True
+    except Exception:
+        return False
+
+
+def popup_open() -> bool:
+    """True medan en meny/rullista (Qt-popup) är öppen — då får huvudfönstret inte läggas om."""
+    try:
+        from PySide6.QtWidgets import QApplication
+        return QApplication.activePopupWidget() is not None
+    except Exception:
+        return False
+
+
 try:
     from PySide6.QtCore import QEvent, QObject, QTimer
-    from PySide6.QtWidgets import QDialog, QWidget
+    from PySide6.QtWidgets import QDialog, QMenu, QWidget
     _QT = True
 except ImportError:  # pragma: no cover
     _QT = False
@@ -51,10 +77,13 @@ except ImportError:  # pragma: no cover
 class DialogFront(QObject):  # type: ignore[misc]
     """Appövergripande filter: varje QDialog som visas hamnar överst och stannar där tills den stängs."""
 
-    def __init__(self, native: Optional[Callable[[int], bool]] = None, parent: Any = None) -> None:
+    def __init__(self, native: Optional[Callable[[int], bool]] = None, parent: Any = None,
+                 native_menu: Optional[Callable[[int], bool]] = None) -> None:
         super().__init__(parent)
         self._native = native or native_topmost
+        self._native_menu = native_menu or native_topmost_quiet
         self._open: "List[weakref.ref]" = []
+        self._menus: "List[weakref.ref]" = []
         self.raised = 0   # antal gånger en dialog lagts överst (diagnos/test)
 
     # ---------------------------------------------------------------- filter
@@ -67,6 +96,11 @@ class DialogFront(QObject):  # type: ignore[misc]
                 self._front(obj)
                 self._later(0, obj)
                 self._later(250, obj)
+            elif t == QEvent.Type.Show and isinstance(obj, QMenu) and obj.isWindow():
+                # högerklicksmenyn ska ligga över huvudfönstret även när det läggs om var 1,5 s
+                if not any(r() is obj for r in self._menus):
+                    self._menus.append(weakref.ref(obj))
+                self._native_menu(int(obj.winId()))
             elif t in (QEvent.Type.Hide, QEvent.Type.Close, QEvent.Type.Destroy) and isinstance(obj, QDialog):
                 self._untrack(obj)
         except Exception as e:  # filtret får aldrig störa appen
@@ -121,7 +155,22 @@ class DialogFront(QObject):  # type: ignore[misc]
         for d in self.visible_dialogs():
             self._front(d, activate=False)
             n += 1
+        for m in self.visible_menus():
+            with suppress(Exception):
+                self._native_menu(int(m.winId()))
         return n
+
+    def visible_menus(self) -> List[Any]:
+        out = []
+        for r in list(self._menus):
+            m = r()
+            try:
+                if m is not None and m.isVisible():
+                    out.append(m)
+            except RuntimeError:
+                pass
+        self._menus = [weakref.ref(m) for m in out]
+        return out
 
 
 def install(app: Any, native: Optional[Callable[[int], bool]] = None) -> Optional["DialogFront"]:

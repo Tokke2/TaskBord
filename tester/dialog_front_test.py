@@ -90,6 +90,32 @@ def child() -> None:
     spin()
     ck("vanligt fönster och meny läggs inte överst", int(w.winId()) not in calls and int(m.winId()) not in calls, calls)
     m.close()
+    spin(100)
+    # menyn läggs överst UTAN fokus och följer med vid omläggning av huvudfönstret
+    mcalls = []
+    f._native_menu = lambda h: (mcalls.append(h), True)[1]
+    m2 = QMenu()
+    m2.addAction("y")
+    m2.popup(w.pos())
+    spin()
+    ck("högerklicksmenyn läggs överst (utan fokus)", int(m2.winId()) in mcalls and m2 in f.visible_menus(), mcalls)
+    mcalls.clear()
+    f.restack()
+    ck("restack lägger även öppen meny överst igen", int(m2.winId()) in mcalls, mcalls)
+    m2.close()
+    spin(100)
+    mcalls.clear()
+    f.restack()
+    ck("stängd meny följs inte", not f.visible_menus() and not mcalls)
+    ck("popup_open: falskt utan meny", DF.popup_open() is False)
+    m3 = QMenu()
+    m3.addAction("z")
+    m3.popup(w.pos())
+    spin(100)
+    # (offscreen: activePopupWidget är satt så länge menyn är öppen)
+    ck("popup_open: sant medan en meny är öppen", DF.popup_open() is True)
+    m3.close()
+    spin(100)
     w.close()
 
     # dialog med ägare är också ett fönster och läggs överst

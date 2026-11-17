@@ -468,6 +468,10 @@ class DesktopShellMixin:
             hwnd = int(shell.winId())
             if not hwnd or not user32.IsWindow(hwnd):
                 return False
+            with suppress(Exception):               # öppen meny/rullista: lägg inte om fönstret över den (menyn gömdes förut)
+                from app.dialog_front import popup_open
+                if popup_open():
+                    return False
             if user32.IsIconic(hwnd):
                 user32.ShowWindow(hwnd, 9)          # SW_RESTORE
             elif not user32.IsWindowVisible(hwnd):

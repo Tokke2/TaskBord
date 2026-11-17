@@ -155,6 +155,18 @@ with_fake(uh)
 check("användar-dolt (Qt) fönster rörs inte", c._reassert_top(Shell(visible=False)) is False and not uh.calls)
 
 
+import app.dialog_front as _DFpop
+_orig_popup = _DFpop.popup_open
+_DFpop.popup_open = lambda: True
+up = FakeUser32()
+with_fake(up)
+check("öppen meny: fönstret läggs inte om över den", c._reassert_top(Shell()) is False and not topmost_calls(up, -1))
+_DFpop.popup_open = _orig_popup
+with_fake(up)
+check("ingen meny: fönstret läggs överst som vanligt", c._reassert_top(Shell()) is True)
+with_fake(uh)
+
+
 class HiddenToTray(Ctl):
     def _is_hidden_to_tray(self): return True
 
