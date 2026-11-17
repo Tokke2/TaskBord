@@ -198,6 +198,7 @@ class WindowsMixin:
                         with suppress(Exception):
                             w.top_toggle_requested.connect(self._toggle_always_on_top)
                             w.theme_dialog_requested.connect(self._open_theme_dialog)
+                            w.dock_level_requested.connect(self._on_dock_level)
                         # Uppdateringsknappen i titelraden (⟳ / ⬆ Uppdatera)
                         with suppress(Exception):
                             w.update_requested.connect(self._on_update_button)

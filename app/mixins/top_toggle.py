@@ -38,12 +38,39 @@ class TopToggleMixin:
     # ------------------------------------------------------------------
     # Själva växlingen (fungerar på alla system — även från tray-menyn)
     # ------------------------------------------------------------------
+    def _on_dock_level(self, on: bool) -> None:
+        """Skärmkantsdockning: ett gömt fönster på skrivbordet skulle hamna BAKOM andra program och aldrig synas.
+        Därför läggs det över andra appar så länge det är dockat, och läget återställs när dockningen släpps
+        (om du inte själv bytt läge under tiden)."""
+        try:
+            mode = self._desktop_mode()
+            if on:
+                if mode != "top":
+                    with suppress(Exception):
+                        self.settings.set_top_toggle_prev_mode(mode if mode in ("above", "behind") else "behind")
+                    self.settings.set_pref("dock_forced_top", True)
+                    self._set_desktop_mode("top")
+                    self._log.info(f"{LOG_PREFIX} dockat vid skärmkant → läget 'Visa över andra appar' slås på")
+            elif self.settings.pref("dock_forced_top"):
+                self.settings.set_pref("dock_forced_top", False)
+                if mode == "top":
+                    prev = "behind"
+                    with suppress(Exception):
+                        p = str(self.settings.top_toggle_prev_mode())
+                        prev = p if p in ("above", "behind") else "behind"
+                    self._set_desktop_mode(prev)
+                    self._log.info(f"{LOG_PREFIX} dockning släppt → läget återställt ({prev})")
+        except Exception as e:
+            self._log.warning(f"{LOG_PREFIX} _on_dock_level: {e}", exc_info=True)
+
     def _toggle_always_on_top(self) -> str:
         """
         Slå "Alltid överst" på/av. På → läget sparas först så "av" går tillbaka till det.
         Returnerar det nya läget (``top`` eller det förra).
         """
         try:
+            with suppress(Exception):
+                self.settings.set_pref("dock_forced_top", False)   # du valde själv → dockningen ändrar inte läget igen
             cur = self._desktop_mode()
             if cur == "top":
                 prev = "behind"

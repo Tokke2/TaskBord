@@ -84,6 +84,8 @@ SPEC: Dict[str, Tuple[Any, Callable[[Any], Any]]] = {
     "welcome_done": (False, _bool(False)),
     # 🌐 språk
     "lang": ("sv", _choice("sv", LANGS)),
+    # ↔ skärmkantsdockning slog på "Visa över andra appar" (läget återställs när dockningen släpps)
+    "dock_forced_top": (False, _bool(False)),
     # ☁️ flytta Google Calendar-händelsen när datum ändras (bara uppgifter som redan finns där)
     "gcal_autosync": (True, _bool(True)),
     # 📆 kalenderprenumerationer (ICS)

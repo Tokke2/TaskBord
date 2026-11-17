@@ -82,6 +82,8 @@ if _QT:
             self._hits = 0
             self._pinned = False
             self._anim: Optional[Any] = None
+            self._handle: Optional[Any] = None   # fliken (ui/edge_handle.py) som sitter kvar i kanten medan fönstret är gömt
+            self._ticks = 0
             self._timer = QTimer(self)
             self._timer.setInterval(POLL_MS)
             self._timer.timeout.connect(self._tick)
@@ -155,6 +157,62 @@ if _QT:
             self.dock_to(edge, scr)
             return True
 
+        # ------------------------------------------------------------ flik
+        def _contrast(self) -> bool:
+            try:
+                return bool(self.w.settings.pref("high_contrast"))
+            except Exception:
+                return False
+
+        def _handle_counts(self) -> Tuple[int, int]:
+            try:
+                from datetime import date
+                return geo.handle_counts(self.w.store.active_tasks(), date.today().isoformat())
+            except Exception:
+                return (0, 0)
+
+        def _show_handle(self) -> None:
+            """Fliken fram (när fönstret gömt sig). Misslyckas den används hela kanten som förut."""
+            try:
+                if self.shown is None or self.avail is None or self.edge is None:
+                    return
+                if self._handle is None:
+                    from ui.edge_handle import EdgeHandle
+                    self._handle = EdgeHandle()
+                    self._handle.clicked.connect(self.reveal)
+                a, o = self._handle_counts()
+                self._handle.set_info(a, o, self._contrast())
+                self._handle.place(self.edge, self.shown, self.avail)
+                self._handle.present()
+            except Exception as e:
+                logger.warning(f"{LOG_PREFIX} flik: {e}")
+                self._handle = None
+
+        def _hide_handle(self) -> None:
+            h = self._handle
+            if h is not None:
+                try:
+                    h.hide()
+                except Exception:
+                    pass
+
+        def handle_zone(self) -> Optional[Rect]:
+            """Flikens rektangel i skärmkoordinater om den syns just nu, annars None."""
+            h = self._handle
+            try:
+                return h.zone if (h is not None and h.isVisible()) else None
+            except Exception:
+                return None
+
+        def _level_request(self, on: bool) -> None:
+            """Be appen lägga fönstret över andra program så länge det är dockat (annars hamnar det bakom dem)."""
+            try:
+                sig = getattr(self.w, "dock_level_requested", None)
+                if sig is not None:
+                    sig.emit(bool(on))
+            except Exception as e:
+                logger.debug(f"{LOG_PREFIX} nivå: {e}")
+
         def dock_now(self, edge: str) -> str:
             """Docka direkt i vald kant på skärmen där fönstret ligger (menyval). '' = klart, annars förklaring."""
             if edge not in geo.EDGES:
@@ -193,6 +251,7 @@ if _QT:
             self._outside_since = time.monotonic() + grace if grace else None
             self._hits = 0
             self._timer.start()
+            self._level_request(True)
             logger.info(f"{LOG_PREFIX} dockat vid {edge}: {self.shown}")
 
         def undock(self) -> None:
@@ -203,11 +262,13 @@ if _QT:
             was = self.state != "idle"
             self.state, self.edge, self.shown = "idle", None, None
             self._timer.stop()
+            self._hide_handle()
             with_e = getattr(self.settings, "set_edge_dock_edge", None)
             if callable(with_e):
                 with_e("")
             if was:
                 self._persist()
+                self._level_request(False)
                 logger.info(f"{LOG_PREFIX} dockning avslutad")
 
         def adopt_saved(self) -> bool:
@@ -249,6 +310,8 @@ if _QT:
             """target: 'hidden' eller 'shown'."""
             if self.shown is None or self.avail is None or self.edge is None:
                 return
+            if target == "shown":
+                self._hide_handle()
             end_r = (geo.hidden_rect(self.shown, self.avail, self.edge) if target == "hidden" else self.shown)
             start = self._rect()
             self._stop_anim()
@@ -275,6 +338,8 @@ if _QT:
             if self.state == "shown":
                 self._outside_since = time.monotonic()
                 self._persist()
+            elif self.state == "hidden":
+                self._show_handle()
 
         def hide(self) -> None:
             if self.state == "shown":
@@ -321,7 +386,11 @@ if _QT:
                     return
                 sh = self._shell()
                 if not sh.isVisible() or sh.isMinimized():
+                    if self.state == "hidden":
+                        self._hide_handle()    # gömt till tray → ingen flik
                     return
+                if self.state == "hidden" and self._handle is not None and not self._handle.isVisible():
+                    self._show_handle()
                 cur = self._cursor_fn()
                 if self.state == "shown":
                     if not self.busy() and self._rect() != self.shown:
@@ -336,8 +405,19 @@ if _QT:
                         elif now - self._outside_since >= HIDE_DELAY_S:
                             self.hide()
                 elif self.state == "hidden":
-                    if (not self._buttons_fn()
-                            and geo.reveal_hit(cur, self.shown, self.avail, self.edge or "left")):
+                    self._ticks += 1
+                    h = self._handle
+                    if h is not None and self._ticks % 14 == 0:   # ca 1 s: ligg överst + uppdatera antal
+                        if h.isVisible():
+                            h.native_front()
+                        if self._ticks % 70 == 0:
+                            a, o = self._handle_counts()
+                            h.set_info(a, o, self._contrast())
+                            h.place(self.edge or "top", self.shown, self.avail)
+                    zone = self.handle_zone()
+                    hit = (geo.point_in(cur, zone, 1) if zone is not None
+                           else geo.reveal_hit(cur, self.shown, self.avail, self.edge or "left"))
+                    if not self._buttons_fn() and hit:
                         self._hits += 1
                         if self._hits >= REVEAL_TICKS:
                             self.reveal()

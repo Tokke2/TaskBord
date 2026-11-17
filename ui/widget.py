@@ -88,6 +88,7 @@ if _QT_AVAILABLE:
         quit_requested = Signal()  # högerklicksmenyn: "❌ Avsluta Ledgebord" (för skrivbord utan systemfält)
         update_requested = Signal()  # uppdateringsknappen i titelraden (appen söker/installerar)
         top_toggle_requested = Signal()  # högerklicksmenyn: "📌 Alltid överst" (appen växlar läget)
+        dock_level_requested = Signal(bool)  # skärmkantsdockning: lägg fönstret över andra program (True) / återställ (False)
         theme_dialog_requested = Signal()  # högerklicksmenyn: "🎨 Teman och utseende…" (appen öppnar dialogen)
 
         # === KLASS-KONSTANTER ===

@@ -136,6 +136,10 @@ def child() -> None:
     def near(a, b):  # offscreen-plattformen klampar negativa lägen med ±2 px
         return abs(a - b) <= 2
 
+    def hz(d):
+        z = d.handle_zone()
+        return (z[0] + z[2] // 2, z[1] + z[3] // 2) if z else (0, 300)
+
     def saved(settings):
         return [c for c in settings.window_configs() if c.get("id") == "t"][0]
 
@@ -184,7 +188,7 @@ def child() -> None:
     cursor["p"] = (0, 5)
     QTest.qWait(300)
     ck("musen vid kanten men utanför fönstrets höjd: förblir gömt", dk.state == "hidden")
-    cursor["p"] = (0, 300)
+    cursor["p"] = hz(dk)
     cursor["btn"] = True
     QTest.qWait(300)
     ck("musknapp nedtryckt (t.ex. rullist): visas inte", dk.state == "hidden")
@@ -195,14 +199,14 @@ def child() -> None:
     # svisch förbi kanten (en enda avläsning) räcker inte
     cursor["p"] = (900, 500)
     wait(lambda: dk.state == "hidden")
-    cursor["p"] = (0, 300)
+    cursor["p"] = hz(dk)
     dk._tick()
     cursor["p"] = (900, 500)
     QTest.qWait(250)
     ck("en snabb svisch förbi kanten visar inte fönstret", dk.state == "hidden")
 
     # --- fönstret är upptaget → gömmer sig inte -----------------------------------------------------------------
-    cursor["p"] = (0, 300)
+    cursor["p"] = hz(dk)
     wait(lambda: dk.state == "shown")
     w.input_field.setText("skriver något")
     shell.activateWindow()
@@ -239,14 +243,14 @@ def child() -> None:
     ck("höger: dockad flush (x=1196)", dk.edge == "right" and shell.x() == 1196)
     cursor["p"] = (300, 300)
     ck("höger: gömd med 5 px kvar", wait(lambda: dk.state == "hidden") and shell.x() == 1531)
-    cursor["p"] = (1535, 300)
+    cursor["p"] = hz(dk)
     ck("höger: musen nuddar högerkanten → fram", wait(lambda: dk.state == "shown") and shell.x() == 1196)
     place(shell, 500, 5, 340, 400)
     release(w)
     ck("överkant: dockad (y=0)", dk.edge == "top" and shell.y() == 0)
     cursor["p"] = (300, 600)
     ck("överkant: gömd (y=-395)", wait(lambda: dk.state == "hidden") and near(shell.y(), -395), (dk.state, shell.y(), shell.height()))
-    cursor["p"] = (600, 0)
+    cursor["p"] = hz(dk)
     ck("överkant: musen nuddar överkanten → fram", wait(lambda: dk.state == "shown") and shell.y() == 0)
 
     # --- avstängt i inställningarna ---------------------------------------------------------------------------------
@@ -301,7 +305,7 @@ def child() -> None:
     ck("…fönstret flyttas till kanten och kanten sparas", shm.x() == 0 and shm.y() == 120 and sm.edge_dock_edge() == "left")
     cursor["p"] = (900, 500)
     ck("…och gömmer sig när musen är borta", wait(lambda: dkm.state == "hidden"))
-    cursor["p"] = (0, 300)
+    cursor["p"] = hz(dkm)
     ck("…och kommer fram när musen nuddar kanten", wait(lambda: dkm.state == "shown"))
     cursor["p"] = (900, 500)
     wait(lambda: dkm.state == "hidden")

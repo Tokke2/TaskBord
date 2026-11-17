@@ -138,6 +138,51 @@ def keep_shown(cursor: Point, shown: Rect, margin: int = KEEP_MARGIN) -> bool:
             and shown[1] - margin <= cy < bottom(shown) + margin)
 
 
+HANDLE_THICK = 22   # flikens tjocklek (px) in mot skärmen
+HANDLE_MIN_LEN = 96
+
+
+def handle_rect(shown: Rect, screen: Rect, edge: str, length: int, thick: int = HANDLE_THICK) -> Rect:
+    """Flikens läge: mitt för det gömda fönstret, tätt mot skärmkanten (hålls inom skärmen)."""
+    length = max(HANDLE_MIN_LEN, int(length))
+    if edge == "top":
+        x = shown[0] + shown[2] // 2 - length // 2
+        x = max(screen[0], min(x, right(screen) - length))
+        return (x, screen[1], length, thick)
+    y = shown[1] + shown[3] // 2 - length // 2
+    y = max(screen[1], min(y, bottom(screen) - length))
+    if edge == "left":
+        return (screen[0], y, thick, length)
+    if edge == "right":
+        return (right(screen) - thick, y, thick, length)
+    raise ValueError(edge)
+
+
+def point_in(cursor: Point, rect: Rect, tol: int = 0) -> bool:
+    cx, cy = cursor
+    return rect[0] - tol <= cx < right(rect) + tol and rect[1] - tol <= cy < bottom(rect) + tol
+
+
+def handle_counts(tasks: Iterable[dict], today_iso: str) -> Tuple[int, int]:
+    """(aktiva, försenade) bland uppgifterna som inte är klara. Datum jämförs som text (ÅÅÅÅ-MM-DD)."""
+    active = overdue = 0
+    for t in tasks:
+        if not isinstance(t, dict) or t.get("done"):
+            continue
+        active += 1
+        d = str(t.get("due_date") or "")[:10]
+        if d and d < today_iso:
+            overdue += 1
+    return active, overdue
+
+
+def handle_text(active: int, overdue: int) -> str:
+    """Texten på fliken: antal försenade (om några) annars antal aktiva."""
+    if overdue > 0:
+        return f"{overdue} försenad{'e' if overdue != 1 else ''}"
+    return f"Ledgebord · {active}" if active else "Ledgebord"
+
+
 def ease_out_cubic(t: float) -> float:
     t = max(0.0, min(1.0, t))
     return 1 - (1 - t) ** 3

@@ -503,13 +503,22 @@ Först om den körande kopian inte svarar alls (t.ex. en mycket gammal version) 
 ## ↔ Dockning vid skärmkant
 
 **Enklast: högerklicka fönstret → ↔ Dölj i skärmkanten → välj ◀ vänster, ▶ höger eller ▲ övre kanten.** Fönstret
-flyttas till kanten och gömmer sig när musen lämnar det; för musen mot kanten så glider det fram. (*✖ Visa som vanligt*
-avslutar det.) Du kan också **dra fönstret mot kanten och släppa** – då dockas det av sig självt: när musen lämnar
-fönstret glider det ut ur bild (en smal 5 px-list syns kvar) och glider in igen när musen **nuddar
-kanten** på fönstrets höjd/bredd. Passar bra tillsammans med *Alltid överst*.
+flyttas till kanten och gömmer sig när musen lämnar det. Du kan också **dra fönstret mot kanten och släppa** – då
+dockas det av sig självt. (*✖ Visa som vanligt* avslutar dockningen.)
+
+**Fliken i kanten.** När fönstret är gömt blir en liten **flik** kvar i skärmkanten (22 px tjock, mitt för fönstret):
+*Ledgebord · 6* (antal aktiva uppgifter) – eller röd **"3 försenade"** om något har passerat sitt datum. Fliken ligger
+alltid överst och är det enda som visar fönstret: **håll musen på den en kort stund, eller klicka** så glider fönstret
+fram (längs kanten ▲ ◀ ▶). Dra musen från fönstret så gömmer det sig igen.
+* **Andra program stör inte längre.** Förut räckte det att musen nuddade kanten – t.ex. Thunderbirds eller webbläsarens
+  flikrad och rullister – för att fönstret skulle åka fram, och ett gömt fönster kunde hamna bakom dem. Nu räknas bara
+  fliken, och så länge fönstret är dockat läggs det **över andra program** (samma som *Visa över andra appar*). Släpper du
+  dockningen återställs ditt tidigare val automatiskt (om du inte ändrat det själv under tiden).
+* Är fönstret nerskickat till tray syns ingen flik. Hög kontrast-läget ger en svart flik med vit kant.
+* Fungerar för **övre**, vänster och höger kant (vänster/höger får lodrät text). Ett högt fönster kan också gömmas uppåt.
 * Gömmer sig inte medan en dialog/meny är öppen, du drar i fönstret, redigerar en titel eller har text i
   inmatningsfältet. Håller du **Ctrl+Alt+V** glider det fram och stannar så länge tangenten hålls.
-* Visas inte om du håller en musknapp nedtryckt (så att rullisten/andra fönster inte råkar trigga det).
+* Fönstret visas inte om du håller en musknapp nedtryckt (så att dra-och-släpp i andra program inte råkar trigga det).
 * Dra bort fönstret från kanten (eller *Centrera*) så är det vanligt igen. Stäng av helt:
   **högerklicka → ↔ Dölj i skärmkanten → Dockning på** (urkryssad).
 * Med flera skärmar dockas bara **yttre** kanter (aldrig kanten mot grannskärmen — väljer du den får du en förklaring). Underkanten används inte.
