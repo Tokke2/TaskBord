@@ -563,6 +563,11 @@ Felen låg tidigare utspridda (`todo_app.log` med tusentals rader, `update_watch
   är flera dagar gamla — tills du markerar dem som åtgärdade: tray → **✅ Markera fel som åtgärdade — N öppna**
   (grå när det inte finns några). Då flyttas de (med stacktrace) till `loggar\arkiv\fel_atgardade.log` och `fel.log`
   visar "Inga fel loggade". Kommer samma fel tillbaka efter markeringen loggas det på nytt.
+* **Appen städar själv bort fel som är åtgärdade** (vid start, när du öppnar felloggen och var 5:e minut). Två fall:
+  felet är **rättat i koden** (appen känner igen det, t.ex. Qt:s infoblock som förut loggades som KRASCH), eller
+  **samma fel har inte kommit tillbaka på 14 dagar**. De flyttas (med stacktrace) till `loggar\\arkiv\\fel_atgardade.log`
+  under rubriken *Automatiskt åtgärdade* — inget raderas. Fel som nyligen inträffat eller upprepats ligger kvar tills
+  du själv markerar dem.
 * `fel.log` får inte längre någon `.1`-rotation (den kunde slänga felposter). Blir filen ändå större än ca 6 MB flyttas de
   *äldsta* felposterna till `loggar\arkiv\fel_overflod.log` — ingen post går förlorad.
 

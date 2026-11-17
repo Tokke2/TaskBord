@@ -182,6 +182,12 @@ class MaintenanceMixin:
         log_archive.archive_in_background(logs)
         with suppress(Exception):
             error_log.tidy(logs)
+        with suppress(Exception):          # åtgärdade fel städas bort av appen själv (arkiveras, raderas aldrig)
+            r = error_log.auto_resolve(logs)
+            if r["known"] or r["quiet"]:
+                self._log.info(f"{LOG_PREFIX} felloggen: {r['known'] + r['quiet']} åtgärdade fel arkiverade automatiskt "
+                               f"({r['known']} rättade i koden, {r['quiet']} inte återkomna på {error_log.AUTO_RESOLVE_DAYS} dagar)")
+                self._tray_badge_key = None
 
     def _heartbeat(self) -> None:
         """Heartbeat för watchdog + log periodic health."""

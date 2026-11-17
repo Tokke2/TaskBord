@@ -229,6 +229,54 @@ check("bootstrap använder qt_msg_level", "qt_msg_level(mode)" in _bs and "QtInf
 _ft = (ROOT / "ui" / "widget_parts" / "focus_timers.py").read_text(encoding="utf-8")
 check("kortkommandon som hanteras annorstädes varnar inte", "_SHORTCUTS_HANDLED_ELSEWHERE" in _ft and "toggle_inbox" in _ft)
 
+# --- Automatiskt åtgärdade fel -----------------------------------------------------------------------------------
+def _entry(ts, level, where, msg):
+    return f"{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(ts))} | {level:<8} | {where} | {msg}\n"
+
+
+_now = time.time()
+_day = 86400
+_ad = Path(tempfile.mkdtemp(prefix="ledgebord_autores_"))
+_hdr = lambda ts: f"\n═══ Ledgebord startad {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(ts))} (pid 1) ═══\n"
+_txt = (_hdr(_now - 40 * _day)
+        + _entry(_now - 40 * _day, "KRASCH", "Main (bootstrap.py:426)", "[MAIN] Qt-meddelande: Using Qt multimedia with FFmpeg version 7.1.5 LGPL (fil=None, rad=0)")
+        + _entry(_now - 30 * _day, "FEL", "Store (store.py:10)", "gammalt fel 123 som aldrig kom tillbaka")
+        + "    Traceback (most recent call last):\n      File x\n"
+        + _entry(_now - 30 * _day, "FEL", "Widget (w.py:5)", "återkommande fel 5")
+        + _hdr(_now - 2 * _day)
+        + _entry(_now - 2 * _day, "FEL", "Widget (w.py:5)", "återkommande fel 9")
+        + _entry(_now - 3 * _day, "FEL", "Mail (m.py:1)", "nytt fel")
+        + _entry(_now - 30 * _day, "VARNING", "Widget (r.py:1)", "gammal varning rörs inte här"))
+(_ad / "fel.log").write_text(_txt, encoding="utf-8")
+EL._writer = None
+_r = EL.auto_resolve(_ad, now=_now)
+check("auto: ett känt rättat fel och ett tyst gammalt fel arkiveras", _r == {"known": 1, "quiet": 1}, _r)
+_left = (_ad / "fel.log").read_text(encoding="utf-8")
+check("auto: nya fel ligger kvar", "nytt fel" in _left)
+check("auto: fel som återkommit nyligen ligger kvar (alla förekomster)", "återkommande fel 5" in _left and "återkommande fel 9" in _left)
+check("auto: det tysta felet och KRASCH-raden är borta ur fel.log", "gammalt fel" not in _left and "multimedia" not in _left and "Traceback" not in _left)
+check("auto: varningar rörs inte här", "gammal varning" in _left)
+_arch = (_ad / "arkiv" / EL.RESOLVED_NAME).read_text(encoding="utf-8")
+check("auto: arkivet har posterna + stacktrace + rubrik", "Automatiskt åtgärdade" in _arch and "multimedia" in _arch and "gammalt fel" in _arch and "Traceback" in _arch, _arch[:300])
+check("auto: andra körningen gör inget", EL.auto_resolve(_ad, now=_now) == {"known": 0, "quiet": 0})
+check("auto: öppna fel räknas om", EL.open_error_count(_ad) == 3, EL.open_error_count(_ad))
+check("auto: 10 dagar senare (13 dagar sedan senaste) ligger de kvar", EL.auto_resolve(_ad, now=_now + 10 * _day) == {"known": 0, "quiet": 0})
+check("auto: 13 dagar senare (16 dagar) arkiveras resten", EL.auto_resolve(_ad, now=_now + 13 * _day) == {"known": 0, "quiet": 3})
+# allt åtgärdat → fel.log får den trevliga platshållaren
+_ad2 = Path(tempfile.mkdtemp(prefix="ledgebord_autores_"))
+(_ad2 / "fel.log").write_text(_hdr(_now - 50 * _day) + _entry(_now - 50 * _day, "FEL", "A (a.py:1)", "urgammalt fel"), encoding="utf-8")
+check("auto: allt åtgärdat → platshållaren 'Inga fel loggade'", EL.auto_resolve(_ad2, now=_now)["quiet"] == 1 and (_ad2 / "fel.log").read_text(encoding="utf-8") == EL.PLACEHOLDER)
+check("auto: ingen fel.log alls ger inget fel", EL.auto_resolve(_ad2 / "finns_inte", now=_now) == {"known": 0, "quiet": 0})
+# manuella 'markera som åtgärdade' fungerar som förut (delad hjälpfunktion)
+_ad3 = Path(tempfile.mkdtemp(prefix="ledgebord_autores_"))
+(_ad3 / "fel.log").write_text(_hdr(_now) + _entry(_now, "FEL", "A (a.py:1)", "nyss") + _entry(_now, "VARNING", "A (a.py:2)", "varning"), encoding="utf-8")
+check("manuell markering: felposten flyttas, varningen blir kvar", EL.resolve_all(_ad3) == 1 and "varning" in (_ad3 / "fel.log").read_text(encoding="utf-8") and "nyss" in (_ad3 / "arkiv" / EL.RESOLVED_NAME).read_text(encoding="utf-8"))
+_bs2 = (ROOT / "app" / "bootstrap.py").read_text(encoding="utf-8")
+_mt = (ROOT / "app" / "mixins" / "maintenance.py").read_text(encoding="utf-8")
+check("appen kör auto_resolve vid start och löpande", "error_log.auto_resolve(LOGS_DIR)" in _bs2 and "error_log.auto_resolve(logs)" in _mt)
+for _x in (_ad, _ad2, _ad3):
+    shutil.rmtree(_x, ignore_errors=True)
+
 print(f"\nerror_log_test: {ok} lyckades, {fail} misslyckades")
 sys.stdout.flush()
 os._exit(1 if fail else 0)

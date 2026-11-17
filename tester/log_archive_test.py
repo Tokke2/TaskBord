@@ -218,7 +218,8 @@ check("…filen är under taket", len(nowtxt.encode("utf-8")) <= 20000)
 
 # ============ öppna felloggen städar först ===============================================================
 d11 = tmpdir()
-(d11 / "fel.log").write_text(entry(iso(Y), "VARNING", "gammal") + entry(iso(Y), "FEL", "kvar"), encoding="utf-8")
+_yd = date.today() - timedelta(days=1)    # prepare_for_open räknar med verkliga datumet (auto_resolve: 14 dagar)
+(d11 / "fel.log").write_text(entry(iso(_yd), "VARNING", "gammal") + entry(iso(_yd), "FEL", "kvar"), encoding="utf-8")
 EL._writer = EL._handler = None
 EL._tidy_sig.clear()
 EL.prepare_for_open(d11)

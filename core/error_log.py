@@ -577,31 +577,29 @@ def open_error_count(data_dir: Path) -> int:
     return n
 
 
-def resolve_all(data_dir: Path, now: Optional[float] = None) -> int:
+def _archive_selected(data_dir: Path, select, title: str, now: float) -> int:
     """
-    "Markera som åtgärdade": alla felposter flyttas till arkiv/fel_atgardade.log (med datum för markeringen) och
-    försvinner ur fel.log. Dagens varningar ligger kvar. Returnerar antal flyttade poster (0 = inget att göra eller
-    arkivet gick inte att skriva — då rörs fel.log inte).
+    Flytta de felposter som ``select(blocks)`` pekar ut (lista med index) till arkiv/fel_atgardade.log under rubriken
+    ``title`` och ta bort dem ur fel.log. Arkivet skrivs FÖRST; går det inte rörs fel.log inte. Returnerar antal flyttade.
     """
-    data_dir = Path(data_dir)
     p = log_path(data_dir)
-    now = time.time() if now is None else now
     with _writer_lock():
         try:
             blocks = parse_blocks(p.read_text(encoding="utf-8", errors="replace"))
         except OSError:
             return 0
-        errs = [b for b in blocks if is_error_block(b)]
+        chosen = set(select(blocks))
+        errs = [b for i, b in enumerate(blocks) if i in chosen and is_error_block(b)]
         if not errs:
             return 0
-        keep = [not is_error_block(b) for b in blocks]
+        keep = [not (i in chosen and is_error_block(b)) for i, b in enumerate(blocks)]
         _drop_empty_headers(blocks, keep, "9999-99-99")      # huvuden utan kvarvarande poster försvinner
         try:
             ap = _la.archive_dir(data_dir)
             ap.mkdir(parents=True, exist_ok=True)
             with open(ap / RESOLVED_NAME, "a", encoding="utf-8") as f:
-                f.write(f"\n═══ Markerade som åtgärdade {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(now))} "
-                        f"({len(errs)} fel) ═══\n" + "".join(b["text"] for b in errs))
+                f.write(f"\n═══ {title.format(n=len(errs), when=time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(now)))} ═══\n"
+                        + "".join(b["text"] for b in errs))
             rest = "".join(b["text"] for b, k in zip(blocks, keep) if k)
             _write_atomic(p, rest if rest.strip() else PLACEHOLDER)
         except OSError:
@@ -614,8 +612,96 @@ def resolve_all(data_dir: Path, now: Optional[float] = None) -> int:
         _unseen_cache.clear()
         _open_cache.clear()
         _tidy_sig.clear()
-    mark_seen(data_dir, now)
     return len(errs)
+
+
+def resolve_all(data_dir: Path, now: Optional[float] = None) -> int:
+    """
+    "Markera som åtgärdade": alla felposter flyttas till arkiv/fel_atgardade.log (med datum för markeringen) och
+    försvinner ur fel.log. Dagens varningar ligger kvar. Returnerar antal flyttade poster (0 = inget att göra eller
+    arkivet gick inte att skriva — då rörs fel.log inte).
+    """
+    data_dir = Path(data_dir)
+    now = time.time() if now is None else now
+    n = _archive_selected(data_dir, lambda bl: [i for i, b in enumerate(bl) if is_error_block(b)],
+                          "Markerade som åtgärdade {when} ({n} fel)", now)
+    if n:
+        mark_seen(data_dir, now)
+    return n
+
+
+# ============================================================================================================
+# AUTOMATISKT ÅTGÄRDADE: felposter som koden redan rättat, eller som inte kommit tillbaka på länge, städas bort av appen
+# ============================================================================================================
+AUTO_RESOLVE_DAYS = 14          # ett fel som inte återkommit på så här många dagar bedöms vara åtgärdat
+# Fel som rättats i koden (text i posten → vad som rättades). Lägg till en rad när ett fel åtgärdats i en ny version.
+KNOWN_FIXED: Tuple[Tuple[str, str], ...] = (
+    (r"Qt-meddelande: Using Qt multimedia with FFmpeg", "Qt:s infomeddelande loggades felaktigt som KRASCH"),
+)
+_ENTRY_PARTS_RX = re.compile(r"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) \| (\S+)\s*\| (.*?) \| (.*)$")
+_VOLATILE_RX = re.compile(r"0x[0-9a-fA-F]+|\d+")
+
+
+def _block_ts(b: Dict[str, str]) -> Optional[float]:
+    m = _ENTRY_PARTS_RX.match(b["text"].splitlines()[0] if b["text"] else "")
+    if not m:
+        return None
+    try:
+        return time.mktime(time.strptime(m.group(1), "%Y-%m-%d %H:%M:%S"))
+    except (ValueError, OverflowError):
+        return None
+
+
+def _block_key(b: Dict[str, str]) -> str:
+    """Samma fel = samma modul + meddelande (siffror/adresser bortsedda)."""
+    m = _ENTRY_PARTS_RX.match(b["text"].splitlines()[0] if b["text"] else "")
+    return _VOLATILE_RX.sub("#", f"{m.group(3)}|{m.group(4)}") if m else ""
+
+
+def auto_resolve(data_dir: Path, now: Optional[float] = None, days: int = AUTO_RESOLVE_DAYS) -> Dict[str, int]:
+    """
+    Städa bort felposter som är åtgärdade — de flyttas till arkiv/fel_atgardade.log (ingenting raderas):
+      * ``known``: posten matchar ett fel som rättats i koden (``KNOWN_FIXED``);
+      * ``quiet``: samma fel har inte återkommit på ``days`` dagar (senaste förekomsten räknas).
+    Poster som nyligen inträffat — eller upprepats nyligen — ligger kvar. Kastar aldrig.
+    """
+    res = {"known": 0, "quiet": 0}
+    try:
+        data_dir = Path(data_dir)
+        now = time.time() if now is None else now
+        cutoff = now - days * 86400
+        found: Dict[str, int] = {"known": 0, "quiet": 0}
+
+        def select(blocks: List[Dict[str, str]]) -> List[int]:
+            last: Dict[str, float] = {}
+            for b in blocks:
+                if is_error_block(b):
+                    ts = _block_ts(b)
+                    k = _block_key(b)
+                    if ts is not None and k:
+                        last[k] = max(last.get(k, 0.0), ts)
+            out: List[int] = []
+            for i, b in enumerate(blocks):
+                if not is_error_block(b):
+                    continue
+                head = b["text"]
+                if any(re.search(rx, head) for rx, _why in KNOWN_FIXED):
+                    out.append(i)
+                    found["known"] += 1
+                    continue
+                ts, k = _block_ts(b), _block_key(b)
+                if ts is not None and k and last.get(k, ts) < cutoff:
+                    out.append(i)
+                    found["quiet"] += 1
+            return out
+
+        n = _archive_selected(data_dir, select, "Automatiskt åtgärdade {when} ({n} fel: rättade i koden eller inte återkomna på "
+                              f"{days} dagar)", now)
+        if n:
+            res = found
+    except Exception:
+        pass
+    return res
 
 
 def prepare_for_open(data_dir: Path) -> Path:
@@ -629,6 +715,10 @@ def prepare_for_open(data_dir: Path) -> Path:
     w.flush_summaries()
     try:
         tidy(data_dir)               # gamla varningar → arkiv/ (felposter ligger kvar)
+    except Exception:
+        pass
+    try:
+        auto_resolve(data_dir)       # åtgärdade fel (rättade i koden / inte återkomna på 14 dagar) → arkiv/fel_atgardade.log
     except Exception:
         pass
     p = log_path(data_dir)
