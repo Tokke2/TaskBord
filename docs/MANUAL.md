@@ -216,6 +216,11 @@ från aktivitetsfältet). Windows meddelar händelserna; appen lägger sig över
 visas den igen inom 1,5 s; fönster du själv gömt till tray lämnas ifred. Tray-lyftet (klick på ikonen) släpper
 inte längre toppläget i det här läget, och påminnelsekortet ligger fortsatt överst.
 
+**Dialogrutor ligger alltid framför tills du är klar:** frågor (t.ex. ”Flytta även förfallodatumet?”), datumväljaren,
+inställningar, felmeddelanden och alla andra rutor som Ledgebord öppnar läggs överst — över Thunderbird, webbläsaren och
+Ledgebords eget fönster (även om du öppnade dem från tray-menyn) — och stannar där tills du stänger dem. Efter varje
+omläggning av huvudfönstret läggs de överst igen. Gäller i båda lägena. (Windows egna ”Öppna fil”-rutor styrs av Windows.)
+
 ## ⌨️ Styra listan med tangentbordet
 
 Tryck **↓** (eller **↑**) – även när du står i inmatningsfältet – så markeras en uppgift med en färgad ram. Därefter:

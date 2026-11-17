@@ -476,6 +476,10 @@ class DesktopShellMixin:
             user32.SetWindowPos(
                 hwnd, -1, 0, 0, 0, 0, 0x0040 | 0x0010 | 0x0001 | 0x0002,
             )  # HWND_TOPMOST | SHOWWINDOW|NOACTIVATE|NOSIZE|NOMOVE (läggs överst bland toppfönster)
+            with suppress(Exception):               # öppna dialoger får inte hamna under det omlagda fönstret
+                _df = getattr(self, "_dialog_front", None)
+                if _df is not None:
+                    _df.restack()
             with suppress(Exception):               # påminnelsekortet ska fortsatt ligga allra överst
                 pp = getattr(self, "_reminder_popup", None)
                 if pp is not None and pp.isVisible():

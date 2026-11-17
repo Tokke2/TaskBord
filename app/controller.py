@@ -127,6 +127,9 @@ class AppController(
         self._init_qt_application()
         self._init_subsystems()
         self._init_timers()
+        with error_boundary("dialog_front"):   # dialoger ska alltid ligga överst tills man är klar (app/dialog_front.py)
+            from app import dialog_front as _df
+            self._dialog_front = _df.install(self._app)
         self._init_signals()
         self._refresh_capabilities()
 
