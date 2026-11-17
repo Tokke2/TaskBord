@@ -12,6 +12,8 @@ from __future__ import annotations
 from ui.widget_base import *  # noqa: F401,F403
 from ui.widget_atoms import *  # noqa: F401,F403
 
+from core import themes as _themes
+
 
 class ThemeMixin:
     """Tema och utseende: automatiskt tema och _apply_theme (QSS, textstorlek, densitet)."""
@@ -69,6 +71,103 @@ class ThemeMixin:
         except Exception as e:
             logger.debug(f"{LOG_PREFIX} _watch_system_theme: {e}")
 
+    def _look_key(self) -> tuple:
+        """Det som ändrar kortens storlek/utseende (ingår i kortens cache-nyckel så de byggs om)."""
+        try:
+            return (int(self.settings.pref("text_scale")), str(self.settings.density_mode()))
+        except Exception:
+            return (100, "comfortable")
+
+    # ------------------------------------------------------------ ♿ tillgänglighet (ui/a11y.py)
+    def _a11y_install_shortcuts(self) -> None:
+        """Ctrl+Plus/Minus/0 = textstorlek · Ctrl+1–4 = flikar (Meny-tangenten/Skift+F10 hanteras i keynav)."""
+        try:
+            self._a11y_shortcuts = []
+            for seq, fn in (
+                ("Ctrl++", lambda: self._zoom_text(1)), ("Ctrl+=", lambda: self._zoom_text(1)),
+                ("Ctrl+-", lambda: self._zoom_text(-1)), ("Ctrl+0", lambda: self._zoom_text(0)),
+                ("Ctrl+1", lambda: self._goto_tab(0)), ("Ctrl+2", lambda: self._goto_tab(1)),
+                ("Ctrl+3", lambda: self._goto_tab(2)), ("Ctrl+4", lambda: self._goto_tab(3)),
+            ):
+                sc = QShortcut(QKeySequence(seq), self)
+                sc.activated.connect(fn)
+                self._a11y_shortcuts.append(sc)
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} _a11y_install_shortcuts: {e}")
+
+    def _goto_tab(self, index: int) -> None:
+        tabs = getattr(self, "tabs", None)
+        if tabs is not None and 0 <= index < tabs.count():
+            tabs.setCurrentIndex(index)
+
+    def _open_selected_task_menu(self) -> None:
+        """Samma meny som högerklick, för den uppgift som är markerad med piltangenterna."""
+        try:
+            tid = getattr(self, "_sel_tid", None)
+            task = self.store.find_task(tid) if tid else None
+            if task:
+                self._show_task_menu(dict(task))
+        except Exception as e:
+            logger.debug(f"{LOG_PREFIX} _open_selected_task_menu: {e}")
+
+    def _set_text_scale(self, pct: int) -> None:
+        """Textstorlek 80–200 % (sparas); fönstret ritas om direkt."""
+        try:
+            if not hasattr(self.settings, "set_pref") or not self.settings.set_pref("text_scale", int(pct)):
+                return
+            self._apply_theme()
+            self._rebuild_task_list()
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} _set_text_scale: {e}")
+
+    def _zoom_text(self, direction: int) -> None:
+        from ui import a11y as _a11y
+        self._set_text_scale(_a11y.next_zoom(int(self.settings.pref("text_scale")), direction))
+
+    def _a11y_apply_names(self) -> None:
+        with suppress(Exception):
+            from ui import a11y as _a11y
+            _a11y.apply_names(self)
+
+    def _theme_prefs(self) -> Any:
+        """(färgtema, bakgrundsdjup %, högkontrast?) ur inställningarna — alltid giltiga värden."""
+        try:
+            st = self.settings
+            preset = str(st.pref("theme_preset"))
+            return preset, int(st.pref("bg_dim")), _themes.is_high_contrast(preset, bool(st.pref("high_contrast")))
+        except Exception:
+            return "standard", 0, False
+
+    def _text_scale_factor(self) -> float:
+        """Textstorlek i % (80–200) som faktor — ovanpå Kompakt/Normal/Stor."""
+        try:
+            return int(self.settings.pref("text_scale")) / 100.0
+        except Exception:
+            return 1.0
+
+    def _theme_extra_qss(self, t: Dict[str, str], is_dark: bool, accent_hex: str) -> str:
+        """Extra QSS: högkontrast (tjocka kanter, tydliga varningsfärger) + synliga fokusringar (ui/a11y.py)."""
+        out = ""
+        try:
+            if getattr(self, "_hc_active", False):
+                warn, today = ("#ff5252", "#ffd740") if is_dark else ("#b00020", "#7a4f00")
+                for _prio in ("high", "medium", "low", "none"):
+                    out += (
+                        f'QFrame[taskCard="true"][taskPriority="{_prio}"] {{ background-color: {t["surface"]}; '
+                        f'border: 2px solid {t["surface_edge"]}; border-left: 6px solid {PRIORITY_COLORS[_prio]}; }} '
+                    )
+                out += (
+                    f'QFrame[taskCard="true"][taskDue="overdue"] {{ background-color: {t["surface"]}; '
+                    f"border: 2px solid {warn}; border-left: 6px solid {warn}; }} "
+                    f'QFrame[taskCard="true"][taskDue="today"] {{ background-color: {t["surface"]}; '
+                    f"border: 2px solid {today}; border-left: 6px solid {today}; }} "
+                )
+            from ui import a11y as _a11y
+            out += _a11y.focus_qss(t, is_dark, accent_hex, bool(getattr(self, "_hc_active", False)))
+        except Exception as e:
+            logger.debug(f"{LOG_PREFIX} _theme_extra_qss: {e}")
+        return out
+
     def _apply_theme(self) -> None:
         """
         NY v6.4.1 v7: Applicera tema + proffsig glass-design (2026-09-24).
@@ -91,9 +190,13 @@ class ThemeMixin:
             # Etapp 10 (v7-fix10): design-tokens + accent via GLASS_ACCENTS
             accent_hex = GLASS_ACCENTS.get(accent, "#818cf8")
             t = _glass_tokens(is_dark)
+            # Färgtema, bakgrundsdjup och högkontrast (core/themes.py) — standard = oförändrade tokens
+            _tp, _dim, _hc = self._theme_prefs()
+            t = _themes.adjust_tokens(t, is_dark, _tp, _dim, _hc)
+            self._hc_active: bool = bool(_hc)
             # NY v7-fix38: genomskinligt skal → skala panelens bas-alfa
-            # så skrivbordsikonerna syns igenom glaset
-            self._transparency_factor: float = self._window_transparency_factor()
+            # så skrivbordsikonerna syns igenom glaset (högkontrast = alltid heltäckande)
+            self._transparency_factor: float = 0.0 if _hc else self._window_transparency_factor()
             t = _tokens_with_transparency(t, self._transparency_factor)
             _radius_css: str = (
                 "border-radius: 14px;" if self._transparency_factor > 0.0 else ""
@@ -506,10 +609,12 @@ class ThemeMixin:
 
             # NY: textstorlek (Kompakt/Normal/Stor) skalar alla font-size i widget-QSS
             # (skalan ligger kvar i widget_base — där läses den av _scaled_px)
-            _ui_scale = set_ui_font_scale(_dp_qss["font"])
+            widget_qss += self._theme_extra_qss(t, is_dark, accent_hex)
+            _ui_scale = set_ui_font_scale(_dp_qss["font"] * self._text_scale_factor())
             widget_qss = _scale_font_sizes(widget_qss, _ui_scale)
             self.setStyleSheet(base_qss + widget_qss)
 
+            self._a11y_apply_names()
             logger.info(
                 f"{LOG_PREFIX} tema+design applicerat: "
                 f"dark={is_dark}, accent={accent}"

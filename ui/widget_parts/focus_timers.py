@@ -308,6 +308,7 @@ class FocusTimersMixin:
             _f1 = QShortcut(QKeySequence("F1"), self)
             _f1.activated.connect(self._on_show_shortcut_help)
             self._hotkey_shortcuts.append(_f1)
+        self._a11y_install_shortcuts()   # Ctrl+Plus/Minus/0, Ctrl+1–4, Meny-tangenten (ui/a11y.py)
         if not hasattr(self.settings, "shortcuts"):
             return
         try:

@@ -42,6 +42,7 @@ påminner dig, tar emot uppgifter från mail och sparar allt i en mapp på din e
 | 🗣 **Naturliga datum** | Skriv `fre 14`, `om 3 dagar` eller `nästa mån` — överallt där ett datum skrivs. |
 | 🌙 **Tysta timmar** | Inga påminnelser på natten eller helgen, valbart ljud (Pling, Klocka, Mjukt). |
 | 👋 **Välkomstguide** | Vid första start: kort guide + exempeluppgift och en förklarande tom vy. Finns alltid under högerklick. |
+| 🎨 **Teman & tillgänglighet** | Färgteman, glasstyrka, hög kontrast, text upp till 200 %, tydliga fokusringar och namn för skärmläsare. |
 
 Alla detaljer, steg för steg: **[docs/MANUAL.md](docs/MANUAL.md)**.
 

@@ -572,6 +572,11 @@ class TrayMixin:
                 lambda checked=False: self._set_show_over_apps(bool(checked))
             )
 
+            _theme_act = self._QAction("🎨  Teman och utseende…", self._tray_menu)
+            _theme_act.setToolTip("Färgtema, glasstyrka, bakgrundsdjup, hög kontrast och textstorlek (80–200 %).")
+            _theme_act.triggered.connect(self._open_theme_dialog)
+            self._tray_menu.addAction(_theme_act)
+
             # === NY: TEXTSTORLEK / DENSITET (Kompakt · Normal · Stor) ===
             size_menu = self._tray_menu.addMenu("🔠  Textstorlek")
             _cur_density = self._ui_density_value()
@@ -788,6 +793,36 @@ class TrayMixin:
             return str(self.settings.density_mode())
         except Exception:
             return "comfortable"
+
+    def _theme_prefs_changed(self) -> None:
+        """Temadialogen ändrade något: rita om alla fönster direkt."""
+        try:
+            with self._widget_lock:
+                widgets = list(self._widgets.values())
+            for w in widgets:
+                with suppress(Exception):
+                    w._apply_theme()
+                with suppress(Exception):
+                    w._rebuild_task_list()
+        except Exception as e:
+            self._log.warning(f"{LOG_PREFIX} _theme_prefs_changed: {e}")
+
+    def _open_theme_dialog(self) -> None:
+        """🎨 Teman och utseende (tray-menyn och högerklicksmenyn)."""
+        try:
+            d = getattr(self, "_theme_dialog", None)
+            if d is not None:
+                with suppress(Exception):
+                    d.raise_()
+                    d.activateWindow()
+                    if d.isVisible():
+                        return
+            from ui.theme_dialog import open_theme_dialog
+            self._theme_dialog = open_theme_dialog(
+                None, self.settings, on_change=self._theme_prefs_changed, on_glass=self._set_window_transparency,
+            )
+        except Exception as e:
+            self._log.warning(f"{LOG_PREFIX} kunde inte öppna temadialogen: {e}", exc_info=True)
 
     def _set_ui_density(self, mode: str) -> None:
         """Tray-handler: byt textstorlek/densitet live (tema + listan byggs om)."""

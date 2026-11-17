@@ -42,6 +42,7 @@
 - [🗣 Naturliga datum (fre 14, om 3 dagar, nästa mån)](#-naturliga-datum-fre-14-om-3-dagar-nästa-mån)
 - [🌙 Tysta timmar och påminnelseljud](#-tysta-timmar-och-påminnelseljud)
 - [👋 Välkomstguide (första start)](#-välkomstguide-första-start)
+- [🎨 Teman och utseende (+ ♿ tillgänglighet)](#-teman-och-utseende--tillgänglighet)
 - [💖 Stöd projektet](#-stöd-projektet)
 - [📄 Licens](#-licens)
 
@@ -712,6 +713,27 @@ Första gången du startar Ledgebord på en ny dator öppnas en kort **👋 Väl
 * Guiden visas **en enda gång**, bara när fönstret syns (inte vid tyst autostart) och aldrig för dig som redan har uppgifter (t.ex. efter en uppdatering).
 * Den finns alltid kvar: högerklicka fönstret eller tray-ikonen → **👋 Välkomstguide**.
 * Är listan tom visar den en förklarande vy (hur du skriver en uppgift, Ctrl+Alt+N, högerklick) i stället för bara "Inga uppgifter".
+
+## 🎨 Teman och utseende (+ ♿ tillgänglighet)
+
+Högerklicka fönstret eller tray-ikonen → **🎨 Teman och utseende…**. Allt slår igenom direkt medan du drar och sparas.
+
+| Val | Vad det gör |
+|---|---|
+| **Färgtema** | Standard · Hav · Skog · Solnedgång · Grafit · Hög kontrast. Byter panelens och kortens färgton — texten är alltid minst 4,5:1 mot bakgrunden. |
+| **Glasstyrka** | 0–30 % genomskinlighet. Mer glas släpper igenom skrivbordet, men panelen blir aldrig mer genomskinlig än 70 % så texten förblir läsbar. |
+| **Bakgrundsdjup** | 0–60 %: mörkare bakgrund i mörkt tema, ljusare i ljust — mer kontrast mot texten. |
+| **Hög kontrast** | Svart/vitt, heltäckande ytor, tjocka kanter, tydliga röda/gula varningsfärger och text med minst 7:1 (WCAG AAA). Följer ljust/mörkt tema. |
+| **Textstorlek** | 80–200 % (se nedan). |
+| **↺ Återställ utseendet** | Tillbaka till standard. |
+
+Temat följer fortfarande ljust/mörkt/auto/Följ Windows — färgtemat läggs ovanpå.
+
+### ♿ Tillgänglighet
+* **Textstorlek upp till 200 %:** reglaget i temadialogen eller **Ctrl + Plus / Ctrl + Minus**, **Ctrl + 0** = 100 %. Ligger ovanpå Kompakt/Normal/Stor.
+* **Tydlig fokusring:** allt som har tangentbordsfokus får en 2–3 px ring (gul på mörkt, mörkblå på ljust). **Tab / Skift+Tab** flyttar mellan knappar och fält — även fönstrets ✕, – och uppdateringsknappar.
+* **Skärmläsare:** varje knapp och fält har ett namn, och varje uppgiftskort läses som en mening (”Uppgift: Ring Anna. Hög prioritet. Förfaller 2026-11-20. Ej klar. Taggar: jobb.”).
+* **Tangentbord överallt:** pilar/Space/E/P/1–3/Delete i listan, **Ctrl + 1–4** byter flik, **Meny-tangenten eller Skift + F10** öppnar menyn för den markerade uppgiften. F1 listar allt.
 
 ## 💖 Stöd projektet
 

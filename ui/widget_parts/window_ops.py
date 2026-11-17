@@ -80,6 +80,7 @@ class WindowOpsMixin:
             # NY v8: backup av uppgifter
             act_backup = menu.addAction("💾 Backup av uppgifter…")
             act_help = menu.addAction("⌨️ Tangentöversikt (F1)")
+            act_theme = menu.addAction("🎨 Teman och utseende…")
             act_welcome = menu.addAction("👋 Välkomstguide")
             # frivillig donation: egen dialog (ui/donate.py), direkt under hjälpen
             act_donate = menu.addAction("💖 Stöd Ledgebord (Swish, PayPal, Ko-fi)…")
@@ -134,6 +135,8 @@ class WindowOpsMixin:
                 self._on_hide_to_tray_clicked()
             elif chosen is act_help:
                 self._on_show_shortcut_help()
+            elif chosen is act_theme:
+                self.theme_dialog_requested.emit()
             elif chosen is act_welcome:
                 self._on_open_welcome()
             elif chosen is act_donate:

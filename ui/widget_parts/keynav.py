@@ -183,6 +183,9 @@ class KeyNavMixin:
         if key == Qt.Key.Key_Space:
             self._on_task_toggle(tid, True)
             return True
+        if key == Qt.Key.Key_Menu or (key == Qt.Key.Key_F10 and mods & Qt.KeyboardModifier.ShiftModifier):
+            self._open_selected_task_menu()          # som högerklick, för tangentbordsanvändare
+            return True
         if key in (Qt.Key.Key_E, Qt.Key.Key_F2):
             self._prompt_rename(tid)
             return True

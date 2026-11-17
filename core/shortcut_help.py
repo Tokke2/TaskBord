@@ -36,7 +36,15 @@ _LIST_KEYS: List[Tuple[str, str]] = [
     ("1 / 2 / 3 / 0", "Prioritet hög / normal / låg / ingen"),
     ("Delete", "Ta bort uppgiften (frågar först; arkiverade uppgifter kan inte tas bort)"),
     ("Esc", "Lämna listan och gå tillbaka till inmatningsfältet"),
+    ("Meny-tangenten / Skift+F10", "Öppna menyn för den markerade uppgiften (som högerklick)"),
     ("Vanlig text", "Hamnar i inmatningsfältet"),
+]
+
+_A11Y_KEYS: List[Tuple[str, str]] = [
+    ("Ctrl + Plus / Minus", "Större / mindre text (80–200 %)"),
+    ("Ctrl + 0", "Textstorlek tillbaka till 100 %"),
+    ("Ctrl + 1 / 2 / 3 / 4", "Flikarna Aktiva / Arkiverade / Kalender / Anteckningar"),
+    ("Tab / Skift+Tab", "Flytta tangentbordsfokus mellan knappar och fält (en tydlig ring visar var du är)"),
 ]
 
 _FOCUS_KEYS: List[Tuple[str, str]] = [
@@ -109,6 +117,7 @@ def build_sections(settings: Any = None, platform: Optional[str] = None) -> List
             win.append((seq, text))
     sections.append(("🪟 När fönstret är aktivt (klicka i det först)", win))
     sections.append(("⌨️ Styra listan (när en uppgift är markerad)", list(_LIST_KEYS)))
+    sections.append(("♿ Tillgänglighet", list(_A11Y_KEYS)))
     sections.append(("🎯 Fokusläge (F3)", list(_FOCUS_KEYS)))
     sections.append(("🖱️ Musen", list(_MOUSE)))
     return sections

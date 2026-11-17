@@ -197,6 +197,7 @@ class WindowsMixin:
                         # Högerklicksmenyn "📌 Alltid överst" → samma växling som Ctrl+Alt+T/tray
                         with suppress(Exception):
                             w.top_toggle_requested.connect(self._toggle_always_on_top)
+                            w.theme_dialog_requested.connect(self._open_theme_dialog)
                         # Uppdateringsknappen i titelraden (⟳ / ⬆ Uppdatera)
                         with suppress(Exception):
                             w.update_requested.connect(self._on_update_button)

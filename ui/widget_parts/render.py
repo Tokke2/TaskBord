@@ -722,12 +722,16 @@ class RenderMixin:
                 tuple((x.get("url"), x.get("title")) for x in (task.get("links") or [])),
                 tuple(x.get("file") for x in (task.get("attachments") or [])),
                 self._extra_state(task),
+                self._look_key(),
             )
             if tid in self._task_widgets and not archived:
                 existing = self._task_widgets[tid]
                 if existing.property("task_state") == state_key:
                     return existing
             widget = self._build_task_widget(task, archived)
+            if widget is not None:
+                from ui import a11y as _a11y
+                widget.setAccessibleName(_a11y.describe_task(task, archived))   # skärmläsare: en hel mening per kort
             if widget is not None and not archived:
                 widget.setProperty("task_state", state_key)
                 self._task_widgets[tid] = widget
