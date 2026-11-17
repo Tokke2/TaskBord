@@ -41,6 +41,7 @@
 - [🧱 Kodstruktur (för den som ändrar koden)](#-kodstruktur-för-den-som-ändrar-koden)
 - [🗣 Naturliga datum (fre 14, om 3 dagar, nästa mån)](#-naturliga-datum-fre-14-om-3-dagar-nästa-mån)
 - [🌙 Tysta timmar och påminnelseljud](#-tysta-timmar-och-påminnelseljud)
+- [👋 Välkomstguide (första start)](#-välkomstguide-första-start)
 - [💖 Stöd projektet](#-stöd-projektet)
 - [📄 Licens](#-licens)
 
@@ -703,6 +704,14 @@ Högerklicka tray-ikonen → **🌙 Tysta timmar och ljud**:
 
 Ljudet spelas när påminnelsekortet visas, aldrig under tysta timmar. Ljuden skapas av appen själv och sparas i datamappen (`js\sounds\`). Inställningarna sparas och följer med vid uppdatering och backup av inställningar.
 Obs: en uppgift med klockslag före tysta timmars slut (t.ex. kl 06 när tystnaden är till 08) påminns först när tystnaden är slut.
+
+## 👋 Välkomstguide (första start)
+
+Första gången du startar Ledgebord på en ny dator öppnas en kort **👋 Välkomstguide** (sju tips: skriv och Enter, Ctrl+Alt+N, högerklick, påminnelser, ✕ = gömmer bara, mail, F1) och en **exempeluppgift** läggs i listan. Bocka av den eller ta bort den när du vill — den kommer inte tillbaka.
+
+* Guiden visas **en enda gång**, bara när fönstret syns (inte vid tyst autostart) och aldrig för dig som redan har uppgifter (t.ex. efter en uppdatering).
+* Den finns alltid kvar: högerklicka fönstret eller tray-ikonen → **👋 Välkomstguide**.
+* Är listan tom visar den en förklarande vy (hur du skriver en uppgift, Ctrl+Alt+N, högerklick) i stället för bara "Inga uppgifter".
 
 ## 💖 Stöd projektet
 

@@ -147,6 +147,7 @@ class LifecycleMixin:
                 )
             self._rebuild_task_list()
             QTimer.singleShot(400, self._rebuild_task_list)
+            QTimer.singleShot(1800, self._maybe_show_welcome)   # välkomstguiden: bara på en ny installation
         except Exception as e:
             logger.warning(
                 f"{LOG_PREFIX} _initial_render misslyckades: "

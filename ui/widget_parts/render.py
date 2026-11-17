@@ -474,17 +474,14 @@ class RenderMixin:
                     self._nav_tids = []
                     self._sel_tid = None
                 # v7-fix17/86: vänligare tom-text med emoji + guide
-                empty_text = (
-                    "✨  Inga uppgifter ännu\n"
-                    "Skriv nedan och tryck Enter" if not archived
-                    else "🗄️  Inga arkiverade uppgifter\n"
-                    "Klara uppgifter hamnar här och sparas för alltid"
-                )
+                from core import welcome as _welcome
+                empty_text = _welcome.EMPTY_ACTIVE if not archived else _welcome.EMPTY_ARCHIVE
                 if not archived:
                     self._update_stats_chip(0, 0, n_snoozed_hidden)
                     self._update_amount_summary([])
                 empty_label = QLabel(empty_text, self)
                 empty_label.setObjectName("emptyHint")
+                empty_label.setWordWrap(True)
                 empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 layout.addWidget(empty_label)
                 layout.addStretch(1)

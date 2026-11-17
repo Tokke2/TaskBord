@@ -25,7 +25,7 @@ def qt_env(work: Path):
         import PySide6
     except ImportError:
         return None, "PySide6 saknas"
-    env = dict(os.environ, QT_QPA_PLATFORM="offscreen")
+    env = dict(os.environ, QT_QPA_PLATFORM="offscreen", LEDGEBORD_NO_WELCOME="1")
     ok, why = _qt_ok(env)
     if ok:
         return env, None

@@ -10,6 +10,7 @@ ovanför listan; klick ger fördelning per månad och tagg.
 """
 from __future__ import annotations
 
+from contextlib import suppress
 from typing import Any, Dict, List
 
 from ui.widget_base import *  # noqa: F401,F403
@@ -29,6 +30,43 @@ except ImportError:  # pragma: no cover
 
 class ExtrasMixin:
     """Belopp, anteckningar och klickbara kontaktuppgifter."""
+
+    # ------------------------------------------------------------ 👋 välkomstguide
+    def _maybe_show_welcome(self) -> None:
+        """Första start (ny installation): lägg in en exempeluppgift och visa guiden — en enda gång."""
+        try:
+            import os
+            if os.environ.get("LEDGEBORD_NO_WELCOME"):
+                return
+            from core import welcome as _w
+            st, store = getattr(self, "settings", None), getattr(self, "store", None)
+            if st is None or store is None or not hasattr(st, "pref"):
+                return
+            visible = bool(self.isVisible()) and not getattr(self, "_hidden_to_tray", False)
+            what = _w.decide(len(store.active_tasks()), len(store.archive_tasks()),
+                             bool(st.pref("welcome_done")), visible)
+            if what == _w.SKIP:
+                return
+            st.set_pref("welcome_done", True)
+            if what == _w.MARK_ONLY:
+                return
+            ex = _w.example_task()
+            tid = store.add_task(ex["title"], priority=ex["priority"], tags=list(ex["tags"]))
+            if tid:
+                with suppress(Exception):
+                    store.set_note(tid, ex["note"])
+            self._schedule_rebuild()
+            self._on_open_welcome()
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} _maybe_show_welcome: {e}")
+
+    def _on_open_welcome(self) -> None:
+        """👋 Välkomstguide (högerklicksmenyn)."""
+        try:
+            from ui.welcome_dialog import open_welcome_dialog
+            open_welcome_dialog(self)
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} _on_open_welcome: {e}")
 
     # ------------------------------------------------------------ fliken 📝 Anteckningar
     NOTES_TAB_INDEX = 3

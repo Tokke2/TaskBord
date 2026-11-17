@@ -234,6 +234,14 @@ class BackupSyncMixin:
         except Exception as e:
             self._log.warning(f"{LOG_PREFIX} kunde inte öppna tangentöversikten: {e}")
 
+    def _open_welcome_guide(self) -> None:
+        """👋 Välkomstguiden från tray-menyn."""
+        try:
+            from ui.welcome_dialog import open_welcome_dialog
+            open_welcome_dialog(None)
+        except Exception as e:
+            self._log.warning(f"{LOG_PREFIX} kunde inte öppna välkomstguiden: {e}")
+
     def _open_backup_dialog(self) -> None:
         """NY v8: öppna backup-dialogen från tray-menyn."""
         try:
