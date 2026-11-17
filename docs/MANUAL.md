@@ -262,8 +262,11 @@ inköpslistor, telefonnummer. (Anteckningen *på en uppgift*, 📝 på kortet, f
 
 - **Skapa:** klicka **➕ Ny anteckning** (eller `Ctrl+N` i fliken). Skriv en rubrik (valfri) och texten.
 - **Redigera:** klicka på en anteckning i listan. Texten får vara hur lång som helst (upp till 200 000 tecken) och ha flera rader.
-- **Sparas av sig själv:** ca 0,7 sekunder efter sista tangenttryckningen, när du går tillbaka, byter flik, gömmer fönstret, avslutar
-  eller uppdaterar appen. Du behöver aldrig trycka "Spara". Under texten ser du "✓ Sparat".
+- **Spara:** tryck **✓ Spara** (eller `Ctrl+S` / `Ctrl+Retur`) när du skrivit klart — anteckningen sparas och du kommer tillbaka till
+  **listan**, där den ligger med rubrik och förhandsvisning. Klicka på den för att öppna den igen. En helt tom anteckning (ingen
+  rubrik, ingen text) sparas inte utan städas bort.
+- **Sparas även av sig själv:** ca 0,7 sekunder efter sista tangenttryckningen, när du går tillbaka (← eller `Esc`), byter flik, gömmer
+  fönstret, avslutar eller uppdaterar appen. Glömmer du att trycka Spara försvinner alltså ingenting. Under texten ser du "✓ Sparat".
 - **📌 Fäst** lägger anteckningen överst. Annars ligger den senast ändrade först.
 - **🔍 Sök** filtrerar på rubrik och text. **📋 Kopiera** lägger rubrik + text i urklipp. **🗑 Radera** frågar först.
 - **Var:** `notes.json` i samma datamapp som uppgifterna (`js\`, inne i appmappen). Filen skrivs säkert (temporärfil → byt ut), så en krasch

@@ -55,7 +55,7 @@ def build_stylesheet(is_dark: bool, accent_hex: str, fg: str, muted: str, edge: 
         f"padding: 5px 10px; font-size: {px}px; font-weight: 600; }}",
         f"QPushButton#notesBtn:hover {{ border: 1px solid {accent_hex}; }}",
         f"QPushButton#notesBtn:checked {{ background: {accent_hex}; color: {sel_text}; border: 1px solid {accent_hex}; }}",
-        f"QPushButton#notesNew {{ background: {accent_hex}; color: {sel_text}; border: none; border-radius: 8px; "
+        f"QPushButton#notesNew, QPushButton#notesSave {{ background: {accent_hex}; color: {sel_text}; border: none; border-radius: 8px; "
         f"padding: 6px 12px; font-size: {px + 1}px; font-weight: 700; }}",
     ])
 
@@ -142,9 +142,15 @@ if _QT:
             v.setSpacing(6)
             bar = QHBoxLayout()
             bar.setSpacing(6)
+            self.btn_save = QPushButton("✓ Spara", page)
+            self.btn_save.setObjectName("notesSave")
+            self.btn_save.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.btn_save.setToolTip("Spara och gå tillbaka till listan (Ctrl+S eller Ctrl+Retur)")
+            self.btn_save.clicked.connect(self.save_and_close)
+            bar.addWidget(self.btn_save)
             self.btn_back = QPushButton("← Alla anteckningar", page)
             self.btn_back.setObjectName("notesBtn")
-            self.btn_back.setToolTip("Tillbaka till listan (Esc) — anteckningen är redan sparad")
+            self.btn_back.setToolTip("Tillbaka till listan (Esc) — anteckningen sparas också då")
             self.btn_back.clicked.connect(self.show_list)
             bar.addWidget(self.btn_back)
             bar.addStretch(1)
@@ -173,12 +179,15 @@ if _QT:
             v.addWidget(self.title_edit)
             self.body_edit = QPlainTextEdit(page)
             self.body_edit.setObjectName("notesBody")
-            self.body_edit.setPlaceholderText("Skriv här … allt sparas automatiskt.")
+            self.body_edit.setPlaceholderText("Skriv här … sparas automatiskt medan du skriver. Tryck ✓ Spara när du är klar.")
             self.body_edit.textChanged.connect(self._on_edit)
             v.addWidget(self.body_edit, 1)
             self.status = QLabel("", page)
             self.status.setObjectName("notesStatus")
             v.addWidget(self.status)
+            for seq in ("Ctrl+S", "Ctrl+Return", "Ctrl+Enter"):
+                QShortcut(QKeySequence(seq), page, activated=self.save_and_close).setContext(
+                    Qt.ShortcutContext.WidgetWithChildrenShortcut)
             for seq in ("Ctrl+N",):
                 QShortcut(QKeySequence(seq), self, activated=self.new_note).setContext(
                     Qt.ShortcutContext.WidgetWithChildrenShortcut)
@@ -249,11 +258,31 @@ if _QT:
             self.stack.setCurrentIndex(1)
             (self.title_edit if focus_title else self.body_edit).setFocus()
 
-        def show_list(self) -> None:
+        def show_list(self, flash: str = "") -> None:
+            """Tillbaka till listan. Sparar det som skrivits; en helt tom anteckning (ingen rubrik, ingen text) tas bort
+            så listan inte fylls av tomma rader."""
             self.flush()
+            gone = False
+            if self._cur is not None:
+                n = self.store.get(self._cur)
+                if n is not None and not (n["title"].strip() or n["body"].strip()):
+                    self.store.delete(self._cur)
+                    gone = True
             self._cur = None
             self.stack.setCurrentIndex(0)
             self.refresh()
+            if gone:
+                self.changed.emit()
+            elif flash:
+                self.hint.setText(flash)
+
+        def save_and_close(self) -> None:
+            """✓ Spara: spara och visa listan, där anteckningen nu finns — klicka på den för att öppna den igen."""
+            had = self._cur is not None
+            self.flush()
+            n = self.store.get(self._cur) if self._cur else None
+            filled = bool(n and (n["title"].strip() or n["body"].strip()))
+            self.show_list(flash=(f"✓ Sparat {datetime.now():%H:%M} — klicka på en anteckning för att öppna den") if (had and filled) else "")
 
         def _on_edit(self) -> None:
             if self._loading or self._cur is None:
