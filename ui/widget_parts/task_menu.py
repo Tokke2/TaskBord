@@ -259,7 +259,7 @@ class TaskMenuMixin:
                         "set_due_date", tid, i, _what="förfallodatum"
                     )
                 )
-            act = due_menu.addAction("✍️ Skriv datum (ÅÅÅÅ-MM-DD)…")
+            act = due_menu.addAction("✍️ Skriv datum (fre 14, om 3 dagar …)…")
             act.triggered.connect(
                 lambda _c: self._prompt_and_set_due(tid)
             )
@@ -431,27 +431,28 @@ class TaskMenuMixin:
             )
 
     def _prompt_and_set_due(self, task_id: str) -> None:
-        """NY v7-fix41: skriv in förfallodatum manuellt."""
+        """Skriv in förfallodatum för hand — naturligt språk går bra ('fre 14', 'om 3 dagar', 'nästa mån')."""
         try:
             from PySide6.QtWidgets import QInputDialog
+            from core import natural_dates as _nd
             text, ok = QInputDialog.getText(
                 self,
                 "📅 Förfallodatum",
-                "Datum (ÅÅÅÅ-MM-DD eller ÅÅMMDD, t.ex. 261030):",
+                "Skriv datum — t.ex. fre 14 · om 3 dagar · nästa mån · 15 nov · 261030 · 2026-10-30\n"
+                "(klockslag går också: imorgon kl 15):",
                 text=datetime.now().date().isoformat(),
             )
             if not ok or not text.strip():
                 return
-            try:
-                from ui.widget_base import parse_compact_date
-                _cd = parse_compact_date(text.strip())
-                iso = _cd.isoformat() if _cd else datetime.fromisoformat(text.strip()).date().isoformat()
-            except ValueError:
+            d, hhmm = _nd.parse_datetime(text.strip())
+            if d is None:
                 _show_widget_error(
                     "Ogiltigt datum",
-                    f"{text.strip()!r} förstods inte — använd ÅÅÅÅ-MM-DD eller ÅÅMMDD.",
+                    f"{text.strip()!r} förstods inte.\nPröva t.ex. 'fre 14', 'om 3 dagar', 'nästa mån', "
+                    "'15 nov', ÅÅMMDD eller ÅÅÅÅ-MM-DD.",
                 )
                 return
+            iso = f"{d.isoformat()}T{hhmm}" if hhmm else d.isoformat()
             self._store_call("set_due_date", task_id, iso, _what="datum")
         except Exception as e:
             logger.warning(f"{LOG_PREFIX} _prompt_and_set_due: {e}")

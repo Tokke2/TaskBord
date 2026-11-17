@@ -444,7 +444,8 @@ def parse_compact_date(token: str, today: Any = None) -> Any:
 
 _START_DAY_EXPR = (
     r"\d{4}-\d{2}-\d{2}|\d{1,2}/\d{1,2}(?:-\d{2,4})?|\d{8}|\d{6}|i\s+övermorgon|övermorgon|imorgon|idag"
-    r"|nästa\s+vecka|om\s+\d{1,3}\s+(?:dagar|dag|veckor|vecka)"
+    r"|nästa\s+vecka|nästa\s+månad|nästa\s+(?:måndag|tisdag|onsdag|torsdag|fredag|lördag|söndag|mån|tis|ons|tors|fre|lör|sön)"
+    r"|om\s+(?:\d{1,3}|en|ett|två|tre|fyra|fem|sex|sju|åtta|nio|tio)\s+(?:dagar|dag|veckor|vecka|månader|månad)"
     r"|måndag|tisdag|onsdag|torsdag|fredag|lördag|söndag"
 )
 
@@ -500,7 +501,11 @@ def _resolve_day_expr(expr: str, today: Any) -> Any:
           "fredag": 4, "lördag": 5, "söndag": 6}.get(e)
     if wd is not None:
         return today + _td(days=(wd - today.weekday()) % 7)
-    return None
+    try:
+        from core import natural_dates as _nd
+        return _nd.parse_date(e, today)
+    except Exception:
+        return None
 
 
 def parse_natural_input(text: str) -> Dict[str, Any]:
@@ -628,6 +633,16 @@ def parse_natural_input(text: str) -> Dict[str, Any]:
                 s = s.replace(dm.group(0), " ", 1)
             except ValueError:
                 pass
+    # Naturligt språk: nästa mån · om 3 dagar · fre 14 · 15 nov · vecka 47 · slutet av månaden (core/natural_dates.py)
+    if due_day is None:
+        try:
+            from core import natural_dates as _nd
+            _hit = _nd.find_in_text(s, today)
+        except Exception:
+            _hit = None
+        if _hit:
+            due_day = _hit[0]
+            s = s[:_hit[1]] + " " + s[_hit[2]:]
     # Ord: idag/imorgon/övermorgon
     if due_day is None:
         for word, delta in (

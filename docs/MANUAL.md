@@ -39,6 +39,7 @@
 - [📅 Exportera uppgifter till kalendern (Google Calendar m.fl.)](#-exportera-uppgifter-till-kalendern-google-calendar-mfl)
 - [☁️ Google Calendar (lokal koppling)](#-google-calendar-lokal-koppling)
 - [🧱 Kodstruktur (för den som ändrar koden)](#-kodstruktur-för-den-som-ändrar-koden)
+- [🗣 Naturliga datum (fre 14, om 3 dagar, nästa mån)](#-naturliga-datum-fre-14-om-3-dagar-nästa-mån)
 - [💖 Stöd projektet](#-stöd-projektet)
 - [📄 Licens](#-licens)
 
@@ -666,6 +667,25 @@ fasad — alla importer (`from widget import TodoWidget`) fungerar som förut:
 Regler som testerna vaktar (`tester/structure_test.py`): alla moduler går att importera, ingen metod
 finns i två mixins (annars vinner en tyst), inga odefinierade namn, sökvägar byggs från `SCRIPT_DIR`
 (aldrig från `__file__` i `app/`). `tester/app_boot_test.py` startar hela appen offscreen och läser loggen.
+
+## 🗣 Naturliga datum (fre 14, om 3 dagar, nästa mån)
+
+Överallt där du skriver ett datum för hand förstår Ledgebord vanlig svenska — i fältet för ny uppgift, i hotkey-rutan och i **📅 → ✍️ Skriv datum…**:
+
+| Skriv | Betyder |
+|---|---|
+| `fre 14` | närmaste fredag som också är den 14:e (finns ingen inom tre månader används närmaste den 14:e) |
+| `fredag` · `fre` · `på fredag` | närmaste fredag (idag räknas) |
+| `nästa mån` · `nästa fredag` | närmaste måndag/fredag **efter** idag |
+| `nästa vecka` · `nästa månad` | måndag nästa vecka · den 1:a nästa månad |
+| `om 3 dagar` · `om en vecka` · `om 2 månader` | räknat från idag (siffror eller ord: en, två, tre …) |
+| `15 nov` · `15 november 2026` · `vecka 47` | datum med månadsnamn · måndag i vecka 47 |
+| `slutet av månaden` · `14` | månadens sista dag · närmaste den 14:e |
+| `imorgon` · `övermorgon` · `261030` · `2026-10-30` · `15/3` | som förut |
+
+Klockslag går också: `imorgon kl 15`, `fre 20 9:30`. I uppgiftsfältet kan allt blandas: `Ring kund nästa mån kl 9 !hög #jobb`.
+Inne i en titel räknas bara tydliga uttryck — ett ensamt `mån` eller `14` i en titel blir aldrig ett datum, och `fredag 15` betyder som förut fredag kl 15.
+Datum som redan passerat (`15 nov` i december) tolkas som nästa år. Samma uttryck funkar efter `start` (`start nästa mån`, `start om en vecka`).
 
 ## 💖 Stöd projektet
 
