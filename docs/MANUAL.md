@@ -40,6 +40,7 @@
 - [☁️ Google Calendar (lokal koppling)](#-google-calendar-lokal-koppling)
 - [🧱 Kodstruktur (för den som ändrar koden)](#-kodstruktur-för-den-som-ändrar-koden)
 - [🗣 Naturliga datum (fre 14, om 3 dagar, nästa mån)](#-naturliga-datum-fre-14-om-3-dagar-nästa-mån)
+- [🌙 Tysta timmar och påminnelseljud](#-tysta-timmar-och-påminnelseljud)
 - [💖 Stöd projektet](#-stöd-projektet)
 - [📄 Licens](#-licens)
 
@@ -686,6 +687,22 @@ finns i två mixins (annars vinner en tyst), inga odefinierade namn, sökvägar 
 Klockslag går också: `imorgon kl 15`, `fre 20 9:30`. I uppgiftsfältet kan allt blandas: `Ring kund nästa mån kl 9 !hög #jobb`.
 Inne i en titel räknas bara tydliga uttryck — ett ensamt `mån` eller `14` i en titel blir aldrig ett datum, och `fredag 15` betyder som förut fredag kl 15.
 Datum som redan passerat (`15 nov` i december) tolkas som nästa år. Samma uttryck funkar efter `start` (`start nästa mån`, `start om en vecka`).
+
+## 🌙 Tysta timmar och påminnelseljud
+
+Påminnelserna tystnar på natten (och om du vill på helgerna) — det som väntar kommer som första påminnelse när tystnaden är slut.
+
+Högerklicka tray-ikonen → **🌙 Tysta timmar och ljud**:
+
+| Val | Vad det gör |
+|---|---|
+| **Tysta timmar på** | Standard: tyst 22:00–08:00 (som förut). Av = påminnelser dygnet runt. |
+| **Tyst från / till** | Välj när natten börjar (18:00–00:00) och slutar (05:00–10:00). |
+| **Tysta lördag och söndag** | Inga påminnelser på helgen. Måndag morgon kommer det som väntar. |
+| **🔊 Ljud vid påminnelse** | Inget ljud · 🔔 Pling · 🛎 Klocka · 🎵 Mjukt (standard). Du hör ljudet direkt när du väljer det. |
+
+Ljudet spelas när påminnelsekortet visas, aldrig under tysta timmar. Ljuden skapas av appen själv och sparas i datamappen (`js\sounds\`). Inställningarna sparas och följer med vid uppdatering och backup av inställningar.
+Obs: en uppgift med klockslag före tysta timmars slut (t.ex. kl 06 när tystnaden är till 08) påminns först när tystnaden är slut.
 
 ## 💖 Stöd projektet
 

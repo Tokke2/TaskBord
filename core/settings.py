@@ -1295,6 +1295,7 @@ class Settings(QObject):
             "language": "sv",
             "density_mode": DensityMode.COMFORTABLE.value,
             "notification_sound": NotificationSound.GENTLE.value,
+            "prefs": {},  # nya inställningar (core/prefs.py): tysta timmar, teman, textstorlek, mini-läge …
             # NY v7-fix38: Win+D-säkert skrivbordsläge + fönstertransparens
             "desktop_mode": DEFAULT_DESKTOP_MODE,  # v7-fix63: behind
             "window_transparency": DEFAULT_WINDOW_TRANSPARENCY,
@@ -1434,6 +1435,7 @@ class Settings(QObject):
             "custom_tags": lambda v: _coerce_list(v, []),
             "active_tag_filter": lambda v: _coerce_list(v, []),
             "tag_colors": lambda v: _clean_tag_colors(v),
+            "prefs": lambda v: v if isinstance(v, dict) else {},
             "shortcuts": lambda v: v if isinstance(v, dict) else copy.deepcopy(self.DEFAULT_SHORTCUTS),
         }
         if key not in validators:
@@ -3260,6 +3262,33 @@ class Settings(QObject):
             self._data["tray_lift_seconds"] = v
         self._dirty = True
         self._log.info(f"{LOG_PREFIX} tray_lift_seconds: {v}")
+        return True
+
+    def pref(self, key: str) -> Any:
+        """Inställning ur ``prefs`` (core/prefs.py) — alltid ett giltigt värde (standardvärde om det saknas)."""
+        from core import prefs as _prefs
+        with self._lock:
+            raw = self._data.get("prefs")
+        return _prefs.get(raw, key)
+
+    def set_pref(self, key: str, value: Any) -> bool:
+        """Sätt en inställning (rensas av core/prefs.py) och spara. Okänd nyckel → False."""
+        from core import prefs as _prefs
+        try:
+            v = _prefs.coerce(key, value)
+        except KeyError:
+            self._log.warning(f"{LOG_PREFIX} set_pref: okänd nyckel {key!r}")
+            return False
+        with self._lock:
+            d = self._data.get("prefs")
+            if not isinstance(d, dict):
+                d = self._data["prefs"] = {}
+            if key in d and d[key] == v:
+                return True
+            d[key] = v
+        self._dirty = True
+        self._log.info(f"{LOG_PREFIX} pref {key}: {v!r}")
+        self.save_async()
         return True
 
     @_log_call

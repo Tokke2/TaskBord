@@ -73,9 +73,10 @@ class RemindersMixin:
 
             # Förfallodag: första påminnelsen 08:00, sedan var 30:e minut tills händelsen (se reminder_logic)
             new_items = []
+            quiet = self._quiet_hours()
             if hasattr(self.store, "active_tasks"):
                 for task, kind, days in _rl.due_items(self.store.active_tasks(), now):
-                    if _rl.reminder_due(task, now, self._reminder_last.get(task.get("id"))):
+                    if _rl.reminder_due(task, now, self._reminder_last.get(task.get("id")), quiet):
                         new_items.append((task, kind, days))
             if not new_items:
                 return
@@ -90,8 +91,108 @@ class RemindersMixin:
                  for t, k, d in new_items]
             ):
                 self._reminder_tray_fallback(new_items)
+            self._play_reminder_sound()
         except Exception as e:
             self._log.debug(f"{LOG_PREFIX} _check_reminders: {e}")
+
+    # ------------------------------------------------------------------
+    # 🌙 Tysta timmar + ljud
+    # ------------------------------------------------------------------
+    def _quiet_hours(self) -> Any:
+        """Tysta timmar ur inställningarna (core/quiet_hours.py)."""
+        from core import quiet_hours as _qh
+        return _qh.from_settings(self.settings)
+
+    def _play_reminder_sound(self, name: Any = None) -> bool:
+        """Spela påminnelseljudet (valt ljud om inget namn anges). Tyst under tysta timmar när inget namn anges."""
+        try:
+            from core import reminder_sound as _rs
+            if name is None:
+                name = str(self.settings.notification_sound())
+                if self._quiet_hours().is_quiet(self._reminder_now()):
+                    return False
+            if name not in ("chime", "bell", "gentle"):
+                return False
+            path = _rs.ensure_file(str(getattr(self.store, "data_dir", "") or SCRIPT_DIR), name)
+            if path is None:
+                return False
+            try:
+                from PySide6.QtCore import QUrl
+                from PySide6.QtMultimedia import QSoundEffect
+                fx = getattr(self, "_sound_fx", None)
+                if fx is None:
+                    fx = QSoundEffect()
+                    self._sound_fx = fx
+                fx.setSource(QUrl.fromLocalFile(str(path)))
+                fx.setVolume(0.7)
+                fx.play()
+                return True
+            except Exception as e:
+                self._log.debug(f"{LOG_PREFIX} QSoundEffect saknas/misslyckades ({e}) — systemets pip")
+            try:
+                from PySide6.QtWidgets import QApplication
+                QApplication.beep()
+                return True
+            except Exception:
+                return False
+        except Exception as e:
+            self._log.debug(f"{LOG_PREFIX} _play_reminder_sound: {e}")
+            return False
+
+    def _set_quiet_pref(self, key: str, value: Any) -> None:
+        with suppress(Exception):
+            self.settings.set_pref(key, value)
+            self._log.info(f"{LOG_PREFIX} tysta timmar: {self._quiet_hours().summary()}")
+
+    def _set_reminder_sound(self, name: str) -> None:
+        with suppress(Exception):
+            self.settings.set_notification_sound(name)
+        self._play_reminder_sound(name)          # förhandsgranska valet
+
+    def _add_quiet_menu(self, menu: Any) -> Any:
+        """Undermenyn '🌙 Tysta timmar' i tray-menyn (byggs om varje gång den öppnas så markeringarna stämmer)."""
+        from core import reminder_sound as _rs
+        sub = menu.addMenu("🌙  Tysta timmar och ljud")
+
+        def fill() -> None:
+            sub.clear()
+            q = self._quiet_hours()
+            a = sub.addAction(f"Tysta timmar på  ({q.start}–{q.end})")
+            a.setCheckable(True)
+            a.setChecked(q.enabled)
+            a.setToolTip("Inga påminnelser under natten. Det som väntar kommer när tystnaden är slut.")
+            a.triggered.connect(lambda checked=False: self._set_quiet_pref("quiet_enabled", bool(checked)))
+            frm = sub.addMenu(f"Tyst från  {q.start}")
+            for h in (18, 19, 20, 21, 22, 23, 0):
+                t = f"{h:02d}:00"
+                x = frm.addAction(t)
+                x.setCheckable(True)
+                x.setChecked(q.start == t)
+                x.triggered.connect(lambda checked=False, v=t: self._set_quiet_pref("quiet_start", v))
+            to = sub.addMenu(f"Tyst till  {q.end}")
+            for h in (5, 6, 7, 8, 9, 10):
+                t = f"{h:02d}:00"
+                x = to.addAction(t)
+                x.setCheckable(True)
+                x.setChecked(q.end == t)
+                x.triggered.connect(lambda checked=False, v=t: self._set_quiet_pref("quiet_end", v))
+            w = sub.addAction("Tysta lördag och söndag")
+            w.setCheckable(True)
+            w.setChecked(q.weekends)
+            w.triggered.connect(lambda checked=False: self._set_quiet_pref("quiet_weekends", bool(checked)))
+            sub.addSeparator()
+            snd = sub.addMenu("🔊  Ljud vid påminnelse")
+            cur = str(self.settings.notification_sound())
+            for key, label in _rs.LABELS.items():
+                x = snd.addAction(label)
+                x.setCheckable(True)
+                x.setChecked(cur == key)
+                x.triggered.connect(lambda checked=False, k=key: self._set_reminder_sound(k))
+
+        fill()
+        sub.aboutToShow.connect(fill)
+        self._quiet_menu_ref = sub
+        return sub
 
     # ------------------------------------------------------------------
     # Kortet med knappar

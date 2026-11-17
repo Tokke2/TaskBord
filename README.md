@@ -40,6 +40,7 @@ påminner dig, tar emot uppgifter från mail och sparar allt i en mapp på din e
 | 🔄 **Uppdatering** | Hittar nya versioner själv och uppdaterar tyst. Dina uppgifter och inställningar rörs aldrig. |
 | 💾 **Säkert** | Automatiska backuper, felloggar och självläkning. Bara en instans åt gången — startar du igen öppnas den som kör. |
 | 🗣 **Naturliga datum** | Skriv `fre 14`, `om 3 dagar` eller `nästa mån` — överallt där ett datum skrivs. |
+| 🌙 **Tysta timmar** | Inga påminnelser på natten eller helgen, valbart ljud (Pling, Klocka, Mjukt). |
 
 Alla detaljer, steg för steg: **[docs/MANUAL.md](docs/MANUAL.md)**.
 

@@ -99,14 +99,22 @@ def event_time(task: Dict[str, Any]) -> Optional[Tuple[int, int]]:
     return None
 
 
-def day_window(task: Dict[str, Any], now: datetime) -> Tuple[datetime, datetime]:
+def day_window(task: Dict[str, Any], now: datetime, quiet: Any = None) -> Tuple[datetime, datetime]:
     """
     (start, slut) för dagens påminnelser: från 08:00 (ligger klockslaget tidigare börjar fönstret en timme före)
     till nattron 22:00. Påminnelserna fortsätter hela fönstret — även efter klockslaget — tills uppgiften är klar.
+    Med ``quiet`` (core/quiet_hours.QuietHours) styr de tysta timmarna fönstrets kanter i stället.
     """
     day = now.replace(hour=0, minute=0, second=0, microsecond=0)
     start = day + timedelta(hours=MORNING_HOUR)
     end = day + timedelta(hours=NIGHT_HOUR)
+    if quiet is not None:
+        w = quiet.active_window(now)
+        if w is not None:
+            start, end = w
+        else:
+            start, end = day, day + timedelta(days=1)
+        return start, end                      # egna tysta timmar gäller även tidiga klockslag
     et = event_time(task)
     if et:
         ev = day + timedelta(hours=et[0], minutes=et[1])
@@ -115,19 +123,26 @@ def day_window(task: Dict[str, Any], now: datetime) -> Tuple[datetime, datetime]
     return start, end
 
 
-def reminder_due(task: Dict[str, Any], now: datetime, last_shown: Optional[datetime]) -> Optional[Tuple[str, int]]:
+def reminder_due(task: Dict[str, Any], now: datetime, last_shown: Optional[datetime],
+                 quiet: Any = None) -> Optional[Tuple[str, int]]:
     """
     Ska uppgiften påminnas NU? → (kind, dagar) eller None.  ``last_shown`` = när den senast visades.
 
     På förfallodagen (och för försenade uppgifter varje dag): första påminnelsen kl 08:00 (eller direkt om appen
     startas senare), sedan var 30:e minut TILLS UPPGIFTEN MARKERATS SOM KLAR (eller skjutits upp). Har uppgiften
     ett klockslag kommer dessutom en påminnelse exakt då. Nattro från 22:00.
+    ``quiet`` (core/quiet_hours.QuietHours): egna tysta timmar och tysta helger i stället för 22:00–08:00.
     """
     c = classify(task, now)
     if c is None:
         return None
-    start, end = day_window(task if c[0] == TODAY else {}, now)
+    if quiet is not None:
+        if quiet.weekends and quiet.is_weekend(now):
+            return None
+    start, end = day_window(task if c[0] == TODAY else {}, now, quiet)
     if now < start or now >= end:
+        return None
+    if quiet is not None and quiet.is_quiet(now):   # (t.ex. tyst mitt på dagen)
         return None
     if last_shown is None or last_shown.date() < now.date():
         return c                                   # första påminnelsen i dag

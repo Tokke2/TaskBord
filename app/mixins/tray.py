@@ -329,6 +329,8 @@ class TrayMixin:
             )
             reminders_action.toggled.connect(self._toggle_reminders)
             self._tray_menu.addAction(reminders_action)
+            with suppress(Exception):
+                self._add_quiet_menu(self._tray_menu)
 
             # NY v7-fix82: tema-undermeny (Ljust/Mörkt/Auto/Följ Windows)
             # Auto = klockstyrt: ljust 07:00–18:59, mörkt 19:00–06:59 —

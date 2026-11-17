@@ -501,11 +501,8 @@ def _resolve_day_expr(expr: str, today: Any) -> Any:
           "fredag": 4, "lördag": 5, "söndag": 6}.get(e)
     if wd is not None:
         return today + _td(days=(wd - today.weekday()) % 7)
-    try:
-        from core import natural_dates as _nd
-        return _nd.parse_date(e, today)
-    except Exception:
-        return None
+    from core import natural_dates as _nd
+    return _nd.parse_date(e, today)
 
 
 def parse_natural_input(text: str) -> Dict[str, Any]:
@@ -635,11 +632,8 @@ def parse_natural_input(text: str) -> Dict[str, Any]:
                 pass
     # Naturligt språk: nästa mån · om 3 dagar · fre 14 · 15 nov · vecka 47 · slutet av månaden (core/natural_dates.py)
     if due_day is None:
-        try:
-            from core import natural_dates as _nd
-            _hit = _nd.find_in_text(s, today)
-        except Exception:
-            _hit = None
+        from core import natural_dates as _nd
+        _hit = _nd.find_in_text(s, today)
         if _hit:
             due_day = _hit[0]
             s = s[:_hit[1]] + " " + s[_hit[2]:]
