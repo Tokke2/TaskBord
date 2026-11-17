@@ -170,8 +170,8 @@ if _QT:
                         "Välj en kant som ligger ytterst (t.ex. övre kanten eller kanten längst bort).")
             if edge in ("left", "right") and rect[2] > scr[2] * 0.8:
                 return "Fönstret är för brett för att gömmas åt sidan. Gör det smalare först."
-            if edge == "top" and rect[3] > scr[3] * 0.9:
-                return "Fönstret är för högt för att gömmas uppåt. Gör det lägre först."
+            if edge == "top" and rect[3] > scr[3]:
+                return "Fönstret är högre än skärmen och kan inte gömmas uppåt. Gör det lägre först."
             setter = getattr(self.settings, "set_edge_dock_enabled", None)
             if callable(setter) and not self._enabled():
                 setter(True)

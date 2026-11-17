@@ -78,7 +78,7 @@ def detect_edge(rect: Rect, screen: Rect, allowed: Iterable[str] = EDGES, snap: 
     }
     if rect[2] > screen[2] * 0.8:  # för brett för att dockas åt sidan
         dist.pop("left"), dist.pop("right")
-    if rect[3] > screen[3] * 0.9:
+    if rect[3] > screen[3]:   # högre än skärmen: ingen vettig övre kant (ett högt fönster går annars bra att gömma uppåt)
         dist.pop("top", None)
     cand = [(d, e) for e, d in dist.items() if e in allowed and d <= snap]
     return min(cand)[1] if cand else None
