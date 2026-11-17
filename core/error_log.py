@@ -654,3 +654,16 @@ def open_in_viewer(path: Path) -> bool:
         return True
     except Exception:
         return False
+
+
+def qt_msg_level(mode) -> int:
+    """
+    Qt:s meddelandetyp → loggnivå. QtMsgType: 0 debug, 1 warning, 2 critical, 3 fatal, 4 info.
+    (Tidigare räknades info som fatal → ett helt vanligt \"Using Qt multimedia with FFmpeg\" hamnade som KRASCH i felloggen.)
+    """
+    try:
+        n = int(getattr(mode, "value", mode))
+    except (TypeError, ValueError):
+        name = str(mode).lower()
+        n = {"qtdebugmsg": 0, "qtwarningmsg": 1, "qtcriticalmsg": 2, "qtfatalmsg": 3, "qtinfomsg": 4}.get(name.rsplit(".", 1)[-1], 1)
+    return {0: logging.DEBUG, 1: logging.WARNING, 2: logging.ERROR, 3: logging.CRITICAL, 4: logging.INFO}.get(n, logging.WARNING)

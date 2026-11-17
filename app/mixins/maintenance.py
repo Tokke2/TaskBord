@@ -94,9 +94,20 @@ class MaintenanceMixin:
             self._weekly_state = "done"
             return
         if not res.get("packages"):
+            with suppress(Exception):
+                pip_update.remember_restart(SCRIPT_DIR, [])
             pip_update.mark_ok(SCRIPT_DIR, "inget att uppdatera (kollat av appen)")
             pip_update.log_line(SCRIPT_DIR, "veckokoll: alla paket är aktuella")
             self._log.info(f"{LOG_PREFIX} veckounderhåll: allt är aktuellt")
+            self._weekly_state = "done"
+            return
+        if pip_update.same_as_last_restart(SCRIPT_DIR, list(res.get("packages") or [])):
+            # samma paket som förra veckans omstart → uppdateringen gick inte att genomföra; starta inte om i onödan igen
+            what = ", ".join((res.get("packages") or [])[:6])
+            self._log.info(f"{LOG_PREFIX} veckounderhåll: samma paket som förra omstarten ({what}) — startar inte om igen")
+            pip_update.log_line(SCRIPT_DIR, f"veckounderhåll: samma paket som förra gången ({what}) gick inte att uppdatera — ingen ny omstart "
+                                            "(se raderna ovan i den här loggen för orsaken)")
+            pip_update.mark_ok(SCRIPT_DIR, "samma paket som förra omstarten — hoppade över")
             self._weekly_state = "done"
             return
         reason = self._update_busy_reason()
@@ -109,6 +120,8 @@ class MaintenanceMixin:
         what = ", ".join((res.get("packages") or [])[:6])
         self._log.info(f"{LOG_PREFIX} veckounderhåll: {what} — startar om tyst för att uppdatera")
         pip_update.log_line(SCRIPT_DIR, f"veckounderhåll: appen startar om för att uppdatera ({what})")
+        with suppress(Exception):
+            pip_update.remember_restart(SCRIPT_DIR, list(res.get("packages") or []))
         with suppress(Exception):
             self._remember_hidden_for_restart()
         self._flush_window_state("före veckounderhåll")

@@ -218,14 +218,8 @@ def install_global_exception_hook() -> None:
                 return  # reentrant — släpp tyst (dödar RecursionError-loopen)
             _qt_msg_active[0] = True
             try:
-                level_map = {
-                    0: logging.DEBUG,    # QtDebugMsg
-                    1: logging.WARNING,  # QtInfoMsg
-                    2: logging.WARNING,  # QtWarningMsg
-                    3: logging.ERROR,    # QtCriticalMsg
-                    4: logging.CRITICAL, # QtFatalMsg
-                }
-                level = level_map.get(mode, logging.WARNING)
+                from core.error_log import qt_msg_level
+                level = qt_msg_level(mode)
                 _msg = str(msg)
                 if len(_qt_msg_counts) > 256:
                     _qt_msg_counts.clear()

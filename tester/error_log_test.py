@@ -211,6 +211,24 @@ check("fel_seen.txt ligger i data-mappen", EL.seen_path(_d).parent == _d)
 check("platshållartexten ger 0", EL.count_unseen(_d) == 0)
 shutil.rmtree(_d, ignore_errors=True)
 
+# --- Qt-meddelanden: rätt nivå (info var förut KRASCH) ------------------------------------------------------------
+import logging as _lg
+check("qt_msg_level: debug/warning/critical/fatal/info",
+      [EL.qt_msg_level(i) for i in range(5)] == [_lg.DEBUG, _lg.WARNING, _lg.ERROR, _lg.CRITICAL, _lg.INFO], [EL.qt_msg_level(i) for i in range(5)])
+check("qt_msg_level: info (FFmpeg-raden) blir inte KRASCH", EL.qt_msg_level(4) < _lg.WARNING)
+
+
+class _Enumish:
+    value = 4
+
+
+check("qt_msg_level: enum med .value", EL.qt_msg_level(_Enumish()) == _lg.INFO)
+check("qt_msg_level: textform QtInfoMsg", EL.qt_msg_level("QtMsgType.QtInfoMsg") == _lg.INFO and EL.qt_msg_level("junk") == _lg.WARNING)
+_bs = (ROOT / "app" / "bootstrap.py").read_text(encoding="utf-8")
+check("bootstrap använder qt_msg_level", "qt_msg_level(mode)" in _bs and "QtInfoMsg\n" not in _bs)
+_ft = (ROOT / "ui" / "widget_parts" / "focus_timers.py").read_text(encoding="utf-8")
+check("kortkommandon som hanteras annorstädes varnar inte", "_SHORTCUTS_HANDLED_ELSEWHERE" in _ft and "toggle_inbox" in _ft)
+
 print(f"\nerror_log_test: {ok} lyckades, {fail} misslyckades")
 sys.stdout.flush()
 os._exit(1 if fail else 0)

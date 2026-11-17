@@ -44,10 +44,11 @@ def newdir(with_opt=True):
 class Fake:
     def __init__(self, outs):
         self.calls, self.outs = [], list(outs)
+        self.repeat_last = True   # paket-för-paket-reserven gör fler anrop än attrappen har svar → sista svaret upprepas
 
     def __call__(self, cmd, **kw):
         self.calls.append((cmd, kw))
-        o = self.outs.pop(0)
+        o = self.outs.pop(0) if len(self.outs) > 1 or self.repeat_last is False else self.outs[0]
         if isinstance(o, Exception):
             raise o
         rc, out, err = o
@@ -364,6 +365,55 @@ labels = {l[1:].strip().lower() for l in lines if l.startswith(":") and not l.st
 check("bat: alla goto/call-mål finns", all(j.lower() in labels or j.lower() == "eof" for j in re.findall(r"(?:goto|call)\s+:(\w+)", bat, re.I)))
 check("bat: helt flöde går inte in i :snabb_paket (ingen dubbelkörning)", lines[i - 2].strip() == "goto :start_app")
 check("pip_update.py: bara standardbibliotek", not re.search(r"^\s*(?:from|import)\s+(?:core|PySide6|ui|app)\b", (ROOT / "core/pip_update.py").read_text(encoding="utf-8"), re.M))
+# --- 9. ett paket som inte går att installera stoppar inte de andra; samma omstart upprepas inte ----------------------
+d = Path(tempfile.mkdtemp(prefix="ledgebord_pip_"))
+(d / "requirements.txt").write_text("PySide6>=6.5.0   # Qt\npywin32>=306; sys_platform == \"win32\"\norjson>=3.9.0  # snabbare\n# kommentar\n\n", encoding="utf-8")
+check("requirement_lines: kommentarer och tomrader bort, villkor kvar",
+      PU.requirement_lines(d / "requirements.txt") == ["PySide6>=6.5.0", 'pywin32>=306; sys_platform == "win32"', "orjson>=3.9.0"], PU.requirement_lines(d / "requirements.txt"))
+
+
+class PerPkg:
+    """Hela filen misslyckas (orjson saknar färdigbygge) men PySide6 går att installera ensamt."""
+    def __init__(self):
+        self.calls = []
+
+    def __call__(self, cmd, **kw):
+        self.calls.append(cmd)
+        if "-r" in cmd:
+            return subprocess.CompletedProcess(cmd, 1, "", "ERROR: Failed building wheel for orjson\n")
+        if any(str(x).startswith("orjson") for x in cmd):
+            return subprocess.CompletedProcess(cmd, 1, "", "ERROR: No matching distribution found for orjson\n")
+        return subprocess.CompletedProcess(cmd, 0, "Successfully installed PySide6-6.12.0 shiboken6-6.12.0\n" if any(str(x).startswith("PySide6") for x in cmd) else "Requirement already satisfied\n", "")
+
+
+pp = PerPkg()
+r = PU.update(d, runner=pp, running=False)
+check("ett paket som fastnar stoppar inte PySide6: uppdaterade", r["status"] == "uppdaterade" and "PySide6 6.12.0" in r["updated"] and not r["failed"], r)
+check("…paketen provas ett i taget, utan källbygge", any(c[-len(PU.PIP_FLAGS) - 2:-len(PU.PIP_FLAGS)] == ["PySide6>=6.5.0", PU.ONLY_BINARY] for c in pp.calls) and all(PU.ONLY_BINARY in c for c in pp.calls), pp.calls[:3])
+check("…och loggen berättar vilket paket som inte gick", "orjson>=3.9.0 kunde inte installeras" in logtxt(d), logtxt(d))
+
+
+class PySideFails(PerPkg):
+    def __call__(self, cmd, **kw):
+        if any(str(x).startswith("PySide6") for x in cmd) and "-r" not in cmd:
+            return subprocess.CompletedProcess(cmd, 1, "", "ERROR: no wheel\n")
+        return super().__call__(cmd, **kw)
+
+
+r = PU.update(d, runner=PySideFails(), running=False)
+check("PySide6 går inte att installera → status fel (nytt försök senare)", r["status"] == "fel" and r["failed"], r)
+rr = PU.needs_update(d, runner=PerPkg())
+check("needs_update: dry-run ett paket i taget när filen som helhet inte går", not rr["error"], rr)
+d2 = newdir()
+check("ingen omstart sparad från början", not PU.same_as_last_restart(d2, ["PySide6-6.12.0"]))
+PU.remember_restart(d2, ["orjson-3.13.0", "PySide6-6.12.0"])
+check("samma paketlista (i annan ordning) = omstarten hjälpte inte", PU.same_as_last_restart(d2, ["PySide6-6.12.0", "orjson-3.13.0"]))
+check("annan paketlista → ny omstart tillåten", not PU.same_as_last_restart(d2, ["PySide6-6.12.1", "orjson-3.13.0"]))
+PU.remember_restart(d2, [])
+check("tom lista nollställer", not PU.same_as_last_restart(d2, ["PySide6-6.12.0"]))
+ml = (ROOT / "app" / "mixins" / "maintenance.py").read_text(encoding="utf-8")
+check("underhållet startar inte om för samma paket igen", "same_as_last_restart" in ml and "remember_restart" in ml)
+
 for _x in list(Path(tempfile.gettempdir()).glob("ledgebord_pip_*")):
     import shutil
     shutil.rmtree(_x, ignore_errors=True)

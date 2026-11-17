@@ -45,6 +45,7 @@ RETRY_HOURS = 6             # misslyckat försök: nästa försök tidigast efte
 KEEP_LINES = 300
 PORTS = tuple(range(8765, 8777))
 APP_NAMES = ("ledgebord", "taskbord")
+ONLY_BINARY = "--only-binary=:all:"   # aldrig bygga ur källkod (ingen kompilator på datorn → pip fastnar/misslyckas)
 PIP_FLAGS = ["--upgrade", "--disable-pip-version-check", "--no-input", "--progress-bar", "off",
              "--timeout", "10", "--retries", "1"]
 
@@ -97,6 +98,15 @@ def mark_ok(app_dir, note: str = "", now: Optional[datetime] = None) -> None:
     """Veckans underhåll är gjort (eller inget behövdes)."""
     iso = (now or datetime.now()).isoformat(timespec="seconds")
     _write_state(app_dir, last_ok=iso, last_try=iso, last_note=note)
+
+
+def same_as_last_restart(app_dir, packages: List[str]) -> bool:
+    """Samma paketlista som vid förra omstarten för underhåll? Då hjälpte omstarten inte → starta inte om igen."""
+    return bool(packages) and read_state(app_dir).get("restart_pkgs", "") == " ".join(sorted(packages))
+
+
+def remember_restart(app_dir, packages: List[str]) -> None:
+    _write_state(app_dir, restart_pkgs=" ".join(sorted(packages)))
 
 
 def weekly_due(app_dir, now: Optional[datetime] = None) -> bool:
@@ -171,6 +181,23 @@ def _run_pip(args: List[str], timeout: float, runner: Optional[Callable] = None)
     return run([sys.executable, "-m", "pip", "install"] + args + PIP_FLAGS, **kw)
 
 
+def requirement_lines(path) -> List[str]:
+    """Kravraderna i en requirements-fil (utan kommentarer/tomrader; ``; sys_platform``-villkor behålls)."""
+    out: List[str] = []
+    try:
+        for raw in Path(path).read_text(encoding="utf-8", errors="replace").splitlines():
+            line = raw.split(" #", 1)[0].split("\t#", 1)[0].strip()
+            if line and not line.startswith(("#", "-")):
+                out.append(line)
+    except OSError:
+        pass
+    return out
+
+
+def _tail(cp) -> str:
+    return " ".join(((cp.stderr or cp.stdout or "").strip().splitlines() or ["okänt fel"])[-1:])[:200]
+
+
 def update(app_dir, timeout: float = 120.0, runner: Optional[Callable] = None, running: Optional[bool] = None) -> Dict:
     """
     Kontrollera och uppdatera paketen. Returnerar {"status", "updated": [...], "failed": [...]}; status ∈
@@ -194,7 +221,31 @@ def update(app_dir, timeout: float = 120.0, runner: Optional[Callable] = None, r
                 log_line(app_dir, f"{fname}: tiden tog slut — appen startar ändå")
                 continue
             try:
-                cp = _run_pip(["-r", str(req)], left, runner)
+                cp = _run_pip(["-r", str(req), ONLY_BINARY], left, runner)
+                if cp.returncode != 0:
+                    # Ett paket som inte går att installera (t.ex. orjson utan färdigbygge för din Python) fick förut hela
+                    # uppdateringen att misslyckas — så att PySide6 aldrig uppdaterades. Nu tas paketen ett i taget.
+                    got_all, n_fail, pyside_failed = [], 0, False
+                    for line in requirement_lines(req):
+                        left = deadline - time.monotonic()
+                        if left < 5:
+                            n_fail += 1
+                            break
+                        one = _run_pip([line, ONLY_BINARY], left, runner)
+                        if one.returncode == 0:
+                            got_all += installed_names((one.stdout or "") + (one.stderr or ""))
+                        else:
+                            n_fail += 1
+                            pyside_failed = pyside_failed or line.lower().startswith("pyside6")
+                            log_line(app_dir, f"{fname}: {line} kunde inte installeras ({_tail(one)})")
+                    n_ok_lines = len(requirement_lines(req)) - n_fail
+                    if n_ok_lines > 0:      # något gick: bara PySide6 som fastnar räknas som fel, andra paket stoppar inte veckan
+                        log_line(app_dir, f"{fname}: paket för paket — " + (("uppdaterade " + ", ".join(got_all)) if got_all else "alla installerade paket är aktuella"))
+                        res["updated"] += got_all
+                        if pyside_failed and required:
+                            res["failed"].append(fname)
+                        continue
+                    # inget alls gick (offline m.m.) → som förut
             except subprocess.TimeoutExpired:
                 res["failed"].append(fname)
                 log_line(app_dir, f"{fname}: pip tog för lång tid (> {int(timeout)} s) — avbröts, appen startar ändå")
@@ -205,7 +256,7 @@ def update(app_dir, timeout: float = 120.0, runner: Optional[Callable] = None, r
                 log_line(app_dir, f"{fname}: " + (("uppdaterade " + ", ".join(got)) if got else "alla paket är aktuella"))
             else:
                 res["failed"].append(fname)
-                tail = " ".join(((cp.stderr or cp.stdout or "").strip().splitlines() or ["okänt fel"])[-1:])[:200]
+                tail = _tail(cp)
                 kind = "OBLIGATORISKA paket" if required else "valfria tillägg"
                 log_line(app_dir, f"{fname}: kunde inte uppdatera {kind} (offline?) — {tail}")
         res["status"] = "fel" if res["failed"] else ("uppdaterade" if res["updated"] else "ok")
@@ -245,10 +296,19 @@ def needs_update(app_dir, runner: Optional[Callable] = None, timeout: float = 90
             req = app_dir / fname
             if not req.exists():
                 continue
-            cp = _run_pip(["-r", str(req), "--dry-run"], timeout, runner)
+            cp = _run_pip(["-r", str(req), "--dry-run", ONLY_BINARY], timeout, runner)
             out = (cp.stdout or "") + (cp.stderr or "")
             if cp.returncode != 0:
-                if fname == "requirements.txt":
+                # något enskilt paket går inte att få → kolla de andra för sig (samma som update() gör)
+                got_any = False
+                for line in requirement_lines(req):
+                    one = _run_pip([line, "--dry-run", ONLY_BINARY], timeout, runner)
+                    if one.returncode == 0:
+                        got_any = True
+                        m1 = re.search(r"Would install (.+)", (one.stdout or "") + (one.stderr or ""))
+                        if m1:
+                            res["packages"] += [x for x in m1.group(1).split() if x not in res["packages"]]
+                if not got_any and fname == "requirements.txt":
                     res["error"] = " ".join((out.strip().splitlines() or ["pip-fel"])[-1:])[:200]
                     return res
                 continue                                        # valfria tillägg får inte avgöra

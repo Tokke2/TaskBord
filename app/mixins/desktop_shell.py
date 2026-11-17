@@ -143,7 +143,10 @@ class DesktopShellMixin:
                             # NY v7-fix44: WM_SHOWWINDOW FALSE = göms
                             # FIX v7-fix76: samma — vid nedstängning SKA
                             # fönstret gömmas, alltså ingen varning.
-                            if not getattr(self, "_shutdown_initiated", False):
+                            _by_user = bool(getattr(shell, "_hidden_to_tray", False) or getattr(self, "_hidden_to_tray", False))
+                            if _by_user:
+                                self._log.info(f"{LOG_PREFIX} fönstret göms (till tray, på användarens begäran) — HWND={hwnd}")
+                            elif not getattr(self, "_shutdown_initiated", False):
                                 self._log.warning(
                                     f"{LOG_PREFIX} ⚠ FÖNSTRET GÖMS av "
                                     f"systemet (WM_SHOWWINDOW=FALSE) — HWND={hwnd}"

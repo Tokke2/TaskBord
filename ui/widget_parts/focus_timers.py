@@ -16,6 +16,9 @@ from ui.widget_atoms import *  # noqa: F401,F403
 class FocusTimersMixin:
     """Fokusvyn, periodisk z-ordningskontroll, snabbtangenter, timers och PWM (adaptiv uppdateringstakt)."""
 
+    # åtgärder i snabbtangentslistan som inte är QShortcut: global snabbtangent (Ctrl+Alt+I) resp. keynav (Delete/Space)
+    _SHORTCUTS_HANDLED_ELSEWHERE = frozenset({"toggle_inbox", "delete_task", "toggle_done"})
+
     # ====================================================================
     # FOCUS MODE (NY v6.4.1 - Focus Mode §22.18 Todoist)
     # ====================================================================
@@ -344,6 +347,8 @@ class FocusTimersMixin:
                 if not seq:
                     continue
                 entry = handlers.get(action)
+                if entry is None and action in self._SHORTCUTS_HANDLED_ELSEWHERE:
+                    continue    # hanteras av global snabbtangent resp. tangentbordsnavigeringen (keynav) — inget att varna för
                 if entry is None:
                     logger.warning(
                         f"{LOG_PREFIX} kortkommando '{action}'='{seq}' "
