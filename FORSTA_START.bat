@@ -13,7 +13,9 @@ REM      och requirements-optional.txt) till senaste version
 REM   5. Startar Ledgebord
 REM
 REM  Anvandning:
-REM    FORSTA_START.bat        full installation/uppdatering
+REM    FORSTA_START.bat        startar DOLT (inget konsolfonster) med installerad Python;
+REM                            ett synligt fonster oppnas bara om Python/paketen saknas
+REM    FORSTA_START.bat /full  synlig full installation/uppdatering av paketen
 REM    FORSTA_START.bat /snabb startar direkt med installerad Python
 REM                            (installerar bara om Python saknas). En
 REM                            gang i veckan (manda 08:00, annars forsta
@@ -24,12 +26,21 @@ REM  Inga adminrattigheter behovs.
 REM ============================================================
 chcp 65001 >nul
 setlocal EnableDelayedExpansion
+
+REM ----- INGET TERMINALFONSTER: utan argument och med /snabb kor allt DOLT (Python-sokning, paketkoll, start) -----
+REM  Filen startar om sig sjalv via STARTA_DOLT.vbs (fonsterstil 0). Synligt fonster visas bara nar du maste
+REM  svara eller se nagot: /full (fullstandig installation) eller om Python/paketen saknas.
+if /i "%~1"=="/full" goto :arg_ok
+if /i "%~2"=="/vecka" goto :arg_ok
+if defined LEDGEBORD_DOLD goto :arg_ok
+if exist "%~dp0STARTA_DOLT.vbs" (start "" wscript //nologo "%~dp0STARTA_DOLT.vbs" & exit /b 0)
+:arg_ok
 title Ledgebord - Forsta start
 
 set "APPDIR=%~dp0"
 set "APP=%APPDIR%main.pyw"
-set "SNABB=0"
-if /i "%~1"=="/snabb" set "SNABB=1"
+set "SNABB=1"
+if /i "%~1"=="/full" set "SNABB=0"
 set "PY="
 set "PYNUM=0"
 set "PYVER="
@@ -48,7 +59,7 @@ REM ----- Snabblage: starta med det som redan finns -----
 call :find_python
 if "%SNABB%"=="1" if defined PY goto :snabb_paket
 REM Snabbstart utan Python: oppna en synlig ruta for full installation (annars hanger den dolda)
-if "%SNABB%"=="1" (start "Ledgebord - Installation" "%~f0" & exit /b 1)
+if "%SNABB%"=="1" (start "Ledgebord - Installation" "%~f0" /full & exit /b 1)
 
 REM ----- Finns Python? Anvand den som den ar (ingen uppdatering av Python). Saknas den? Installera senaste stabila. -----
 set "PSARG="
@@ -122,6 +133,9 @@ goto :start_app
 REM VECKOUNDERHALL (helst manda 08:00, inte vid varje start): Pythons tillagg (paket). Python uppdateras inte. Bara om veckans
 REM underhall inte ar gjort och Ledgebord inte kor. Anropad med /vecka (appen har startat om for det) kors det direkt
 REM efter att appen avslutats. Tyst, loggas i loggar\pip_uppdatering.log, blockerar aldrig starten.
+REM Saknas PySide6/psutil (forsta start, ny dator): oppna en synlig rutan for full installation i stallet for att starta en app som inte gar.
+"%PY%" -c "import PySide6, psutil" >nul 2>&1
+if errorlevel 1 (start "Ledgebord - Installation av paket" "%~f0" /full & exit /b 1)
 if not exist "%APPDIR%core\pip_update.py" goto :start_app
 if /i "%~2"=="/vecka" goto :vecko_kor
 "%PY%" "%APPDIR%core\pip_update.py" --due --quiet
@@ -269,7 +283,7 @@ goto :fail
 
 :fail
 REM Dold snabbstart som gick fel: visa full installation i ett synligt fonster
-if "%SNABB%"=="1" (start "Ledgebord - Installation" "%~f0" & exit /b 1)
+if "%SNABB%"=="1" (start "Ledgebord - Installation" "%~f0" /full & exit /b 1)
 echo.
 pause
 exit /b 1

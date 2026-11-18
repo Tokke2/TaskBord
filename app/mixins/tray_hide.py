@@ -137,6 +137,27 @@ class TrayHideMixin:
         import sys
         return AUTOSTART_FLAG in sys.argv[1:]
 
+    def _start_minimized_wanted(self) -> bool:
+        """Ska fönstret ligga minimerat i tray efter start? (med datorn, inställningen — som standard PÅ — eller tyst omstart)"""
+        import time as _time
+        if self._started_by_autostart():
+            return True
+        with suppress(Exception):
+            if bool(self.settings.start_minimized()):
+                return True
+        with suppress(Exception):
+            if _time.time() < float(self.settings.restart_hidden_until()):
+                return True
+        return False
+
+    def _migrate_start_minimized_default(self) -> None:
+        """Engång: 'Starta minimerad i tray' är nu standard (användarens önskan: starta alltid minimerat).
+        Äldre inställningsfiler har värdet falskt sparat — slås på en gång; därefter styr användaren själv i tray-menyn."""
+        with suppress(Exception):
+            if not self.settings.pref("start_min_default"):
+                self.settings.set_start_minimized(True)
+                self.settings.set_pref("start_min_default", True)
+
     def _apply_start_minimized(self, attempt: int = 0) -> None:
         """
         Göm fönstret till tray strax efter start när appen startats MED DATORN (--autostart)

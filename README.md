@@ -17,8 +17,8 @@ påminner dig, tar emot uppgifter från mail och sparar allt i en mapp på din e
 2. **Första gången:** dubbelklicka på **`FORSTA_START.bat`**. Saknas Python på datorn **frågar** den om du vill
    att senaste Python installeras (J/N); finns Python frågar den aldrig. Sedan installeras tilläggen och Ledgebord startar.
    Det tar någon minut.
-3. **Nästa gång:** dubbelklicka på **`STARTA_HAR.bat`** (inget svart fönster) — eller bocka i *Starta med datorn* i
-   tray-menyn så startar appen själv.
+3. **Nästa gång:** dubbelklicka på **`STARTA_DOLT.vbs`** (inget terminalfönster alls) eller `STARTA_HAR.bat` — eller
+   bocka i *Starta med datorn* i tray-menyn så startar appen själv. Ledgebord startar alltid minimerad i systemfältet.
 
 > Har du redan Python används den som den är — **Python uppdateras inte**. Tilläggen uppdateras en gång i veckan.
 > macOS och Linux: kör `./starta.sh` (se [manualen](docs/MANUAL.md#-windows--macos--linux)).

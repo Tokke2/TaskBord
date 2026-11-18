@@ -1279,7 +1279,7 @@ class Settings(QObject):
             "glass_style": GlassStyle.AUTO.value,
             "accent_color": AccentColor.INDIGO.value,
             "animations": True,
-            "start_minimized_to_tray": False,
+            "start_minimized_to_tray": True,
             "start_hidden": False,
             "first_run": True,
             "autostart": False,
@@ -1424,7 +1424,7 @@ class Settings(QObject):
             "addon_xpi_notified": lambda v: _coerce_str(v, "")[:64],
             "autostart_method": lambda v: _coerce_str(v, DEFAULT_AUTOSTART_METHOD, VALID_AUTOSTART_METHODS),
             "animations": lambda v: _coerce_bool(v, True),
-            "start_minimized_to_tray": lambda v: _coerce_bool(v, False),
+            "start_minimized_to_tray": lambda v: _coerce_bool(v, True),
             "start_hidden": lambda v: _coerce_bool(v, False),
             "first_run": lambda v: _coerce_bool(v, True),
             "autostart": lambda v: _coerce_bool(v, False),
@@ -1833,7 +1833,7 @@ class Settings(QObject):
     def start_minimized(self) -> bool:
         """Starta minimerad till tray?"""
         with self._lock:
-            return _coerce_bool(self._data.get("start_minimized_to_tray", False))
+            return _coerce_bool(self._data.get("start_minimized_to_tray", True), True)
 
     @_log_setter("start_minimized_to_tray")
     def set_start_minimized(self, enabled: bool) -> bool:

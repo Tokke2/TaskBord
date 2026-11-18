@@ -373,11 +373,19 @@ appen igen. **Avsluta** helt: tray-menyn → ❌ Avsluta. Win+D gömmer fortfara
 Finns ingen tray-ikon göms inget (så du aldrig blir utelåst) — i stället frågar Ledgebord om du vill **avsluta** (så går appen
 alltid att stänga, även på ett skrivbord utan systemfält). Du kan också högerklicka i fönstret → **❌ Avsluta Ledgebord**.
 
-**Start med datorn → minimerad:** när Ledgebord startar med Windows (tray → *Starta med datorn*) startar den direkt
-i systemfältet, utan fönster (kommandot får flaggan `--autostart`; befintliga autostart-poster skrivs om automatiskt
-vid nästa start). Startar du appen själv visas fönstret som vanligt. Tray → *Starta minimerad i tray* gör det även
-vid manuell start. Ligger fönstret i tray när en tyst uppdatering startar om appen kommer den nya versionen också
-upp gömd.
+**Startar alltid minimerad:** Ledgebord startar direkt i systemfältet, utan fönster — både med datorn (kommandot får
+flaggan `--autostart`) och när du startar den själv. Fönstret tvingas inte fram och göms så fort tray-ikonen finns.
+Klicka på ikonen (eller använd snabbtangenten) när du vill se det. Vill du hellre se fönstret vid start: tray → ta
+bort bocken vid *Starta minimerad i tray* (valet respekteras därefter). Äldre inställningar slås på en gång första
+gången efter uppdateringen. Ligger fönstret i tray när en tyst uppdatering startar om appen kommer den nya versionen
+också upp gömd.
+
+**Inget terminalfönster:** `FORSTA_START.bat` (utan argument), `STARTA_HAR.bat` och `STARTA_DOLT.vbs` kör sökningen
+efter Python, paketkontrollen och starten dolt — ingenting synligt öppnas. Ett synligt fönster visas bara när du måste
+svara eller se något: Python saknas (J/N-frågan), PySide6/psutil saknas (första start på en ny dator, paketen
+installeras) eller du själv kör `FORSTA_START.bat /full`. En `.bat` som dubbelklickas kan inte döljas av Windows och
+blinkar till en bråkdels sekund — dubbelklicka `STARTA_DOLT.vbs` (eller använd skrivbordsgenvägen / *Starta med
+datorn*) för att slippa även det.
 
 **Fördröjd autostart:** med `--autostart` (alltså bara när appen startas med datorn) väntar Ledgebord **ca 45 s** innan
 den laddar något, så att inloggning, skrivbord och nätverk hinner bli klara och datorn känns snabb. (Windows väntar

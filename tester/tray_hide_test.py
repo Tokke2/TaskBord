@@ -244,6 +244,10 @@ def child() -> None:
     c3._apply_start_minimized()
     ck("'Starta minimerad i tray' gömmer vid start (utan notis)", c3.sh.vis is False and c3._tray.msgs == [])
     c4 = Ctl()
+    ck("_start_minimized_wanted: av → False", c4._start_minimized_wanted() is False)
+    c3b = Ctl()
+    c3b.sm = True
+    ck("_start_minimized_wanted: på → True", c3b._start_minimized_wanted() is True)
     c4._apply_start_minimized()
     ck("avstängd inställning → fönstret visas som vanligt", c4.sh.vis is True)
 

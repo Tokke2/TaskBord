@@ -444,7 +444,13 @@ class AppController(
         # 5.5. NY v6.4.1 v7: Tvinga synlig vid force-show (DEFAULT PÅ)
         # FIX 2026-09-23: Kör på GUI-tråden via QTimer — INTE bakgrundstråd.
         # Qt-widget-metoder (show/raise/activate) från annan tråd → "Python svarar inte".
-        if self._config.force_show_widget:
+        # Startar minimerad (standard): fönstret tvingas inte fram — det göms till tray direkt (se 6d-2).
+        with suppress(Exception):
+            self._migrate_start_minimized_default()
+        _min_start = False
+        with suppress(Exception):
+            _min_start = bool(self._start_minimized_wanted())
+        if self._config.force_show_widget and not _min_start:
             try:
                 if self._QTimer is None:
                     raise RuntimeError("self._QTimer saknas")
@@ -496,7 +502,8 @@ class AppController(
 
         # 6d-2. 'Starta minimerad i tray': göm fönstret strax efter att det visats
         with suppress(Exception):
-            self._QTimer.singleShot(3000, self._apply_start_minimized)
+            # minimerad start: göm så snart tray-ikonen finns (fönstret hinner knappt synas); annars som förr
+            self._QTimer.singleShot(250 if _min_start else 3000, self._apply_start_minimized)
 
         # 6e-2. NY v8: automatisk säkerhetskopia av uppgifter + inställningar
         with suppress(Exception):

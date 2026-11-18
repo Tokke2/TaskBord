@@ -86,7 +86,17 @@ check("STARTA_HAR.bat startar via wscript (dolt)", "wscript //nologo" in har and
 check("STARTA_HAR.bat faller tillbaka på FORSTA_START.bat", 'call "%~dp0FORSTA_START.bat" /snabb' in har)
 fs = (ROOT / "FORSTA_START.bat").read_bytes().decode("utf-8")
 check("FORSTA_START.bat: saknas Python i snabbläge → synligt fönster (hänger inte dolt)",
-      fs.count('if "%SNABB%"=="1" (start "Ledgebord - Installation" "%~f0" & exit /b 1)') == 2)
+      fs.count('if "%SNABB%"=="1" (start "Ledgebord - Installation" "%~f0" /full & exit /b 1)') == 2)
+check("FORSTA_START.bat: utan argument startar den om sig dolt via STARTA_DOLT.vbs (inget konsolfönster)",
+      'if exist "%~dp0STARTA_DOLT.vbs" (start "" wscript //nologo "%~dp0STARTA_DOLT.vbs" & exit /b 0)' in fs
+      and 'set "SNABB=1"\r\nif /i "%~1"=="/full" set "SNABB=0"' in fs)
+check("FORSTA_START.bat: /full, /vecka och redan dolt (LEDGEBORD_DOLD) startar inte om (ingen loop)",
+      all(s in fs for s in ('if /i "%~1"=="/full" goto :arg_ok', 'if /i "%~2"=="/vecka" goto :arg_ok', 'if defined LEDGEBORD_DOLD goto :arg_ok'))
+      and fs.index("goto :arg_ok") < fs.index('start "" wscript'))
+check("FORSTA_START.bat: saknade paket (PySide6/psutil) → synlig paketinstallation i stället för en app som inte startar",
+      'import PySide6, psutil" >nul 2>&1\r\nif errorlevel 1 (start "Ledgebord - Installation av paket" "%~f0" /full' in fs)
+check("vbs sätter LEDGEBORD_DOLD så att bat-filen inte startar om sig i en loop",
+      'sh.Environment("PROCESS")("LEDGEBORD_DOLD") = "1"' in vbs and vbs.index("LEDGEBORD_DOLD") < vbs.index("sh.Run"))
 check("FORSTA_START.bat: startar appen med pythonw", 'start "" "%PYW%" "%APP%"' in fs and "pythonw.exe" in fs)
 check("FORSTA_START.bat: CRLF kvar", fs.count("\r\n") > 100 and "\n" not in fs.replace("\r\n", ""))
 inst = (ROOT / "INSTALLERA.bat").read_bytes().decode("utf-8")
