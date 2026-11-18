@@ -111,17 +111,20 @@ def child() -> None:
     ck("dialogen skapas, lås OK", dlg._lock_ok and "låsta" in dlg.lock_label.text())
     ck("standardbelopp 50 kr är valt (genväg markerad)", dlg.belopp() == 50 and dlg.chips[50].isChecked() and not dlg.chips[25].isChecked())
     ck("banner med ikon", has_pm(dlg.logo))
-    ck("tre QR-koder visas: Swish, PayPal och Ko-fi", all(has_pm(x) and x.isVisible() for x in (dlg.qr_swish, dlg.qr_paypal, dlg.qr_kofi)))
+    ck("bara Swish har QR-kod: den visas, PayPal/Ko-fi har ingen QR", has_pm(dlg.qr_swish) and dlg.qr_swish.isVisible() and not hasattr(dlg, "qr_paypal") and not hasattr(dlg, "qr_kofi")
+       and not hasattr(D, "paypal_qr_png") and not hasattr(D, "kofi_qr_png"))
+    ck("exakt en QR-ruta i dialogen (donQr)", sum(1 for x in dlg.findChildren(QLabel) if x.objectName() == "donQr") == 1)
     ck("knappar för PayPal och Ko-fi finns; Swish har bara QR (ingen knapp)", dlg.btn_paypal.isVisible() and dlg.btn_kofi.isVisible() and not hasattr(dlg, "btn_swish"))
+    ck("Ko-fi-knappen nämner månadsvis", "månadsvis" in dlg.btn_kofi.text())
+    ck("Swish-QR-rutan är stor nog (220 px) och har tillgängligt namn", dlg.qr_swish.width() == 220 and "Swish" in dlg.qr_swish.accessibleName())
     ck("PayPal-knappen visar beloppet", "50 kr" in dlg.btn_paypal.text())
     alltext = " ".join([w.text() + " " + w.toolTip() for w in dlg.findChildren(QLabel)] + [w.text() + " " + w.toolTip() for w in dlg.findChildren(QPushButton)])
     ck("Swish-numret står inte som text någonstans i dialogen", "0721817177" not in alltext and "072-181" not in alltext and "721817177" not in alltext)
     ck("texten förklarar frivillighet, ingen reklam och att inget låses upp", all(t in alltext for t in ("gratis", "frivilligt", "Ingen reklam", "Inget låses upp")))
-    sw50, pp50, kf50 = (x.pixmap().toImage() for x in (dlg.qr_swish, dlg.qr_paypal, dlg.qr_kofi))
+    sw50 = dlg.qr_swish.pixmap().toImage()
     dlg.chips[200].click()
     ck("klick på genväg sätter beloppet", dlg.belopp() == 200 and dlg.chips[200].isChecked() and not dlg.chips[50].isChecked() and "200 kr" in dlg.btn_paypal.text())
-    ck("Swish- och PayPal-QR ritas om vid nytt belopp, Ko-fi-QR är oförändrad",
-       dlg.qr_swish.pixmap().toImage() != sw50 and dlg.qr_paypal.pixmap().toImage() != pp50 and dlg.qr_kofi.pixmap().toImage() == kf50)
+    ck("Swish-QR ritas om vid nytt belopp", dlg.qr_swish.pixmap().toImage() != sw50)
     dlg.eget.setValue(75)
     ck("eget belopp avmarkerar genvägarna", dlg.belopp() == 75 and not any(b.isChecked() for b in dlg.chips.values()) and "75 kr" in dlg.info.text())
     dlg.eget.setValue(100)
@@ -136,10 +139,10 @@ def child() -> None:
 
     # QR-innehåll: avkoda inte (ingen läsare här) men kontrollera att koderna kommer från rätt text
     import segno
-    ck("QR-bytes för Swish/PayPal/Ko-fi är PNG och innehåller inte numret i klartext",
-       all(x and x[:8] == b"\x89PNG\r\n\x1a\n" and b"0721817177" not in x for x in (D.swish_qr_png(75), D.paypal_qr_png(75), D.kofi_qr_png())))
-    ck("Ko-fi-QR = QR av Ko-fi-länken, PayPal-QR = QR av PayPal-länken med belopp",
-       D.kofi_qr_png() == D.qr_png("https://ko-fi.com/tokke2") and D.paypal_qr_png(75) == D.qr_png("https://paypal.me/Rickard3dPrint/75SEK") and segno.make("x") is not None)
+    ck("Swish-QR är PNG och innehåller inte numret i klartext",
+       D.swish_qr_png(75) and D.swish_qr_png(75)[:8] == b"\x89PNG\r\n\x1a\n" and b"0721817177" not in D.swish_qr_png(75))
+    ck("Swish-QR = QR av Swishs officiella format C<nr>;<belopp>;<meddelande>;6",
+       D.swish_qr_png(75) == D.qr_png(DI.swish_payload(75)) and DI.swish_payload(75) == "C0721817177;75;Ledgebord;6" and segno.make("x") is not None)
 
     # ändrade mottagare → knappar av + varning, inget öppnas, inga QR-koder
     saved = DI.PAYPAL_BAS
@@ -150,7 +153,7 @@ def child() -> None:
         n = len(opened)
         bad._open_paypal()
         ck("ändrade mottagare: betalknapparna är avstängda", not bad.btn_paypal.isEnabled() and not bad.btn_kofi.isEnabled())
-        ck("…inga QR-koder ritas, varnar tydligt och öppnar ingenting", not any(has_pm(x) for x in (bad.qr_swish, bad.qr_paypal, bad.qr_kofi)) and "stämmer inte" in bad.lock_label.text() and len(opened) == n)
+        ck("…inga QR-koder ritas, varnar tydligt och öppnar ingenting", not has_pm(bad.qr_swish) and "stämmer inte" in bad.lock_label.text() and len(opened) == n)
         bad.close()
     finally:
         DI.PAYPAL_BAS = saved

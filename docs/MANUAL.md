@@ -780,8 +780,9 @@ Ledgebord är gratis och utan reklam. Donationer är helt frivilliga och går ti
 Allt görs i appen — det finns ingen egen donationssida. Öppna den egna dialogrutan **💖 Stöd Ledgebord…** direkt under
 hjälpen (**⌨️ Tangentöversikt**) i högerklicksmenyn och i tray-menyn, eller med knappen längst ner i F1-hjälpen.
 Dialogen har en kort text om varför, belopp-genvägar (25/50/100/200 kr) och eget belopp (1–99 999 kr), och tre kort:
-**Swish** (QR-kod, numret visas aldrig som text — skanna med Swish-appen), **PayPal** (QR-kod + knapp, med valt belopp)
-och **Ko-fi** (QR-kod + knapp). Swish- och PayPal-koderna ritas om när du ändrar belopp. Knapparna öppnar betaltjänsten i webbläsaren.
+**Swish** har en QR-kod enligt Swishs officiella format (numret visas aldrig som text — skanna med Swish-appen; koden ritas om
+när du ändrar belopp). **PayPal** (med valt belopp) och **Ko-fi** (valfritt belopp, engångs eller månadsvis) är bara knappar — de
+har ingen QR-kod. Knapparna öppnar betaltjänsten i webbläsaren.
 **Mottagarna är låsta:** de står bara inbyggda i koden (`core/donate_info.py`), finns ingen inställning eller datafil
 för dem, och en kontrollsumma kontrolleras varje gång dialogen öppnas — är filen ändrad stängs betalknapparna av och
 dialogen varnar. Uppdateringen från releasen lägger tillbaka originalfilen. (Ledgebord är öppen källkod, så den som

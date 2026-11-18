@@ -70,8 +70,8 @@ uppgifterna, kopiera `js\` först.
 ## 💖 Stöd projektet
 
 Ledgebord är gratis och utan reklam. Donationer är helt frivilliga och görs i appen: högerklicka på fönstret
-(eller tray-ikonen) → **💖 Stöd Ledgebord…** (under hjälpen) → välj belopp och skanna QR-koden eller klicka på knappen för
-Swish, PayPal eller Ko-fi. Mottagarna är inbyggda och låsta.
+(eller tray-ikonen) → **💖 Stöd Ledgebord…** (under hjälpen) → välj belopp och skanna Swish-QR-koden eller klicka på knappen för
+PayPal eller Ko-fi. Mottagarna är inbyggda och låsta.
 
 ## 📄 Licens
 
