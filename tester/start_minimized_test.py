@@ -68,6 +68,68 @@ with tempfile.TemporaryDirectory() as tmp:
     check("tyst omstart (restart_hidden_until) → minimerad", c2._start_minimized_wanted() is True)
     s2.set_restart_hidden_until(0)
 
+# 3b. start med datorn → dockas i skärmkanten (tray-ikonen finns kvar), annars göms fönstret i tray
+class W:
+    def __init__(self, ok):
+        self.ok, self.calls = ok, 0
+
+    def _edge_dock_at_start(self):
+        self.calls += 1
+        return self.ok
+
+
+class S:
+    def __init__(self, dock=True, enabled=True):
+        self.dock, self.enabled = dock, enabled
+
+    def pref(self, k):
+        return self.dock if k == "autostart_dock" else False
+
+    def edge_dock_enabled(self):
+        return self.enabled
+
+    def start_minimized(self):
+        return True
+
+    def restart_hidden_until(self):
+        return 0
+
+
+class C2(TrayHideMixin):
+    def __init__(self, auto, ok=True, **kw):
+        self.settings = S(**kw)
+        self._log = logging.getLogger("sm2")
+        self._widget_lock = threading.RLock()
+        self.w = W(ok)
+        self._widgets = {"a": self.w}
+        self.auto = auto
+        self.hidden = 0
+
+    def _started_by_autostart(self):
+        return self.auto
+
+    def _hide_to_tray(self, notice=True):
+        self.hidden += 1
+        return True
+
+
+c = C2(True)
+c._apply_start_minimized()
+check("start med datorn: fönstret läggs i skärmkanten, inte i tray", c.w.calls == 1 and c.hidden == 0)
+c = C2(True, ok=False)
+c._apply_start_minimized()
+check("…går det inte att docka göms det i tray som reserv", c.w.calls == 1 and c.hidden == 1)
+c = C2(True, dock=False)
+c._apply_start_minimized()
+check("…inställningen 'autostart_dock' av → tray som förut", c.w.calls == 0 and c.hidden == 1)
+c = C2(True, enabled=False)
+c._apply_start_minimized()
+check("…dockning avstängd → tray som förut", c.w.calls == 0 and c.hidden == 1)
+c = C2(False)
+c._apply_start_minimized()
+check("manuell start (inte med datorn) dockar inte — gömmer i tray", c.w.calls == 0 and c.hidden == 1)
+check("pref autostart_dock är på som standard", Settings(str(Path(tempfile.gettempdir()) / "sm_x.json")).pref("autostart_dock") is True)
+
 # 4. controller: fönstret tvingas inte fram vid minimerad start, och gömmandet sker snabbt
 src = (ROOT / "app/controller.py").read_text(encoding="utf-8")
 check("controller: force_show hoppas över vid minimerad start", "if self._config.force_show_widget and not _min_start:" in src)

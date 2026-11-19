@@ -211,6 +211,14 @@ class WindowOpsMixin:
         except Exception as e:
             logger.warning(f"{LOG_PREFIX} _start_edge_dock: {_describe_widget_error(e)}")
 
+    def _edge_dock_at_start(self) -> bool:
+        """Start med datorn: lägg fönstret i skärmkanten. True = dockat."""
+        try:
+            return bool(self._ensure_edge_dock().dock_at_start())
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} _edge_dock_at_start: {_describe_widget_error(e)}")
+            return False
+
     def _edge_dock_after_drag(self) -> None:
         """Fönstret har släppts efter drag: nära en skärmkant → docka."""
         try:

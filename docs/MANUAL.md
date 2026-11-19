@@ -373,8 +373,13 @@ appen igen. **Avsluta** helt: tray-menyn → ❌ Avsluta. Win+D gömmer fortfara
 Finns ingen tray-ikon göms inget (så du aldrig blir utelåst) — i stället frågar Ledgebord om du vill **avsluta** (så går appen
 alltid att stänga, även på ett skrivbord utan systemfält). Du kan också högerklicka i fönstret → **❌ Avsluta Ledgebord**.
 
-**Startar alltid minimerad:** Ledgebord startar direkt i systemfältet, utan fönster — både med datorn (kommandot får
-flaggan `--autostart`) och när du startar den själv. Fönstret tvingas inte fram och göms så fort tray-ikonen finns.
+**Start med datorn → i skärmkanten:** när Ledgebord startar med Windows (tray → *Starta med datorn*, kommandot får
+flaggan `--autostart`) lägger sig fönstret i en skärmkant som en smal flik — tray-ikonen finns kvar — och fälls ut när
+du för musen mot kanten (se *Dölj i skärmkanten*). Kanten är den du senast använde, annars den ytterkant som ligger
+närmast fönstret (en kant som gränsar mot din andra skärm används aldrig). Går det inte att docka, eller är dockningen
+avstängd, göms fönstret i tray i stället. Inget terminalfönster visas vid start.
+
+**Startar alltid minimerad:** vid manuell start ligger Ledgebord direkt i systemfältet, utan fönster. Fönstret tvingas inte fram och göms så fort tray-ikonen finns.
 Klicka på ikonen (eller använd snabbtangenten) när du vill se det. Vill du hellre se fönstret vid start: tray → ta
 bort bocken vid *Starta minimerad i tray* (valet respekteras därefter). Äldre inställningar slås på en gång första
 gången efter uppdateringen. Ligger fönstret i tray när en tyst uppdatering startar om appen kommer den nya versionen

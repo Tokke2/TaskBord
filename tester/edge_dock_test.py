@@ -334,6 +334,26 @@ def child() -> None:
     ck("kant mot andra skärmen nekas med förklaring", "andra skärm" in dkm.dock_now("right") and dkm.state == "idle")
     ck("yttre kant på samma skärm går bra", dkm.dock_now("left") == "" and dkm.edge == "left")
     dkm.undock()
+    # --- start med datorn: lägg fönstret i närmaste ytterkant ----------------------------------------------------------------
+    screens[:] = [(S, S)]
+    sm.set_edge_dock_enabled(True)
+    sm.set_edge_dock_edge("")
+    place(shm, 1100, 120, 340, 648)
+    ck("dock_at_start: närmaste kant (höger) när ingen sparad", dkm.dock_at_start() is True and dkm.edge == "right", dkm.edge)
+    ck("dock_at_start: redan dockat → True utan ändring", dkm.dock_at_start() is True and dkm.edge == "right")
+    dkm.undock()
+    place(shm, 1100, 120, 340, 648)
+    sm.set_edge_dock_edge("left")
+    ck("dock_at_start: sparad kant går före närmaste", dkm.dock_at_start() is True and dkm.edge == "left", dkm.edge)
+    dkm.undock()
+    screens[:] = [((0, 0, 1536, 864), (0, 0, 1536, 864)), ((1536, 0, 1536, 864), (1536, 0, 1536, 864))]
+    place(shm, 1190, 8, 340, 760)
+    ck("dock_at_start: fönster vid innerkanten mellan två skärmar → närmaste YTTERkant (övre)", dkm.dock_at_start() is True and dkm.edge == "top", dkm.edge)
+    dkm.undock()
+    place(shm, 1190, 120, 340, 648)
+    sm.set_edge_dock_enabled(False)
+    ck("dock_at_start: dockning avstängd → False (göms till tray i stället)", dkm.dock_at_start() is False and dkm.state == "idle")
+    sm.set_edge_dock_enabled(True)
     screens[:] = [(S, S)]
     src = (ROOT / "ui/widget_parts/window_ops.py").read_text(encoding="utf-8")
     ck("högerklicksmenyn har 'Dölj i skärmkanten' med tre kanter", "↔ Dölj i skärmkanten" in src and "Dölj vid vänster kant" in src and "Dölj vid övre kanten" in src and "_dock_to_edge_now" in src)

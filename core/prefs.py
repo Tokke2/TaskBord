@@ -88,6 +88,7 @@ SPEC: Dict[str, Tuple[Any, Callable[[Any], Any]]] = {
     "dock_forced_top": (False, _bool(False)),
     # ☁️ flytta Google Calendar-händelsen när datum ändras (bara uppgifter som redan finns där)
     "gcal_autosync": (True, _bool(True)),
+    "autostart_dock": (True, _bool(True)),   # start med datorn: lägg fönstret i skärmkanten (annars göms det i tray)
     "start_min_default": (False, _bool(False)),   # engångsmigrering: "Starta minimerad" blev standard
     # 📆 kalenderprenumerationer (ICS)
     "ics_subs": ([], _list([], 12)),

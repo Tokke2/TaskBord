@@ -213,7 +213,33 @@ if _QT:
             except Exception as e:
                 logger.debug(f"{LOG_PREFIX} nivå: {e}")
 
-        def dock_now(self, edge: str) -> str:
+        def dock_at_start(self) -> bool:
+            """Start med datorn: lägg fönstret i en skärmkant (flik) i stället för att gömma det helt.
+            Prövar sparad kant, sedan den ytterkant som ligger närmast fönstret. True = fönstret är dockat."""
+            if self.state != "idle":
+                return True
+            if not self._enabled():
+                return False
+            rect = self._rect()
+            screens = self._screens_fn()
+            scr = geo.screen_for(rect, [a for a, _ in screens])
+            if scr is None:
+                return False
+            full = next(f for a, f in screens if a == scr)
+            allowed = [e for e in geo.EDGES if e in geo.outer_edges(full, [f for _, f in screens])]
+            dist = {"left": rect[0] - scr[0], "right": (scr[0] + scr[2]) - (rect[0] + rect[2]), "top": rect[1] - scr[1]}
+            allowed.sort(key=lambda e: abs(dist[e]))
+            fn = getattr(self.settings, "edge_dock_edge", None)
+            saved = fn() if callable(fn) else ""
+            order = ([saved] if saved in allowed else []) + [e for e in allowed if e != saved]
+            for e in order:
+                if self.dock_now(e, grace=START_GRACE_S) == "":
+                    logger.info(f"{LOG_PREFIX} start med datorn: dockad vid {e}")
+                    return True
+            logger.info(f"{LOG_PREFIX} start med datorn: ingen kant gick att docka mot — göms till tray")
+            return False
+
+        def dock_now(self, edge: str, grace: float = 0.0) -> str:
             """Docka direkt i vald kant på skärmen där fönstret ligger (menyval). '' = klart, annars förklaring."""
             if edge not in geo.EDGES:
                 return "Okänd kant."
@@ -233,7 +259,7 @@ if _QT:
             setter = getattr(self.settings, "set_edge_dock_enabled", None)
             if callable(setter) and not self._enabled():
                 setter(True)
-            self.dock_to(edge, scr)
+            self.dock_to(edge, scr, grace=grace)
             return ""
 
         def dock_to(self, edge: str, avail: Rect, grace: float = 0.0) -> None:

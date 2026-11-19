@@ -150,6 +150,26 @@ class TrayHideMixin:
                 return True
         return False
 
+    def _autostart_dock(self) -> bool:
+        """Start MED DATORN (--autostart): fönstret läggs i skärmkanten (flik) och tray-ikonen finns kvar, i stället
+        för att gömmas helt. Gäller om dockning är på och 'autostart_dock' är på. True = minst ett fönster dockades."""
+        if not self._started_by_autostart():
+            return False
+        try:
+            if not self.settings.pref("autostart_dock") or not self.settings.edge_dock_enabled():
+                return False
+        except Exception:
+            return False
+        ok = False
+        with suppress(Exception):
+            with self._widget_lock:
+                widgets = list(self._widgets.values())
+            for w in widgets:
+                fn = getattr(w, "_edge_dock_at_start", None)
+                if callable(fn) and fn():
+                    ok = True
+        return ok
+
     def _migrate_start_minimized_default(self) -> None:
         """Engång: 'Starta minimerad i tray' är nu standard (användarens önskan: starta alltid minimerat).
         Äldre inställningsfiler har värdet falskt sparat — slås på en gång; därefter styr användaren själv i tray-menyn."""
@@ -179,6 +199,9 @@ class TrayHideMixin:
                 if float(self.settings.restart_hidden_until()) and attempt == 0:
                     self.settings.set_restart_hidden_until(0)   # gäller bara en omstart
             if not want:
+                return
+            if self._autostart_dock():
+                self._log.info(f"{LOG_PREFIX} startade med datorn: fönstret ligger i skärmkanten (tray-ikonen finns kvar)")
                 return
             if self._hide_to_tray(notice=False):
                 self._log.info(f"{LOG_PREFIX} startade minimerad i tray ({'med datorn' if self._started_by_autostart() else 'inställning'})")
