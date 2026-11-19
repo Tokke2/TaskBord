@@ -979,7 +979,7 @@ class Settings(QObject):
     # ========================================================================
 
     DEFAULT_WINDOWS: ClassVar[List[Dict[str, Any]]] = [
-        {"id": "default", "x": -1, "y": -1, "w": 340, "h": 648, "locked": False}  # -1 = centrera vid första start (v7-fix47)
+        {"id": "default", "x": -1, "y": -1, "w": 420, "h": 700, "locked": False}  # -1 = centrera vid första start (v7-fix47)
     ]
 
     DEFAULT_VISIBLE_TABS: ClassVar[List[str]] = ["Aktiva", "Arkiverade"]
@@ -2167,7 +2167,7 @@ class Settings(QObject):
 
     @_log_call
     def add_window(
-        self, x: int, y: int, w: int = 340, h: int = 648, locked: bool = False
+        self, x: int, y: int, w: int = 420, h: int = 700, locked: bool = False
     ) -> Optional[str]:
         """Lägg till nytt fönster. Returnerar window-id.
         FIX 2026-09-24: logga VEM som anropade (stack-frame → UI/förälder)."""
@@ -2313,7 +2313,7 @@ class Settings(QObject):
                 )
                 windows.append({
                     "id": wid, "x": int(x), "y": int(y),
-                    "w": 340, "h": 648, "locked": False,
+                    "w": 420, "h": 700, "locked": False,
                 })
                 updated = True
                 was_auto_added = True

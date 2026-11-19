@@ -169,8 +169,8 @@ MIN_WIDGET_HEIGHT: Final[int] = 200
 # ogiltiga värden får CreateWindowEx att misslyckas vid VARJE försök.
 MAX_RESTORE_WIDTH: Final[int] = 8192
 MAX_RESTORE_HEIGHT: Final[int] = 8192
-DEFAULT_WIDGET_WIDTH: Final[int] = 340
-DEFAULT_WIDGET_HEIGHT: Final[int] = 648
+DEFAULT_WIDGET_WIDTH: Final[int] = 420    # tidigare 340 — för smalt för flikar och titelrad
+DEFAULT_WIDGET_HEIGHT: Final[int] = 700
 DRAG_HANDLE_HEIGHT: Final[int] = 42
 MAX_RECENT_SEARCHES: Final[int] = 10
 SEARCH_DEBOUNCE_MS: Final[int] = 150

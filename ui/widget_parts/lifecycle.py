@@ -221,6 +221,7 @@ class LifecycleMixin:
         root.setContentsMargins(14, 12, 14, 12)
         root.setSpacing(10)
         # Title-rad: appnamn + drag-hint + lock (kompakt header)
+        from ui.vector_icons import GlyphButton as _GlyphButton   # ritade vektorikoner i titelraden
         handle_row = QHBoxLayout()
         handle_row.setSpacing(8)
         title_lbl = QLabel(APP_NAME, self)
@@ -257,7 +258,7 @@ class LifecycleMixin:
         handle_row.addWidget(self.stats_chip)
         # Uppdateringsknapp (ikon): ⟳ söka → ⬆ ny version finns (grön) → ⏳ installerar. Appen styr läget;
         # när en ny version finns visas dessutom en grön rad "Uppdatera nu" under titelraden (update_bar).
-        self.update_btn = QPushButton("⟳", self)
+        self.update_btn = _GlyphButton("⟳", self)
         self.update_btn.setObjectName("winBtn")
         self.update_btn.setFixedSize(34, 28)
         self.update_btn.setFocusPolicy(Qt.FocusPolicy.TabFocus)
@@ -266,7 +267,7 @@ class LifecycleMixin:
         self.update_btn.clicked.connect(self._on_update_clicked)
         handle_row.addWidget(self.update_btn)
         # Lock-knapp (toggle lås/lås upp)
-        self.lock_btn = QPushButton("🔒", self)
+        self.lock_btn = _GlyphButton("🔒", self)
         self.lock_btn.setObjectName("lockBtn")
         self.lock_btn.setCheckable(True)
         self.lock_btn.setFixedSize(34, 28)
@@ -279,7 +280,7 @@ class LifecycleMixin:
         self.lock_btn.clicked.connect(self._toggle_lock)
         handle_row.addWidget(self.lock_btn)
         # Minimera (–) och stäng (✕): båda gömmer fönstret till systemfältet (tray)
-        self.min_btn = QPushButton("–", self)
+        self.min_btn = _GlyphButton("–", self)
         self.min_btn.setObjectName("winBtn")
         self.min_btn.setFixedSize(30, 28)
         self.min_btn.setToolTip("Minimera till systemfältet (tray-ikonen visar fönstret igen)")
@@ -287,7 +288,7 @@ class LifecycleMixin:
         self.min_btn.setFocusPolicy(Qt.FocusPolicy.TabFocus)
         self.min_btn.clicked.connect(self._on_hide_to_tray_clicked)
         handle_row.addWidget(self.min_btn)
-        self.close_btn = QPushButton("✕", self)
+        self.close_btn = _GlyphButton("✕", self)
         self.close_btn.setObjectName("closeBtn")
         self.close_btn.setFixedSize(30, 28)
         self.close_btn.setToolTip("Stäng fönstret — Ledgebord ligger kvar i systemfältet (Avsluta finns i tray-menyn)")
@@ -312,7 +313,7 @@ class LifecycleMixin:
         self.holiday_label = QLabel("", self.holiday_banner)
         self.holiday_label.setWordWrap(True)
         _hb.addWidget(self.holiday_label, 1)
-        self.holiday_close_btn = QPushButton("✕", self.holiday_banner)
+        self.holiday_close_btn = _GlyphButton("✕", self.holiday_banner)
         self.holiday_close_btn.setFixedSize(22, 22)
         self.holiday_close_btn.setToolTip("Dölj för idag")
         self.holiday_close_btn.setAccessibleName("Dölj röd-dag-rutan för idag")
@@ -378,6 +379,10 @@ class LifecycleMixin:
         self.content_stack.addTab = self.content_stack.addWidget  # alias
         # Sida 0: Normal (tabs)
         self.tabs = QTabWidget(self)
+        # Alla fyra flikarna ska rymmas utan rullpilar: de delar bredden och kortas av med … om det blir trångt
+        self.tabs.setUsesScrollButtons(False)
+        self.tabs.tabBar().setExpanding(True)
+        self.tabs.tabBar().setElideMode(Qt.TextElideMode.ElideRight)
         self.tabs.addTab(self._build_active_tab(), "Aktiva")
         self.tabs.addTab(self._build_archive_tab(), "Arkiverade")
         self.tabs.setTabToolTip(
@@ -411,7 +416,7 @@ class LifecycleMixin:
         # (synliga felet: ostylad VIT ruta längst ner i mörkt tema).
         self.input_field.setObjectName("inputField")
         self.input_field.setPlaceholderText(
-            "➕ Skriv ny uppgift här — Enter för att spara"
+            "➕ Ny uppgift — Enter sparar"
         )
         self.input_field.setToolTip(
             "Skriv en uppgift och tryck Enter.\n"

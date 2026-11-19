@@ -74,9 +74,9 @@ class ThemeMixin:
     def _look_key(self) -> tuple:
         """Det som ändrar kortens storlek/utseende (ingår i kortens cache-nyckel så de byggs om)."""
         try:
-            return (int(self.settings.pref("text_scale")), str(self.settings.density_mode()))
+            return (int(self.settings.pref("text_scale")), str(self.settings.density_mode()), str(self.settings.pref("ui_font")))
         except Exception:
-            return (100, "comfortable")
+            return (100, "comfortable", "standard")
 
     # ------------------------------------------------------------ ♿ tillgänglighet (ui/a11y.py)
     def _a11y_install_shortcuts(self) -> None:
@@ -194,6 +194,10 @@ class ThemeMixin:
             _tp, _dim, _hc = self._theme_prefs()
             t = _themes.adjust_tokens(t, is_dark, _tp, _dim, _hc)
             self._hc_active: bool = bool(_hc)
+            try:
+                _font_family = _themes.font_css(str(self.settings.pref("ui_font")))
+            except Exception:
+                _font_family = _themes.font_css("standard")
             # NY v7-fix38: genomskinligt skal → skala panelens bas-alfa
             # så skrivbordsikonerna syns igenom glaset (högkontrast = alltid heltäckande)
             self._transparency_factor: float = 0.0 if _hc else self._window_transparency_factor()
@@ -330,7 +334,7 @@ class ThemeMixin:
                     color: {t['fg']};
                     border: none;
                     {_radius_css}
-                    font-family: "Segoe UI Variable Text", "Segoe UI", "Inter", sans-serif;
+                    font-family: {_font_family};
                     font-size: 13px;
                 }}
                 QLabel#dragHandle {{
@@ -421,7 +425,7 @@ class ThemeMixin:
                 QTabBar::tab {{
                     background: transparent;
                     color: {t['muted']};
-                    padding: 7px 16px;
+                    padding: 7px 8px;
                     margin: 2px 3px 2px 0;
                     border: 1px solid transparent;
                     border-radius: 10px;

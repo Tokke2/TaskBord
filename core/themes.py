@@ -24,6 +24,9 @@ PRESETS: Dict[str, str] = {
     "skog": "Skog",
     "solnedgang": "Solnedgång",
     "grafit": "Grafit",
+    "midnatt": "Midnatt",
+    "lavendel": "Lavendel",
+    "sand": "Sand",
     "kontrast": "Hög kontrast",
 }
 
@@ -34,6 +37,9 @@ SWATCH: Dict[str, Tuple[str, str]] = {
     "skog": ("#10261c", "#f0fdf4"),
     "solnedgang": ("#341a22", "#fff7ed"),
     "grafit": ("#202023", "#f4f4f5"),
+    "midnatt": ("#16143a", "#f3f2ff"),
+    "lavendel": ("#2c1a42", "#faf5ff"),
+    "sand": ("#241d15", "#fdfaf3"),
     "kontrast": ("#000000", "#ffffff"),
 }
 
@@ -75,6 +81,55 @@ _OVERRIDES: Dict[str, Dict[str, Dict[str, str]]] = {
                   "edge_hov": "rgba(60, 60, 70, 0.58)"},
     },
 }
+
+_OVERRIDES.update({
+    "midnatt": {
+        "dark": {"bg_top": "rgba(22, 20, 58, 248)", "bg_bottom": "rgba(12, 10, 36, 252)",
+                 "surface": "rgba(92, 80, 200, 95)", "surface_hov": "rgba(112, 100, 226, 160)",
+                 "surface_edge": "rgba(165, 160, 250, 0.26)", "edge_hov": "rgba(165, 160, 250, 0.55)",
+                 "field_bg": "rgba(10, 8, 30, 200)", "field_focus": "rgba(20, 16, 50, 235)"},
+        "light": {"bg_top": "rgba(243, 242, 255, 250)", "bg_bottom": "rgba(226, 224, 252, 252)",
+                  "surface": "rgba(255, 255, 255, 215)", "surface_edge": "rgba(70, 60, 170, 0.28)",
+                  "edge_hov": "rgba(70, 60, 170, 0.58)"},
+    },
+    "lavendel": {
+        "dark": {"bg_top": "rgba(44, 26, 66, 248)", "bg_bottom": "rgba(26, 12, 42, 252)",
+                 "surface": "rgba(150, 100, 190, 95)", "surface_hov": "rgba(176, 124, 216, 160)",
+                 "surface_edge": "rgba(216, 180, 250, 0.26)", "edge_hov": "rgba(216, 180, 250, 0.55)",
+                 "field_bg": "rgba(22, 10, 34, 200)", "field_focus": "rgba(38, 20, 56, 235)"},
+        "light": {"bg_top": "rgba(250, 245, 255, 250)", "bg_bottom": "rgba(237, 226, 251, 252)",
+                  "surface": "rgba(255, 255, 255, 215)", "surface_edge": "rgba(120, 60, 170, 0.28)",
+                  "edge_hov": "rgba(120, 60, 170, 0.58)"},
+    },
+    "sand": {
+        "dark": {"bg_top": "rgba(36, 29, 21, 248)", "bg_bottom": "rgba(20, 15, 10, 252)",
+                 "surface": "rgba(170, 130, 80, 95)", "surface_hov": "rgba(196, 154, 100, 160)",
+                 "surface_edge": "rgba(232, 200, 150, 0.26)", "edge_hov": "rgba(232, 200, 150, 0.55)",
+                 "field_bg": "rgba(22, 16, 10, 200)", "field_focus": "rgba(38, 30, 22, 235)"},
+        "light": {"bg_top": "rgba(253, 250, 243, 250)", "bg_bottom": "rgba(243, 236, 220, 252)",
+                  "surface": "rgba(255, 255, 255, 215)", "surface_edge": "rgba(140, 100, 40, 0.28)",
+                  "edge_hov": "rgba(140, 100, 40, 0.58)"},
+    },
+})
+
+# Typsnitt (nyckel → (etikett, CSS-familjelista)). Bara typsnitt som följer med Windows (+ nära ersättare på andra system).
+FONTS: Dict[str, Tuple[str, str]] = {
+    "standard": ("Standard (Segoe UI)", '"Segoe UI Variable Text", "Segoe UI", "Inter", "Noto Sans", "Roboto", "Helvetica Neue", Arial, sans-serif'),
+    "lattlast": ("Lättläst (Verdana)", '"Verdana", "Tahoma", "DejaVu Sans", sans-serif'),
+    "rundad": ("Rundad (Trebuchet)", '"Trebuchet MS", "Segoe UI", "Ubuntu", sans-serif'),
+    "klassisk": ("Klassisk (Calibri)", '"Calibri", "Carlito", "Segoe UI", sans-serif'),
+    "serif": ("Serif (Georgia)", '"Georgia", "Cambria", "DejaVu Serif", serif'),
+}
+
+
+def font_css(key: str) -> str:
+    """CSS-värdet för ``font-family`` (okänd nyckel → standard)."""
+    return FONTS.get(key or "", FONTS["standard"])[1]
+
+
+def font_labels() -> List[Tuple[str, str]]:
+    return [(k, v[0]) for k, v in FONTS.items()]
+
 
 HIGH_CONTRAST_DARK: Dict[str, str] = {
     "bg_top": "rgba(0, 0, 0, 255)", "bg_bottom": "rgba(0, 0, 0, 255)",

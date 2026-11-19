@@ -17,7 +17,7 @@ LOG_PREFIX = "[THEME]"
 try:
     from PySide6.QtCore import Qt, QTimer
     from PySide6.QtWidgets import (
-        QCheckBox, QDialog, QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSlider, QVBoxLayout, QWidget,
+        QCheckBox, QComboBox, QDialog, QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSlider, QVBoxLayout, QWidget,
     )
     _QT = True
 except ImportError:  # pragma: no cover
@@ -71,6 +71,19 @@ if _QT:
                 self.preset_buttons[key] = b
                 grid.addWidget(b, i // 3, i % 3)
             lay.addLayout(grid)
+            fh = QLabel("Typsnitt", body)
+            fh.setObjectName("thHead")
+            lay.addWidget(fh)
+            self.font_combo = QComboBox(body)
+            self.font_combo.setAccessibleName("Typsnitt")
+            self.font_combo.setToolTip("Byter typsnitt i hela fönstret. Verdana är extra lättläst.")
+            curf = str(settings.pref("ui_font"))
+            for key, label in TH.font_labels():
+                self.font_combo.addItem(label, key)
+                if key == curf:
+                    self.font_combo.setCurrentIndex(self.font_combo.count() - 1)
+            self.font_combo.currentIndexChanged.connect(self._font_changed)
+            lay.addWidget(self.font_combo)
             self.glass_slider, self.glass_val = self._slider(body, lay, "Glasstyrka (genomskinlighet)", 0, 30, self._glass_pct(),
                                                               "0 % = helt täckande panel · 30 % = mest genomskinlig (text förblir läsbar)")
             self.dim_slider, self.dim_val = self._slider(body, lay, "Bakgrundsdjup", 0, 60, int(settings.pref("bg_dim")),
@@ -139,6 +152,10 @@ if _QT:
                 b.setChecked(k == key)
             self._on_change()
 
+        def _font_changed(self, _i: int = 0) -> None:
+            self.settings.set_pref("ui_font", self.font_combo.currentData())
+            self._on_change()
+
         def _hc_toggled(self, on: bool) -> None:
             self.settings.set_pref("high_contrast", bool(on))
             self._on_change()
@@ -148,6 +165,10 @@ if _QT:
             self.settings.set_pref("bg_dim", 0)
             self.settings.set_pref("text_scale", 100)
             self.settings.set_pref("high_contrast", False)
+            self.settings.set_pref("ui_font", "standard")
+            self.font_combo.blockSignals(True)
+            self.font_combo.setCurrentIndex(0)
+            self.font_combo.blockSignals(False)
             for k, b in self.preset_buttons.items():
                 b.setChecked(k == "standard")
             self.dim_slider.setValue(0)

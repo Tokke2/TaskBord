@@ -58,7 +58,8 @@ def _list(default: Any, maxlen: int) -> Callable[[Any], Any]:
     return f
 
 
-THEME_PRESETS = ("standard", "hav", "skog", "solnedgang", "grafit", "kontrast")
+THEME_PRESETS = ("standard", "hav", "skog", "solnedgang", "grafit", "midnatt", "lavendel", "sand", "kontrast")
+FONTS = ("standard", "lattlast", "rundad", "klassisk", "serif")
 SOUNDS = ("none", "chime", "bell", "gentle")
 LANGS = ("sv", "en")
 
@@ -71,6 +72,8 @@ SPEC: Dict[str, Tuple[Any, Callable[[Any], Any]]] = {
     "quiet_weekends": (False, _bool(False)),
     # 🎨 teman
     "theme_preset": ("standard", _choice("standard", THEME_PRESETS)),
+    "width_v2": (False, _bool(False)),       # engångsmigrering: gamla standardbredden 340 → 420
+    "ui_font": ("standard", _choice("standard", FONTS)),
     "glass_strength": (85, _int(85, 70, 100)),       # panelens täckning i % (aldrig under 70 — läsbarhet)
     "bg_dim": (0, _int(0, 0, 60)),                   # extra mörkläggning av bakgrunden i %
     "high_contrast": (False, _bool(False)),

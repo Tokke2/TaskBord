@@ -771,7 +771,8 @@ Högerklicka fönstret eller tray-ikonen → **🎨 Teman och utseende…**. All
 
 | Val | Vad det gör |
 |---|---|
-| **Färgtema** | Standard · Hav · Skog · Solnedgång · Grafit · Hög kontrast. Byter panelens och kortens färgton — texten är alltid minst 4,5:1 mot bakgrunden. |
+| **Färgtema** | Standard · Hav · Skog · Solnedgång · Grafit · Midnatt · Lavendel · Sand · Hög kontrast. Byter panelens och kortens färgton — texten är alltid minst 4,5:1 mot bakgrunden. |
+| **Typsnitt** | Standard (Segoe UI) · Lättläst (Verdana) · Rundad (Trebuchet) · Klassisk (Calibri) · Serif (Georgia). Byter typsnitt i hela fönstret; saknas ett typsnitt används närmaste reserv. |
 | **Glasstyrka** | 0–30 % genomskinlighet. Mer glas släpper igenom skrivbordet, men panelen blir aldrig mer genomskinlig än 70 % så texten förblir läsbar. |
 | **Bakgrundsdjup** | 0–60 %: mörkare bakgrund i mörkt tema, ljusare i ljust — mer kontrast mot texten. |
 | **Hög kontrast** | Svart/vitt, heltäckande ytor, tjocka kanter, tydliga röda/gula varningsfärger och text med minst 7:1 (WCAG AAA). Följer ljust/mörkt tema. |
@@ -779,6 +780,8 @@ Högerklicka fönstret eller tray-ikonen → **🎨 Teman och utseende…**. All
 | **↺ Återställ utseendet** | Tillbaka till standard. |
 
 Temat följer fortfarande ljust/mörkt/auto/Följ Windows — färgtemat läggs ovanpå.
+
+**Bredd och ikoner:** standardfönstret är nu 420×700 (förut 340×648), så titelraden, de fyra flikarna och inmatningsfältet ryms utan att kapas. Tray → *Fönsterstorlek* har Smal (340), Standard (420), Bred (560) och Extra bred (720) — eget val av storlek ändras aldrig. Ett fönster som fortfarande har den gamla standardstorleken görs bredare en gång vid första starten efter uppdateringen. Knapparna i titelraden (uppdatera, lås, minimera, stäng) är ritade vektorikoner i textfärgen, så de är skarpa, följer temat och ser likadana ut på alla datorer.
 
 ### ♿ Tillgänglighet
 * **Textstorlek upp till 200 %:** reglaget i temadialogen eller **Ctrl + Plus / Ctrl + Minus**, **Ctrl + 0** = 100 %. Ligger ovanpå Kompakt/Normal/Stor.

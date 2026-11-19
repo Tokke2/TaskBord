@@ -149,6 +149,20 @@ class WindowsMixin:
                                 _gy = int(conf.get("y", -1))
                                 _gw = int(conf.get("w", 340) or 340)
                                 _gh = int(conf.get("h", 648) or 648)
+                                # Ny standardbredd (420×700): ett fönster som fortfarande har gamla standardstorleken
+                                # 340×648 (aldrig ändrad) görs bredare — en gång. Eget val av storlek rörs aldrig.
+                                if not self.settings.pref("width_v2"):
+                                    self.settings.set_pref("width_v2", True)
+                                    if (_gw, _gh) == (340, 648):
+                                        _gw, _gh = 420, 700
+                                        for _sc in (self._app.screens() if self._app else []):
+                                            _g = _sc.availableGeometry()
+                                            if _g.contains(_gx, _gy):
+                                                _gw = min(_gw, _g.width())
+                                                _gh = min(_gh, _g.height())
+                                                _gx = max(_g.x(), min(_gx, _g.right() + 1 - _gw))
+                                                _gy = max(_g.y(), min(_gy, _g.bottom() + 1 - _gh))
+                                                break
                                 # v7-fix48: centrera vid sentinel (-1) ELLER
                                 # om positionen är utanför ALLA skärmar
                                 # (sparad skräpposition från koordinat-buggen)
