@@ -213,6 +213,17 @@ class ExportsMixin:
         except Exception as e:
             logger.warning(f"{LOG_PREFIX} _on_open_payment_plan: {_describe_widget_error(e)}")
 
+    def _on_open_job_templates(self) -> None:
+        """📋 Ny uppgift från mall (fönstermenyn): alla uppgifter för ett jobb, ev. direkt till Google Calendar."""
+        try:
+            get_throttle().notify_activity()
+            from ui.job_template_dialog import open_job_template_dialog
+            ids = open_job_template_dialog(self, getattr(self, "store", None), getattr(self, "settings", None))
+            if ids:
+                self._schedule_rebuild()
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} _on_open_job_templates: {_describe_widget_error(e)}")
+
     def _on_show_shortcut_help(self) -> None:
         """F1 / fönstermenyn: ⌨️ Tangentöversikt (alla tangenter, med dina inställningar)."""
         try:

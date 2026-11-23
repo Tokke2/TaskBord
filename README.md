@@ -34,6 +34,7 @@ påminner dig, tar emot uppgifter från mail och sparar allt i en mapp på din e
 | 📝 **Anteckningsflik** | Egen flik för fria anteckningar: skapa, redigera, fäst och sök. Sparas automatiskt och ingår i backup. |
 | 📧 **Mail** | Högerklicka ett mail i Thunderbird → uppgift. Datum i mailet blir påminnelser. |
 | 💸 **Delbetalning** | Dela en faktura i flera betalningar — varje del blir en uppgift med datum och belopp. |
+| 📋 **Jobbmallar** | Ett klick skapar alla uppgifter för ett jobb (t.ex. Limojobb) med datum från jobbdagen — och kan skicka dem automatiskt till Google Calendar. |
 | 💰 **Belopp** | Belopp på uppgifter med summor per månad och tagg ("att fakturera"). |
 | 📝 **Anteckningar** | Längre text per uppgift. Telefonnummer och adresser blir klickbara (ring, SMS, Google Maps). |
 | 🖥 **Skrivbordet** | Ligger bakom dina fönster, eller överst om du vill. Gömmer sig i skärmkanten och lämnar en liten flik (antal aktiva/försenade) – håll musen på den så glider fönstret fram. Följer Windows ljusa/mörka tema. |

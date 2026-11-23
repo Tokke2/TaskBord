@@ -123,6 +123,20 @@ class ExportsMixin:
         except Exception as e:
             self._log.warning(f"{LOG_PREFIX} kunde inte öppna delbetalningsplanen: {e}")
 
+    def _open_job_templates(self) -> None:
+        """Tray-menyn: 📋 Ny uppgift från mall… (dialogen skapar uppgifterna direkt i butiken)."""
+        try:
+            from ui.job_template_dialog import open_job_template_dialog
+            ids = open_job_template_dialog(None, getattr(self, "store", None), getattr(self, "settings", None))
+            if ids:
+                for w in list(getattr(self, "_widgets", {}).values()):
+                    try:
+                        w._schedule_rebuild()
+                    except Exception:
+                        pass
+        except Exception as e:
+            self._log.warning(f"{LOG_PREFIX} kunde inte öppna jobbmallarna: {e}")
+
     def _open_google_calendar(self) -> None:
         """
         NY v8 (2026-10-12): öppna Google Calendar-dialogen från tray-menyn.
@@ -302,6 +316,12 @@ class ExportsMixin:
     def _drain_gcal_sync_results(self) -> None:
         """GUI-tråden: visa vad synken gjort (liten tray-notis; tyst om inget hänt)."""
         ev = getattr(self, "_gcal_events", None)
+        with suppress(Exception):
+            from core import job_templates as _jt
+            if ev is None:
+                ev = self._gcal_events = collections.deque(maxlen=20)
+            while _jt.EVENTS:                      # notiser från jobbmallarnas Google-export (egen tråd)
+                ev.append(_jt.EVENTS.popleft())
         while ev:
             try:
                 r = ev.popleft()

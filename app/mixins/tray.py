@@ -213,6 +213,15 @@ class TrayMixin:
             self._payment_plan_action.triggered.connect(self._open_payment_plan)
             self._tray_menu.addAction(self._payment_plan_action)
 
+            # Jobbmallar: alla uppgifter för ett jobb med ett klick (ev. direkt till Google Calendar)
+            self._job_template_action = self._QAction("📋  Ny uppgift från mall…", self._tray_menu)
+            self._job_template_action.setToolTip(
+                "Skapa alla uppgifter för ett jobb (t.ex. Limojobb) med datum räknat från jobbdagen.\n"
+                "Mallen kan också skicka dem automatiskt till Google Calendar."
+            )
+            self._job_template_action.triggered.connect(self._open_job_templates)
+            self._tray_menu.addAction(self._job_template_action)
+
             # NY v8 (2026-10-12): lokal Google Calendar-koppling (OAuth)
             self._google_calendar_action = self._QAction(
                 "☁️  Google Calendar (koppla konto)…",

@@ -15,6 +15,7 @@
 - [📆 Kalender – se vilka dagar som är tunga](#-kalender--se-vilka-dagar-som-är-tunga)
 - [📝 Fliken Anteckningar (egna anteckningar)](#-fliken-anteckningar-egna-anteckningar)
 - [💸 Delbetalningsplan (faktura i flera betalningar)](#-delbetalningsplan-faktura-i-flera-betalningar)
+- [📋 Jobbmallar (ett klick → alla uppgifter, ev. direkt till Google Calendar)](#-jobbmallar-ett-klick--alla-uppgifter-ev-direkt-till-google-calendar)
 - [🏷 Taggfärger](#-taggfärger)
 - [🌗 Temat följer Windows (live)](#-temat-följer-windows-live)
 - [⌨️ F1 – tangentöversikt](#-f1--tangentöversikt)
@@ -283,6 +284,26 @@ Högerklicka på fönstret → **💸 Delbetalningsplan…** (finns också i tra
 * Förhandsvisningen uppdateras medan du skriver. **Skapa** lägger N uppgifter, t.ex. `Limo Anders — del 1 av 3 (4 000 kr)`, med förfallodatum, vald prioritet och taggen `delbetalning`.
 
 Månadssteg räknas från första datumet och dagen kläms till månadens längd (31 jan → 28 feb → 31 mar → 30 apr – dagen driver inte nedåt). Belopp räknas i ören; resten läggs på sista delen så summan alltid blir exakt. Belopp skrivs som `12 000`, `12000,50` eller `12.000,50`. Delbetalningsuppgifterna är vanliga uppgifter – ändra eller ta bort enskilda delar som vanligt.
+
+
+## 📋 Jobbmallar (ett klick → alla uppgifter, ev. direkt till Google Calendar)
+
+Högerklicka på fönstret (eller tray-menyn) → **📋 Ny uppgift från mall…**. Välj en mall, skriv kundens namn och **jobbdagen** — alla uppgifterna för jobbet skapas med förfallodatum räknat från jobbdagen. Förhandsvisningen visar exakt vad som skapas.
+
+Två startmallar följer med: **Limojobb** (bekräfta bokning −3 dagar · utför jobbet · skicka faktura +1 · bevaka betalning +31) och **Bilstereo-installation**. De är bara förslag — ändra eller ta bort dem fritt.
+
+**✏ Hantera mallar…** — skapa, duplicera, byt namn på och ta bort mallar. Varje steg har:
+
+| Fält | Betydelse |
+|---|---|
+| Uppgift | Titeln. Skriv `{kund}` där kundens namn ska stå (utan platshållare läggs ” — kund” till; utan namn försvinner den). |
+| Dagar från jobbdag | −3 = tre dagar före, 0 = jobbdagen, 30 = en månad efter. |
+| Prioritet, Taggar, Belopp | Följer med till uppgiften (belopp räknas in i summorna). |
+| Bara vardag | Hamnar dagen på helg eller röd dag flyttas den framåt till nästa vardag (bra för fakturadatum). |
+
+**Automatisk export till Google Calendar:** i mallen finns valet *Skicka uppgifterna automatiskt till Google Calendar när mallen används*, och samma ruta finns när du skapar (du kan alltså ändra den varje gång). Är den ikryssad skickas just de nya uppgifterna till din kalender i bakgrunden direkt efter att de skapats — fönstret väntar aldrig på Google. Får du ett nätfel provas det igen efter 30 sekunder, 2 minuter och 10 minuter; sedan kommer en notis i tray. Är Google inte kopplat skapas uppgifterna ändå, rutan är avstängd och förklarar varför. Det är bara uppgifter från en mall där du själv kryssat i rutan som skickas — inget annat skickas av sig självt. De skickade uppgifterna följer sedan med om du ändrar datum. Kalender, färgkodning och ”klar”-stil är de du valt i ☁️ Google Calendar-dialogen.
+
+Mallarna ligger i `mallar.json` i datamappen (inne i appmappen).
 
 ## 🏷 Taggfärger
 

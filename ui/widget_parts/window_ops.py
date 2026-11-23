@@ -76,6 +76,11 @@ class WindowOpsMixin:
             act_plan.setToolTip(
                 "Dela en faktura i flera betalningar — varje del blir en uppgift med förfallodatum."
             )
+            act_tmpl = menu.addAction("📋 Ny uppgift från mall…")
+            act_tmpl.setToolTip(
+                "Skapa alla uppgifter för ett jobb med ett klick (t.ex. Limojobb), med datum räknat från jobbdagen.\n"
+                "Mallen kan också skicka dem automatiskt till Google Calendar."
+            )
             act_tagcol = menu.addAction("🏷 Taggfärger…")
             # NY v8: backup av uppgifter
             act_backup = menu.addAction("💾 Backup av uppgifter…")
@@ -134,6 +139,8 @@ class WindowOpsMixin:
                 self._on_open_backup()
             elif chosen is act_plan:
                 self._on_open_payment_plan()
+            elif chosen is act_tmpl:
+                self._on_open_job_templates()
             elif chosen is act_tagcol:
                 self._on_open_tag_colors()
             elif chosen in act_edge.values():
