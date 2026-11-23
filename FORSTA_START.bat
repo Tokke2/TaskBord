@@ -113,14 +113,14 @@ echo [2/5] Anvander Python: %PY%
 if "%SNABB%"=="1" goto :start_app
 
 echo [3/5] Uppgraderar pip ...
-"%PY%" -m pip install --upgrade pip --disable-pip-version-check -q
+"%PY%" -m pip install --upgrade pip --disable-pip-version-check --no-warn-script-location --progress-bar off -q
 if errorlevel 1 echo        [INFO] pip kunde inte uppgraderas - fortsatter med befintlig version.
 
 echo [4/5] Installerar/uppgraderar alla paket fran requirements.txt (kan ta nagra minuter) ...
-"%PY%" -m pip install --upgrade -r "%APPDIR%requirements.txt" --disable-pip-version-check
+"%PY%" -m pip install --upgrade -r "%APPDIR%requirements.txt" --disable-pip-version-check --no-warn-script-location --progress-bar off
 if errorlevel 1 goto :fail_pip
 
-if exist "%APPDIR%requirements-optional.txt" "%PY%" -m pip install --upgrade -r "%APPDIR%requirements-optional.txt" --disable-pip-version-check
+if exist "%APPDIR%requirements-optional.txt" "%PY%" -m pip install --upgrade -r "%APPDIR%requirements-optional.txt" --disable-pip-version-check --no-warn-script-location --progress-bar off
 if errorlevel 1 echo        [VARNING] Valfria tillagg kunde inte installeras. Kernfunktionerna fungerar anda.
 
 echo        Kontrollerar att kravda paket gar att importera ...

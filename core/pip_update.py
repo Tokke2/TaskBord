@@ -46,7 +46,7 @@ KEEP_LINES = 300
 PORTS = tuple(range(8765, 8777))
 APP_NAMES = ("ledgebord", "taskbord")
 ONLY_BINARY = "--only-binary=:all:"   # aldrig bygga ur källkod (ingen kompilator på datorn → pip fastnar/misslyckas)
-PIP_FLAGS = ["--upgrade", "--disable-pip-version-check", "--no-input", "--progress-bar", "off",
+PIP_FLAGS = ["--upgrade", "--disable-pip-version-check", "--no-warn-script-location", "--no-input", "--progress-bar", "off",
              "--timeout", "10", "--retries", "1"]
 
 
