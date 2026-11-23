@@ -522,6 +522,7 @@ class TrayMixin:
             _size_items = (
                 ("🖥  Ikon (150×230)", 150, 230),
                 ("📟  Kompakt (240×400)", 240, 400),
+                ("🖥  Anpassa till skärmen", 0, 0),
                 ("📋  Smal (340×648)", 340, 648),
                 ("📰  Standard (420×700)", 420, 700),
                 ("🖥  Bred (560×760)", 560, 760),
@@ -532,9 +533,8 @@ class TrayMixin:
                 _sa = size_menu.addAction(_lbl)
                 _sa.triggered.connect(
                     lambda _c=False, ww=_sw_, hh=_sh_:
-                        self._set_window_size_preset(
-                            ww, hh
-                        ) if ww > 0 else self._set_window_size_max()
+                        self._set_window_size_preset(ww, hh) if ww > 0
+                        else (self._set_window_size_fit() if ww == 0 else self._set_window_size_max())
                 )
 
             # NY v7-fix57: visa ovanpå appar / fäst igen

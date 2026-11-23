@@ -73,6 +73,7 @@ SPEC: Dict[str, Tuple[Any, Callable[[Any], Any]]] = {
     # 🎨 teman
     "theme_preset": ("standard", _choice("standard", THEME_PRESETS)),
     "width_v2": (False, _bool(False)),       # engångsmigrering: gamla standardbredden 340 → 420
+    "crisp": (True, _bool(True)),            # skarp bild: full hinting på texten, ingen gloria/dis över panelen
     "ui_font": ("standard", _choice("standard", FONTS)),
     "glass_strength": (85, _int(85, 70, 100)),       # panelens täckning i % (aldrig under 70 — läsbarhet)
     "bg_dim": (0, _int(0, 0, 60)),                   # extra mörkläggning av bakgrunden i %

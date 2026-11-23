@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import sys
 from contextlib import suppress
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 from app.config import error_boundary
 from app.constants import APP_NAME, LOG_FILE, LOG_PREFIX
@@ -998,3 +998,99 @@ class WindowsMixin:
                         w.lower()
         except Exception as e:
             self._log.debug(f"bring_all_to_front misslyckades: {e}")
+
+    # ------------------------------------------------------------------
+    # Anpassa efter skärmen (core/screen_fit.py)
+    # ------------------------------------------------------------------
+    def _screen_of_shell(self, shell: Any) -> Any:
+        """Skärmen där fönstret ligger (mitten av fönstret), annars primärskärmen."""
+        scr = None
+        with suppress(Exception):
+            c = shell.frameGeometry().center()
+            scr = self._app.screenAt(c)
+        return scr or (self._app.primaryScreen() if self._app else None)
+
+    def _set_window_size_fit(self) -> None:
+        """Tray → Fönsterstorlek → 'Anpassa till skärmen': lagom storlek för skärmen fönstret ligger på,
+        i heltals-bildpunkter (skarp text) och inom den användbara ytan."""
+        try:
+            from core.screen_fit import clamp_rect, fit_size
+            with self._widget_lock:
+                widgets = list(self._widgets.values())
+            for w in widgets:
+                shell = getattr(w, "_shell", None)
+                scr = self._screen_of_shell(shell) if shell is not None else None
+                if scr is None:
+                    continue
+                ag = scr.availableGeometry()
+                fw, fh = fit_size(ag.width(), ag.height(), float(scr.devicePixelRatio() or 1.0))
+                x, y, fw, fh = clamp_rect((shell.x(), shell.y(), fw, fh), (ag.x(), ag.y(), ag.width(), ag.height()))
+                w._edge_dock_release()
+                if hasattr(w, "_shell_screen_move"):
+                    w._shell_screen_move(x, y, fw, fh)
+                else:
+                    shell.setGeometry(x, y, fw, fh)
+                with suppress(Exception):
+                    w._save_geometry_now()
+                self._log.info(f"{LOG_PREFIX} anpassad till skärmen: {fw}x{fh} vid ({x},{y})")
+        except Exception as e:
+            self._log.warning(f"{LOG_PREFIX} _set_window_size_fit: {e}", exc_info=True)
+
+    def _refit_windows_to_screens(self) -> None:
+        """Skärmar har bytts/kopplats ur eller upplösning/skalning ändrats: se till att fönstret ryms på sin skärm.
+        Rör inte fönster som är gömda i skärmkanten (de ligger medvetet delvis utanför) eller i tray."""
+        try:
+            from core.screen_fit import clamp_rect, is_inside
+            if getattr(self, "_hidden_to_tray", False):
+                return
+            with self._widget_lock:
+                widgets = list(self._widgets.values())
+            for w in widgets:
+                shell = getattr(w, "_shell", None)
+                if shell is None or not shell.isVisible():
+                    continue
+                dk = getattr(w, "_edge_dock", None)
+                if dk is not None and getattr(dk, "state", "idle") != "idle":
+                    continue
+                scr = self._screen_of_shell(shell)
+                if scr is None:
+                    continue
+                ag = scr.availableGeometry()
+                avail = (ag.x(), ag.y(), ag.width(), ag.height())
+                cur = (shell.x(), shell.y(), shell.width(), shell.height())
+                if is_inside(cur, avail, slack=2):
+                    continue
+                x, y, nw, nh = clamp_rect(cur, avail)
+                if hasattr(w, "_shell_screen_move"):
+                    w._shell_screen_move(x, y, nw, nh)
+                else:
+                    shell.setGeometry(x, y, nw, nh)
+                with suppress(Exception):
+                    w._save_geometry_now()
+                self._log.info(f"{LOG_PREFIX} skärmen ändrades: fönstret flyttat in på skärmen {cur} → {(x, y, nw, nh)}")
+        except Exception as e:
+            self._log.debug(f"{LOG_PREFIX} _refit_windows_to_screens: {e}")
+
+    def _install_screen_watch(self) -> None:
+        """Lyssna på skärmändringar (ansluten/bortkopplad skärm, upplösning, skalning) och passa in fönstret efteråt."""
+        try:
+            if getattr(self, "_screen_watch_timer", None) is not None or self._app is None:
+                return
+            t = self._QTimer(self._app)
+            t.setSingleShot(True)
+            t.setInterval(900)           # skärmar skickar flera signaler i rad — vänta tills det lugnat sig
+            t.timeout.connect(self._refit_windows_to_screens)
+            self._screen_watch_timer = t
+            kick = t.start
+
+            def _watch(scr: Any) -> None:
+                for sig in ("availableGeometryChanged", "geometryChanged", "logicalDotsPerInchChanged", "physicalDotsPerInchChanged"):
+                    with suppress(Exception):
+                        getattr(scr, sig).connect(lambda *_a: kick())
+
+            for scr in self._app.screens():
+                _watch(scr)
+            self._app.screenAdded.connect(lambda s: (_watch(s), kick()))
+            self._app.screenRemoved.connect(lambda *_a: kick())
+        except Exception as e:
+            self._log.debug(f"{LOG_PREFIX} _install_screen_watch: {e}")

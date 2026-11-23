@@ -129,6 +129,21 @@ class ThemeMixin:
             from ui import a11y as _a11y
             _a11y.apply_names(self)
 
+    def _apply_crisp_rendering(self, on: bool) -> None:
+        """Skarp text: full hinting (glyferna läggs på hela bildpunkter) + kantutjämning, för hela appen.
+        Av = Qts standard. Sätts bara om värdet ändras (QApplication.setFont gör om all stil)."""
+        from PySide6.QtGui import QFont
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance()
+        if app is None:
+            return
+        f = app.font()
+        want = QFont.HintingPreference.PreferFullHinting if on else QFont.HintingPreference.PreferDefaultHinting
+        if f.hintingPreference() != want:
+            f.setHintingPreference(want)
+            f.setStyleStrategy(f.styleStrategy() | QFont.StyleStrategy.PreferAntialias)
+            app.setFont(f)
+
     def _theme_prefs(self) -> Any:
         """(färgtema, bakgrundsdjup %, högkontrast?) ur inställningarna — alltid giltiga värden."""
         try:
@@ -194,6 +209,11 @@ class ThemeMixin:
             _tp, _dim, _hc = self._theme_prefs()
             t = _themes.adjust_tokens(t, is_dark, _tp, _dim, _hc)
             self._hc_active: bool = bool(_hc)
+            try:
+                self._crisp_on: bool = bool(self.settings.pref("crisp"))
+                self._apply_crisp_rendering(self._crisp_on)
+            except Exception:
+                self._crisp_on = True
             try:
                 _font_family = _themes.font_css(str(self.settings.pref("ui_font")))
             except Exception:

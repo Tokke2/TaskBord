@@ -90,6 +90,18 @@ if _QT:
                                                          "Mörkare bakgrund i mörkt tema, ljusare i ljust — mer kontrast mot texten")
             self.scale_slider, self.scale_val = self._slider(body, lay, "Textstorlek", 80, 200, int(settings.pref("text_scale")),
                                                              "80–200 %. Ctrl+Plus / Ctrl+Minus / Ctrl+0 fungerar också i fönstret")
+            self.crisp_check = QCheckBox("Skarp bild (hård, tydlig text — ingen mjuk gloria över panelen)", body)
+            self.crisp_check.setChecked(bool(settings.pref("crisp")))
+            self.crisp_check.setToolTip("Full hinting på texten och ingen dimma över panelens överdel.")
+            self.crisp_check.toggled.connect(self._crisp_toggled)
+            lay.addWidget(self.crisp_check)
+            self.solid_check = QCheckBox("Solid panel — ingen genomskinlighet (skarpast text)", body)
+            self.solid_check.setChecked(self._glass_pct() == 0)
+            self.solid_check.setToolTip("Genomskinliga fönster kan inte få Windows kantutjämnade ClearType-text. "
+                                        "Solid panel ger den skarpaste texten; ikonerna på skrivbordet syns då inte genom fönstret.")
+            self.solid_check.toggled.connect(self._solid_toggled)
+            lay.addWidget(self.solid_check)
+            self.glass_slider.valueChanged.connect(self._sync_solid)
             self.hc_check = QCheckBox("Hög kontrast (svart/vitt, tydliga kanter, text 7:1)", body)
             self.hc_check.setChecked(bool(settings.pref("high_contrast")))
             self.hc_check.toggled.connect(self._hc_toggled)
@@ -152,6 +164,18 @@ if _QT:
                 b.setChecked(k == key)
             self._on_change()
 
+        def _crisp_toggled(self, on: bool) -> None:
+            self.settings.set_pref("crisp", bool(on))
+            self._on_change()
+
+        def _sync_solid(self, v: int) -> None:
+            self.solid_check.blockSignals(True)
+            self.solid_check.setChecked(int(v) == 0)
+            self.solid_check.blockSignals(False)
+
+        def _solid_toggled(self, on: bool) -> None:
+            self.glass_slider.setValue(0 if on else 15)     # 0 % glas = helt solid panel; flush sparar och tillämpar
+
         def _font_changed(self, _i: int = 0) -> None:
             self.settings.set_pref("ui_font", self.font_combo.currentData())
             self._on_change()
@@ -175,6 +199,11 @@ if _QT:
             self.scale_slider.setValue(100)
             self.hc_check.setChecked(False)
             self.glass_slider.setValue(15)
+            self.settings.set_pref("crisp", True)
+            for cb, val in ((self.crisp_check, True), (self.solid_check, False)):
+                cb.blockSignals(True)
+                cb.setChecked(val)
+                cb.blockSignals(False)
             self._timer.stop()
             self._flush()
 

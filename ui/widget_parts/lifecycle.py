@@ -39,12 +39,12 @@ class LifecycleMixin:
             screen = QGuiApplication.primaryScreen()
             if screen is None:
                 return (DEFAULT_WIDGET_WIDTH, DEFAULT_WIDGET_HEIGHT)
-            g = screen.geometry()
+            g = screen.availableGeometry()
             sw, sh = g.width(), g.height()
             # Marginal för att alltid få plats
             margin = 40
-            w = min(DEFAULT_WIDGET_WIDTH, sw - margin * 2)
-            h = min(DEFAULT_WIDGET_HEIGHT, sh - margin * 2)
+            from core.screen_fit import fit_size
+            w, h = fit_size(sw, sh, float(screen.devicePixelRatio() or 1.0))   # lagom för skärmen, heltals-pixlar (skarpt)
             # ALDRIG mindre än minimum (utom på extremt små skärmar)
             w = max(w, min(MIN_WIDGET_WIDTH, sw - margin))
             h = max(h, min(MIN_WIDGET_HEIGHT, sh - margin))

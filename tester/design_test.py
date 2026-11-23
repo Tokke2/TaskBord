@@ -58,6 +58,30 @@ def pure() -> None:
     check("width_v2 finns som inställning", s.pref("width_v2") is False)
     shutil.rmtree(tmp, ignore_errors=True)
 
+    # --- anpassa sig till skärmen (core/screen_fit.py) -------------------------------------------------------------------
+    from core import screen_fit as SF
+    check("pixel_step: 100 % → 2, 125 % → 4, 150 % → 2, 175 % → 4, 200 % → 2",
+          [SF.pixel_step(d) for d in (1.0, 1.25, 1.5, 1.75, 2.0)] == [2, 4, 2, 4, 2])
+    for dpr in (1.0, 1.25, 1.5, 1.75, 2.0):
+        for aw, ah in ((1536, 816), (1920, 1020), (2560, 1380), (1366, 728), (3840, 2060)):
+            w, h = SF.fit_size(aw, ah, dpr)
+            check(f"fit_size {aw}x{ah} @{dpr}: heltals-bildpunkter och inom skärmen",
+                  abs(w * dpr - round(w * dpr)) < 1e-6 and abs(h * dpr - round(h * dpr)) < 1e-6 and w <= aw and h <= ah, (w, h))
+    check("fit_size: bredd 400–560, höjd ≤ 900", SF.fit_size(1536, 816, 1.25)[0] >= 400 and SF.fit_size(5120, 2800, 1.0)[0] == 560 and SF.fit_size(5120, 2800, 1.0)[1] <= 900)
+    check("fit_size: liten skärm → får plats (marginal)", SF.fit_size(500, 400, 1.0)[0] <= 500 and SF.fit_size(500, 400, 1.0)[1] <= 400)
+    check("clamp_rect: redan inne → oförändrat", SF.clamp_rect((10, 10, 300, 300), (0, 0, 1000, 800)) == (10, 10, 300, 300))
+    check("clamp_rect: utanför höger/nederkant flyttas in", SF.clamp_rect((900, 700, 300, 300), (0, 0, 1000, 800)) == (700, 500, 300, 300))
+    check("clamp_rect: större än skärmen krymps", SF.clamp_rect((0, 0, 1400, 1000), (0, 0, 1000, 800)) == (0, 0, 1000, 800))
+    check("clamp_rect: negativa koordinater (skärm borttagen)", SF.clamp_rect((-2500, 100, 400, 600), (0, 0, 1536, 816)) == (0, 100, 400, 600))
+    check("is_inside", SF.is_inside((0, 0, 100, 100), (0, 0, 100, 100)) and not SF.is_inside((50, 0, 100, 100), (0, 0, 100, 100)))
+    check("crisp är på som standard", Settings(str(Path(tempfile.gettempdir()) / "df_x.json")).pref("crisp") is True)
+    (Path(tempfile.gettempdir()) / "df_x.json").unlink(missing_ok=True)
+    tr = (ROOT / "app/mixins/tray.py").read_text(encoding="utf-8")
+    check("tray: 'Anpassa till skärmen' i Fönsterstorlek", "Anpassa till skärmen" in tr and "_set_window_size_fit" in tr)
+    ctl = (ROOT / "app/controller.py").read_text(encoding="utf-8")
+    check("exakt skalfaktor (PassThrough) sätts före QApplication", ctl.index("setHighDpiScaleFactorRoundingPolicy") < ctl.index("self._app = QApplicationCls(sys.argv)") and "SetProcessDPIAware" not in ctl)
+    check("controller lyssnar på skärmändringar", "_install_screen_watch()" in ctl)
+
 
 def child() -> None:
     os.environ["QT_QPA_PLATFORM"] = "offscreen"
@@ -142,6 +166,121 @@ def child() -> None:
     ck("typsnittsval sparas och slår igenom", settings.pref("ui_font") == "lattlast" and changed)
     dlg.reset()
     ck("återställ → standardtypsnitt", settings.pref("ui_font") == "standard" and dlg.font_combo.currentIndex() == 0)
+
+    # --- skarp bild ---------------------------------------------------------------------------------------------------------
+    from PySide6.QtGui import QFont
+    settings.set_pref("crisp", True)
+    w._apply_theme()
+    ck("skarp bild: full hinting på appens typsnitt", app.font().hintingPreference() == QFont.HintingPreference.PreferFullHinting)
+    ck("skarp bild: ingen aurora (disig glöd) över panelen", w._crisp_on is True)
+    settings.set_pref("crisp", False)
+    w._apply_theme()
+    ck("skarp bild av: Qts standard-hinting", app.font().hintingPreference() == QFont.HintingPreference.PreferDefaultHinting and w._crisp_on is False)
+    settings.set_pref("crisp", True)
+    w._apply_theme()
+    ck("temadialogen: skarp-bild och solid-panel finns", True)
+    changed2 = []
+    dlg2 = ThemeDialog(None, settings, lambda: changed2.append(1))
+    ck("skarp bild-rutan är ikryssad", dlg2.crisp_check.isChecked())
+    dlg2.crisp_check.setChecked(False)
+    ck("skarp bild-rutan sparar", settings.pref("crisp") is False and changed2)
+    dlg2.solid_check.setChecked(True)
+    ck("solid panel → glasstyrka 0", dlg2.glass_slider.value() == 0)
+    dlg2.solid_check.setChecked(False)
+    ck("solid panel av → glasstyrka 15", dlg2.glass_slider.value() == 15)
+    dlg2.glass_slider.setValue(0)
+    ck("reglaget på 0 kryssar i solid panel", dlg2.solid_check.isChecked())
+    dlg2.reset()
+    ck("återställ → skarp bild på, solid av", settings.pref("crisp") is True and not dlg2.solid_check.isChecked() and dlg2.crisp_check.isChecked())
+
+    # --- fönstret passas in när skärmen ändras ------------------------------------------------------------------------------
+    import logging, threading
+    from PySide6.QtCore import QRect
+    from app.mixins.windows import WindowsMixin
+
+    class Scr:
+        def __init__(self, g, dpr=1.25):
+            self.g, self.dpr = g, dpr
+
+        def availableGeometry(self):
+            return self.g
+
+        def devicePixelRatio(self):
+            return self.dpr
+
+    class Sh:
+        def __init__(self, x, y, w, h, vis=True):
+            self.r = [x, y, w, h]
+            self.vis = vis
+
+        def x(self): return self.r[0]
+        def y(self): return self.r[1]
+        def width(self): return self.r[2]
+        def height(self): return self.r[3]
+        def isVisible(self): return self.vis
+        def frameGeometry(self): return QRect(*self.r)
+        def setGeometry(self, x, y, w, h): self.r = [x, y, w, h]
+
+    class Wd:
+        def __init__(self, sh, state="idle"):
+            self._shell = sh
+            self.saved = 0
+            self._edge_dock = type("D", (), {"state": state})()
+
+        def _save_geometry_now(self): self.saved += 1
+        def _edge_dock_release(self): self.rel = True
+
+    s1 = Scr(QRect(0, 0, 1536, 816))
+
+    class App:
+        def screenAt(self, p): return s1 if s1.g.contains(p) else None
+        def primaryScreen(self): return s1
+        def screens(self): return [s1]
+
+    class Ctl(WindowsMixin):
+        def __init__(self, wd):
+            self._log = logging.getLogger("fit")
+            self._widget_lock = threading.RLock()
+            self._widgets = {"a": wd}
+            self._app = App()
+            self._hidden_to_tray = False
+
+    sh = Sh(1400, 100, 420, 700)
+    wd = Wd(sh)
+    c = Ctl(wd)
+    c._QTimer = __import__("PySide6.QtCore", fromlist=["QTimer"]).QTimer
+    c._app = app
+    c._install_screen_watch()
+    ck("skärmbevakningen installeras (en gång)", c._screen_watch_timer is not None and (c._install_screen_watch() or True))
+    c._app = App()
+    c._refit_windows_to_screens()
+    ck("skärm ändrad: fönster som sticker ut flyttas in", sh.r == [1116, 100, 420, 700] and wd.saved == 1, sh.r)
+    sh2 = Sh(100, 50, 420, 700)
+    wd2 = Wd(sh2)
+    Ctl(wd2)._refit_windows_to_screens()
+    ck("…fönster som redan ryms lämnas ifred", sh2.r == [100, 50, 420, 700] and wd2.saved == 0)
+    sh3 = Sh(-380, 50, 420, 700)
+    wd3 = Wd(sh3, state="hidden")
+    Ctl(wd3)._refit_windows_to_screens()
+    ck("…fönster gömt i skärmkanten rörs inte", sh3.r == [-380, 50, 420, 700] and wd3.saved == 0)
+    sh4 = Sh(100, 50, 420, 700, vis=False)
+    wd4 = Wd(sh4)
+    Ctl(wd4)._refit_windows_to_screens()
+    sh5 = Sh(1400, 100, 420, 700)
+    c5 = Ctl(Wd(sh5))
+    c5._hidden_to_tray = True
+    c5._refit_windows_to_screens()
+    ck("…och inte heller när det ligger i tray", sh5.r == [1400, 100, 420, 700])
+    sh6 = Sh(10, 10, 420, 900)
+    wd6 = Wd(sh6)
+    Ctl(wd6)._refit_windows_to_screens()
+    ck("fönster högre än skärmen krymps in", sh6.r[3] <= 816 and sh6.r[1] == 0, sh6.r)
+    sh7 = Sh(300, 300, 420, 700)
+    wd7 = Wd(sh7)
+    Ctl(wd7)._set_window_size_fit()
+    from core.screen_fit import fit_size
+    fw, fh = fit_size(1536, 816, 1.25)
+    ck("Anpassa till skärmen: lagom storlek, inom skärmen, sparas", (sh7.r[2], sh7.r[3]) == (fw, fh) and sh7.r[1] + sh7.r[3] <= 816 and wd7.saved == 1, sh7.r)
 
     bad = [n for n, ok in res if not ok]
     print("CHILD", len(res) - len(bad), len(bad))

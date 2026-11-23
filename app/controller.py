@@ -150,6 +150,12 @@ class AppController(
 
         QApplicationCls = QtWidgets.instance["QApplication"]
         self._set_app_user_model_id()  # egen identitet i aktivitetsfältet (inte Pythons) — före första fönstret
+        # Skarp bild: exakt skalfaktor (125 % = 1,25) i stället för avrundad — måste sättas FÖRE QApplication.
+        # (Rör INTE processens DPI-läge via Win32 — det gav 'Felaktig parameter', v7-fix21.)
+        with suppress(Exception):
+            from PySide6.QtCore import Qt as _QtC
+            from PySide6.QtGui import QGuiApplication as _QGA
+            _QGA.setHighDpiScaleFactorRoundingPolicy(_QtC.HighDpiScaleFactorRoundingPolicy.PassThrough)
         self._app = QApplicationCls(sys.argv)
         self._app.setQuitOnLastWindowClosed(False)
         self._app.setApplicationName(self._config.app_name)
@@ -495,6 +501,10 @@ class AppController(
         # start (Rickards val: full auto — bakgrund, 30 s fördröjning)
         with suppress(Exception):
             self._schedule_auto_plugin_update()
+
+        # 6c-2. Fönstret anpassar sig när skärmar/upplösning/skalning ändras
+        with suppress(Exception):
+            self._install_screen_watch()
 
         # 6d. NY v7-fix64: påminnelsetjänst (förfallna + dagens uppgifter)
         with suppress(Exception):

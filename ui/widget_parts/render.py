@@ -535,6 +535,8 @@ class RenderMixin:
         förblir AV enligt v7-fix7 → inga WS_POPUP-risker).
         """
         super().paintEvent(event)
+        if getattr(self, "_crisp_on", True):
+            return   # skarp bild: ingen mjuk accentglöd över panelens överdel (gav ett disigt, grumligt intryck)
         try:
             p = QPainter(self)
             if not p.isActive():
