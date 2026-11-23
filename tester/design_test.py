@@ -193,6 +193,32 @@ def child() -> None:
     dlg2.reset()
     ck("återställ → skarp bild på, solid av", settings.pref("crisp") is True and not dlg2.solid_check.isChecked() and dlg2.crisp_check.isChecked())
 
+    # --- snabbvalsprickarna (hög/normal/låg) målas var och en på sig själv --------------------------------------------------
+    from PySide6.QtCore import qInstallMessageHandler
+    msgs = []
+    qInstallMessageHandler(lambda mode, ctx, msg: msgs.append(msg))
+    dots = w._input_priority_dots
+    cols = []
+    for d in dots:
+        d.resize(18, 18)
+        im = d.grab().toImage()
+        c = im.pixelColor(9, 9)
+        cols.append((c.red(), c.green(), c.blue()))
+    qInstallMessageHandler(None)
+    ck("tre prickar", len(dots) == 3)
+    ck("hög = röd, normal = gul/orange, låg = grön (varje prick målar sig själv)",
+       cols[0][0] > 180 and cols[0][1] < 120 and cols[1][0] > 180 and cols[1][1] > 120 and cols[2][1] > 150 and cols[2][0] < 120, cols)
+    ck("inga Qt-varningar om paintEngine/QPainter::begin", not [m for m in msgs if "paintEngine" in m or "QPainter::begin" in m], msgs[:3])
+
+    # --- sparad position skrivs inte över av barnets återställning (skalet äger geometrin) -----------------------------------
+    settings.update_window_geometry("a", 1152, 0, 384, 842)
+    before = [c for c in settings.window_configs() if c.get("id") == "a"]
+    w._restore_window_position()
+    after = [c for c in settings.window_configs() if c.get("id") == "a"]
+    ck("barn-läge: sparad position (1152,0) 384x842 oförändrad efter återställning",
+       before and after and (after[0]["x"], after[0]["y"], after[0]["w"], after[0]["h"]) == (before[0]["x"], before[0]["y"], before[0]["w"], before[0]["h"])
+       and after[0]["h"] >= 800, (before, after))
+
     # --- fönstret passas in när skärmen ändras ------------------------------------------------------------------------------
     import logging, threading
     from PySide6.QtCore import QRect

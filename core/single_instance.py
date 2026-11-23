@@ -68,11 +68,18 @@ def probe_taskbord(port: int, timeout: float = 0.4, host: str = "127.0.0.1") -> 
 
 
 def find_running_taskbord(first_port: int = 8765, attempts: int = 12) -> Optional[int]:
-    """FIX v8: porten där en redan körande Ledgebord svarar (annars None)."""
-    for p in range(int(first_port), int(first_port) + int(attempts)):
-        if probe_taskbord(p):
-            return p
-    return None
+    """FIX v8: porten där en redan körande Ledgebord svarar (annars None).
+
+    Portarna provas SAMTIDIGT. En efter en kunde varje stängd port ta hela timeouten på Windows
+    (brandvägg/antivirus på 127.0.0.1): 12 × 0,4 s ≈ 5 s extra vid VARJE start. Nu tar det ~0,4 s i värsta fall.
+    Resultatet är detsamma som förr: den LÄGSTA port som svarar."""
+    ports = list(range(int(first_port), int(first_port) + int(attempts)))
+    if len(ports) <= 1:
+        return next((p for p in ports if probe_taskbord(p)), None)
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=min(len(ports), 16), thread_name_prefix="probe") as ex:
+        hits = list(ex.map(probe_taskbord, ports))
+    return next((p for p, ok in zip(ports, hits) if ok), None)
 
 
 class DataDirLock:

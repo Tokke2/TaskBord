@@ -102,5 +102,20 @@ bsrc = (ROOT / "app" / "bootstrap.py").read_text(encoding="utf-8")
 check("bootstrap: alla tre vägarna använder tell_running_instance", bsrc.count("tell_running_instance(") == 3 and ".notify(default_key()" not in bsrc)
 check("bootstrap: --autostart skickas vidare", bsrc.count('"--autostart" in sys.argv') == 3)
 
+# portsökningen sker samtidigt: långsamma stängda portar (brandvägg/AV på Windows) får inte läggas på varandra
+import time as _time  # noqa: E402
+import core.single_instance as _si  # noqa: E402
+_orig_probe = _si.probe_taskbord
+_si.probe_taskbord = lambda p, *a, **k: (_time.sleep(0.4), p in (8768, 8772))[1]
+_t0 = _time.time()
+_hit = _si.find_running_taskbord(8765, 12)
+_dt = _time.time() - _t0
+_si.probe_taskbord = _orig_probe
+check("portsökning: 12 långsamma portar tar ~0,4 s, inte 12 × 0,4 s", _dt < 2.0)
+check("portsökning: lägsta svarande port vinner (8768, inte 8772)", _hit == 8768)
+_si.probe_taskbord = lambda p, *a, **k: False
+check("portsökning: ingen svarar → None", _si.find_running_taskbord(8765, 12) is None and _si.find_running_taskbord(8765, 1) is None)
+_si.probe_taskbord = _orig_probe
+
 print(f"\nsingle_instance_test: {ok} lyckades, {fail} misslyckades")
 sys.exit(1 if fail else 0)

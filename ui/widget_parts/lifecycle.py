@@ -471,9 +471,12 @@ class LifecycleMixin:
             )
             dot.setFixedSize(18, 18)
             # Override paint för mindre storlek
-            def _make_small_paint(prio):
-                def _paint(ev, prio=prio):
-                    p = QPainter(dot)
+            def _make_small_paint(prio, widget):
+                # widget BINDS varje prick till sin egen paint-funktion. Förut slog "dot" (loopvariabeln) igenom
+                # i alla tre: hög och normal målade på den SISTA pricken (grön), vilket gav Qt-varningarna
+                # "paintEngine: Should no longer be called" vid varje start och lämnade de två första blanka.
+                def _paint(ev, prio=prio, widget=widget):
+                    p = QPainter(widget)
                     if not p.isActive():
                         return
                     p.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -483,7 +486,7 @@ class LifecycleMixin:
                     p.setBrush(color)
                     p.drawEllipse(QPoint(cx, cy), 5, 5)
                 return _paint
-            dot.paintEvent = _make_small_paint(p)  # type: ignore[assignment]
+            dot.paintEvent = _make_small_paint(p, dot)  # type: ignore[assignment]
             dot.priority_dot_clicked.connect(
                 lambda _tid, new_p, _p=p: self._set_input_priority(_p)
             )

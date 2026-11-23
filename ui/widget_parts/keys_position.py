@@ -294,6 +294,12 @@ class KeysPositionMixin:
                 f"läge (första start) — main positionerar skalet"
             )
             return
+        # BARN-LÄGE: skalet (app/mixins/windows.py) äger fönstrets position och storlek och har egna skydd.
+        # Barnet fyller bara skalet — att "klamra" här gav en falsk varning vid varje start OCH skrev över
+        # den sparade positionen (t.ex. (1152,0) → (1122,30)) tills nästa normala avslut.
+        if self.parentWidget() is not None:
+            logger.debug(f"{LOG_PREFIX} _restore_window_position: barn-läge — skalet äger geometrin, ingen klamring")
+            return
         # FIX v7-fix18: HÅRDA GRÄNSER på geometrin. Ogiltiga värden från
         # settings.json (w=0, negativa eller enorma tal) gör att
         # CreateWindowEx misslyckas med "Felaktig parameter" vid VARJE
