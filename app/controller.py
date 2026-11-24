@@ -28,6 +28,7 @@ from app.mixins.hotkeys import HotkeysMixin
 from app.mixins.mail_bridge_ctl import MailBridgeMixin
 from app.mixins.maintenance import MaintenanceMixin
 from app.mixins.plugin_updates import PluginUpdateMixin
+from app.mixins.power_save import PowerSaveMixin
 from app.mixins.reminders import RemindersMixin
 from app.mixins.tray_hide import TrayHideMixin
 from app.mixins.top_toggle import TopToggleMixin
@@ -56,6 +57,7 @@ class AppController(
     TrayHideMixin,
     BackupSyncMixin,
     MailBridgeMixin,
+    PowerSaveMixin,
     UpdateMixin,
     AddonUpdateMixin,
     PluginUpdateMixin,
@@ -501,6 +503,10 @@ class AppController(
         # start (Rickards val: full auto — bakgrund, 30 s fördröjning)
         with suppress(Exception):
             self._schedule_auto_plugin_update()
+
+        # 6c-1. Energisparläge när fönstret inte syns (core/power.py)
+        with suppress(Exception):
+            self._init_power_save()
 
         # 6c-2. Fönstret anpassar sig när skärmar/upplösning/skalning ändras
         with suppress(Exception):

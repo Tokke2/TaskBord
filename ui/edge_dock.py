@@ -34,6 +34,8 @@ except ImportError:  # pragma: no cover
 Rect = geo.Rect
 HIDE_DELAY_S = 0.7
 POLL_MS = 70
+POLL_SLOW_MS = 160       # energisnålt: när musen är långt från fönstret/kanten räcker det att kolla ~6 gånger/s
+NEAR_PX = 360            # närmare än så här (från fönstrets/flikens yta) → snabb avsökning igen (70 ms)
 REVEAL_TICKS = 2          # musen måste ligga kvar ~140 ms vid kanten (inte bara svischa förbi)
 START_GRACE_S = 2.5       # efter start/omstart: ge dig tid innan det gömmer sig
 
@@ -84,6 +86,8 @@ if _QT:
             self._anim: Optional[Any] = None
             self._handle: Optional[Any] = None   # fliken (ui/edge_handle.py) som sitter kvar i kanten medan fönstret är gömt
             self._ticks = 0
+            self._last_front = 0.0
+            self._last_info = 0.0
             self._timer = QTimer(self)
             self._timer.setInterval(POLL_MS)
             self._timer.timeout.connect(self._tick)
@@ -276,6 +280,7 @@ if _QT:
                 with_e(edge)
             self._outside_since = time.monotonic() + grace if grace else None
             self._hits = 0
+            self._timer.setInterval(POLL_MS)
             self._timer.start()
             self._level_request(True)
             logger.info(f"{LOG_PREFIX} dockat vid {edge}: {self.shown}")
@@ -418,6 +423,7 @@ if _QT:
                 if self.state == "hidden" and self._handle is not None and not self._handle.isVisible():
                     self._show_handle()
                 cur = self._cursor_fn()
+                self._adapt_poll(cur)
                 if self.state == "shown":
                     if not self.busy() and self._rect() != self.shown:
                         self._readopt()
@@ -433,10 +439,13 @@ if _QT:
                 elif self.state == "hidden":
                     self._ticks += 1
                     h = self._handle
-                    if h is not None and self._ticks % 14 == 0:   # ca 1 s: ligg överst + uppdatera antal
+                    _now = time.monotonic()      # tidsstyrt (avsökningen går långsammare när musen är långt borta)
+                    if h is not None and _now - self._last_front >= 1.0:   # ca 1 s: ligg överst
+                        self._last_front = _now
                         if h.isVisible():
                             h.native_front()
-                        if self._ticks % 70 == 0:
+                        if _now - self._last_info >= 5.0:                  # ca 5 s: uppdatera antal + läge
+                            self._last_info = _now
                             a, o = self._handle_counts()
                             h.set_info(a, o, self._contrast())
                             h.place(self.edge or "top", self.shown, self.avail)
@@ -451,6 +460,19 @@ if _QT:
                         self._hits = 0
             except Exception as e:
                 logger.debug(f"{LOG_PREFIX} _tick: {e}")
+
+        def _adapt_poll(self, cur: Any) -> None:
+            """Snabb avsökning (70 ms) bara när musen är nära fönstret/kanten; annars ~4 gånger/s.
+            Det här är den ständigt gående timern när fönstret är dockat, så den styr mycket av tomgångsförbrukningen."""
+            try:
+                near = self.shown is None or geo.point_in(cur, self.shown, NEAR_PX)
+                want = POLL_MS if (near or self.state == "animating") else POLL_SLOW_MS
+                if self._timer.interval() != want:
+                    self._timer.setInterval(want)
+                    if want == POLL_MS:
+                        self._hits = 0
+            except Exception:
+                pass
 
         def _readopt(self) -> None:
             """Fönstret flyttades/ändrade storlek medan det var framme → docka om (eller släpp dockningen)."""

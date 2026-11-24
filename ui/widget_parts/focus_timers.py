@@ -12,6 +12,8 @@ from __future__ import annotations
 from ui.widget_base import *  # noqa: F401,F403
 from ui.widget_atoms import *  # noqa: F401,F403
 
+PWM_TICK_FLOOR_MS = 10_000     # PWM-räknaren (statistik) tickar aldrig oftare än så här — energisnålt
+
 
 class FocusTimersMixin:
     """Fokusvyn, periodisk z-ordningskontroll, snabbtangenter, timers och PWM (adaptiv uppdateringstakt)."""
@@ -413,7 +415,9 @@ class FocusTimersMixin:
         self._rebuild_timer.timeout.connect(self._rebuild_task_list)
         self._pwm_timer = QTimer(self)
         self._pwm_timer.timeout.connect(self._update_pwm)
-        self._pwm_timer.start(PWM_FPS_NORMAL_MS)
+        # PWM-räknaren är bara statistik (inget ritas av den). 30 ggr/s första 5 s och sedan 1 gång/s för alltid väckte
+        # processen i onödan hela dagen → numera högst var 10:e sekund (energisnålt).
+        self._pwm_timer.start(PWM_TICK_FLOOR_MS)
         # NY v6.4.1 v5: Z-order periodic check
         self._zorder_timer = QTimer(self)
         self._zorder_timer.timeout.connect(self._periodic_zorder_check)
@@ -459,7 +463,7 @@ class FocusTimersMixin:
                 self._pwm_timer is not None
                 and self._pwm_timer.interval() != interval_ms
             ):
-                self._pwm_timer.setInterval(interval_ms)
+                self._pwm_timer.setInterval(max(interval_ms, PWM_TICK_FLOOR_MS))
         except Exception as _pwm_err:
             logger.debug(
                 f"{LOG_PREFIX} _update_pwm: {_pwm_err}",
@@ -476,7 +480,7 @@ class FocusTimersMixin:
         try:
             interval_ms = self._throttle.current_interval_ms
             if self._pwm_timer is not None:
-                self._pwm_timer.setInterval(interval_ms)
+                self._pwm_timer.setInterval(max(interval_ms, PWM_TICK_FLOOR_MS))
             old_name = getattr(old, "name", str(old))
             new_name = getattr(new, "name", str(new))
             logger.debug(

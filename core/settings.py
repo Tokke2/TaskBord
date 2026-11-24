@@ -194,7 +194,7 @@ VALID_DENSITY_MODES: Final[frozenset] = frozenset(d.value for d in DensityMode)
 # NY v7-fix38: Win+D-säkert skrivbordsläge + fönstertransparens
 VALID_DESKTOP_MODES: Final[frozenset] = frozenset(("above", "behind", "top"))  # top = alltid överst (val i tray)
 DEFAULT_DESKTOP_MODE: Final[str] = "behind"  # v7-fix63: behind = beprövat
-DEFAULT_WINDOW_TRANSPARENCY: Final[float] = 0.85
+DEFAULT_WINDOW_TRANSPARENCY: Final[float] = 0.0   # solid panel = skarpast text (ClearType fungerar inte i genomskinliga fönster)
 
 # NY v7-fix40: enbart ett fönster (Rickard 2026-10-01: "ska enbart visa
 # ett fönster, när man väljer öppna nytt fönster, så ska den enbart

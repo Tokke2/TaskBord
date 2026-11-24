@@ -101,6 +101,12 @@ if _QT:
                                         "Solid panel ger den skarpaste texten; ikonerna på skrivbordet syns då inte genom fönstret.")
             self.solid_check.toggled.connect(self._solid_toggled)
             lay.addWidget(self.solid_check)
+            self.auto_check = QCheckBox("Anpassa textstorleken automatiskt efter skärmen", body)
+            self.auto_check.setChecked(bool(settings.pref("auto_scale")))
+            self.auto_check.setToolTip("Större text på stora skärmar utan Windows-skalning (1440p/4K), något mindre på små. "
+                                       "Vanliga skärmar (t.ex. 1080p på 125 %) påverkas inte. Ligger ovanpå reglaget Textstorlek.")
+            self.auto_check.toggled.connect(self._auto_toggled)
+            lay.addWidget(self.auto_check)
             self.glass_slider.valueChanged.connect(self._sync_solid)
             self.hc_check = QCheckBox("Hög kontrast (svart/vitt, tydliga kanter, text 7:1)", body)
             self.hc_check.setChecked(bool(settings.pref("high_contrast")))
@@ -168,6 +174,10 @@ if _QT:
             self.settings.set_pref("crisp", bool(on))
             self._on_change()
 
+        def _auto_toggled(self, on: bool) -> None:
+            self.settings.set_pref("auto_scale", bool(on))
+            self._on_change()
+
         def _sync_solid(self, v: int) -> None:
             self.solid_check.blockSignals(True)
             self.solid_check.setChecked(int(v) == 0)
@@ -198,9 +208,10 @@ if _QT:
             self.dim_slider.setValue(0)
             self.scale_slider.setValue(100)
             self.hc_check.setChecked(False)
-            self.glass_slider.setValue(15)
+            self.glass_slider.setValue(0)
             self.settings.set_pref("crisp", True)
-            for cb, val in ((self.crisp_check, True), (self.solid_check, False)):
+            self.settings.set_pref("auto_scale", True)
+            for cb, val in ((self.crisp_check, True), (self.solid_check, True), (self.auto_check, True)):
                 cb.blockSignals(True)
                 cb.setChecked(val)
                 cb.blockSignals(False)

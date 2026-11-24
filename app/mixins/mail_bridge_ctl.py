@@ -99,7 +99,7 @@ class MailBridgeMixin:
             # Poll-timer på GUI-tråden: visar notiser/flashar uppgifter
             try:
                 self._mail_bridge_timer = self._QTimer(self._app)
-                self._mail_bridge_timer.setInterval(700)
+                self._mail_bridge_timer.setInterval(1000)
                 self._mail_bridge_timer.timeout.connect(self._poll_mail_bridge)
                 self._mail_bridge_timer.start()
             except Exception as e:

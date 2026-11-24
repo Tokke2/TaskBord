@@ -74,9 +74,10 @@ class ThemeMixin:
     def _look_key(self) -> tuple:
         """Det som ändrar kortens storlek/utseende (ingår i kortens cache-nyckel så de byggs om)."""
         try:
-            return (int(self.settings.pref("text_scale")), str(self.settings.density_mode()), str(self.settings.pref("ui_font")))
+            return (int(self.settings.pref("text_scale")), str(self.settings.density_mode()), str(self.settings.pref("ui_font")),
+                    round(self._auto_scale_factor(), 2))
         except Exception:
-            return (100, "comfortable", "standard")
+            return (100, "comfortable", "standard", 1.0)
 
     # ------------------------------------------------------------ ♿ tillgänglighet (ui/a11y.py)
     def _a11y_install_shortcuts(self) -> None:
@@ -153,10 +154,26 @@ class ThemeMixin:
         except Exception:
             return "standard", 0, False
 
-    def _text_scale_factor(self) -> float:
-        """Textstorlek i % (80–200) som faktor — ovanpå Kompakt/Normal/Stor."""
+    def _auto_scale_factor(self) -> float:
+        """Automatisk faktor efter skärmen fönstret ligger på (core/screen_fit.auto_scale). 1.0 om av eller okänt."""
         try:
-            return int(self.settings.pref("text_scale")) / 100.0
+            if not self.settings.pref("auto_scale"):
+                return 1.0
+            if QGuiApplication.platformName() == "offscreen":
+                return 1.0                      # testmiljö utan riktig skärm
+            from core.screen_fit import auto_scale
+            sh = getattr(self, "_shell", None) or self
+            scr = sh.screen() if hasattr(sh, "screen") else None
+            if scr is None:
+                scr = QGuiApplication.primaryScreen()
+            return float(auto_scale(scr.availableGeometry().width(), float(scr.devicePixelRatio() or 1.0)))
+        except Exception:
+            return 1.0
+
+    def _text_scale_factor(self) -> float:
+        """Textstorlek i % (80–200) som faktor — ovanpå Kompakt/Normal/Stor — gånger skärmens automatiska faktor."""
+        try:
+            return int(self.settings.pref("text_scale")) / 100.0 * self._auto_scale_factor()
         except Exception:
             return 1.0
 

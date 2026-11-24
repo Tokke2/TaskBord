@@ -95,6 +95,9 @@ SPEC: Dict[str, Tuple[Any, Callable[[Any], Any]]] = {
     "autostart_dock": (True, _bool(True)),   # start med datorn: lägg fönstret i skärmkanten (annars göms det i tray)
     "start_min_default": (False, _bool(False)),   # engångsmigrering: "Starta minimerad" blev standard
     # 📆 kalenderprenumerationer (ICS)
+    "auto_scale": (True, _bool(True)),       # textstorleken anpassas automatiskt efter skärmens storlek
+    "crisp_v2": (False, _bool(False)),       # engångsmigrering: solid panel som standard (skarpare)
+    "power_save": (True, _bool(True)),       # energisparläge + minnesstädning när fönstret inte syns
     "ics_subs": ([], _list([], 12)),
 }
 

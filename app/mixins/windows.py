@@ -76,6 +76,15 @@ class WindowsMixin:
         TodoWidget = widget_status.instance["TodoWidget"]
         self._log.info(f"{LOG_PREFIX} TodoWidget class: {TodoWidget}")
 
+        # Engångsmigrering (skarpare bild): den gamla standarden 0,85 (genomskinlig panel) blir solid panel. Eget val
+        # (annat värde än exakt standardvärdet) rörs aldrig, och glaset går att slå på igen i temadialogen.
+        with suppress(Exception):
+            if not self.settings.pref("crisp_v2"):
+                self.settings.set_pref("crisp_v2", True)
+                if abs(float(self.settings.window_transparency()) - 0.85) < 1e-6:
+                    self.settings.set_window_transparency(0.0)
+                    self._log.info(f"{LOG_PREFIX} skarpare bild: genomskinlig standardpanel → solid panel (engångsmigrering)")
+
         try:
             with self._widget_lock:
                 configs = (
@@ -1041,10 +1050,18 @@ class WindowsMixin:
         Rör inte fönster som är gömda i skärmkanten (de ligger medvetet delvis utanför) eller i tray."""
         try:
             from core.screen_fit import clamp_rect, is_inside
-            if getattr(self, "_hidden_to_tray", False):
-                return
             with self._widget_lock:
                 widgets = list(self._widgets.values())
+            for w in widgets:            # skärmen kan ha bytt storlek → textens automatiska faktor kan ha ändrats
+                with suppress(Exception):
+                    f = round(float(w._auto_scale_factor()), 2)
+                    if f != getattr(w, "_last_auto_scale", f):
+                        w._last_auto_scale = f
+                        w._apply_theme()
+                        w._schedule_rebuild()
+                    w._last_auto_scale = f
+            if getattr(self, "_hidden_to_tray", False):
+                return
             for w in widgets:
                 shell = getattr(w, "_shell", None)
                 if shell is None or not shell.isVisible():

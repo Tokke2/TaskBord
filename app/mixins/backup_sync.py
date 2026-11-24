@@ -71,9 +71,9 @@ class BackupSyncMixin:
         self._ext_backup_timer.timeout.connect(lambda: self._external_backup("timer"))
         self._ext_backup_timer.start()
         self._QTimer.singleShot(15_000, lambda: self._external_backup("start"))
-        # FIX v8: fånga upp uppgifter som en ANNAN process skrivit till filerna (3 s)
+        # FIX v8: fånga upp uppgifter som en ANNAN process skrivit till filerna (8 s)
         self._ext_sync_timer = self._QTimer(self._app)
-        self._ext_sync_timer.setInterval(3000)
+        self._ext_sync_timer.setInterval(8000)
         self._ext_sync_timer.timeout.connect(self._sync_external_store)
         self._ext_sync_timer.start()
 

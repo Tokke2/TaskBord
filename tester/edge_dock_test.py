@@ -358,6 +358,35 @@ def child() -> None:
     src = (ROOT / "ui/widget_parts/window_ops.py").read_text(encoding="utf-8")
     ck("högerklicksmenyn har 'Dölj i skärmkanten' med tre kanter", "↔ Dölj i skärmkanten" in src and "Dölj vid vänster kant" in src and "Dölj vid övre kanten" in src and "_dock_to_edge_now" in src)
 
+    # --- energisnål avsökning: långsamt när musen är långt borta, snabbt nära --------------------------------------------------
+    sp, stp, shp, wp, dkp = build("p")
+    place(shp, 500, 120, 340, 648)
+    dkp.dock_now("left")
+    ck("dockad: avsökningen startar snabbt (70 ms)", dkp._timer.interval() == ED.POLL_MS and dkp._timer.isActive())
+    cursor["p"] = (1300, 700)
+    dkp._tick()
+    ck("musen långt borta → ~6 gånger/s (160 ms)", dkp._timer.interval() == ED.POLL_SLOW_MS, dkp._timer.interval())
+    cursor["p"] = (60, 300)
+    dkp._tick()
+    ck("musen nära fönstret/kanten → snabb avsökning igen", dkp._timer.interval() == ED.POLL_MS, dkp._timer.interval())
+    cursor["p"] = (1300, 700)
+    dkp._tick()
+    ck("…och långsamt igen när den åker bort", dkp._timer.interval() == ED.POLL_SLOW_MS)
+    ck("långsam avsökning är fortfarande snabbare än 0,2 s", ED.POLL_SLOW_MS <= 200 and ED.NEAR_PX >= 300)
+    dkp.hide()
+    wait(lambda: dkp.state == "hidden")
+    cursor["p"] = (1300, 700)
+    dkp._tick()
+    ck("gömd + musen långt borta → långsam avsökning", dkp._timer.interval() == ED.POLL_SLOW_MS)
+    cursor["p"] = hz(dkp)
+    dkp._tick()
+    ck("gömd + musen vid kanten → snabb (reveal fungerar som förr)", dkp._timer.interval() == ED.POLL_MS)
+    for _ in range(ED.REVEAL_TICKS + 2):
+        dkp._tick()
+    wait(lambda: dkp.state == "shown")
+    ck("musen vid kanten visar fönstret", dkp.state == "shown", dkp.state)
+    cursor["p"] = (700, 400)
+
     bad = [n for n, ok in res if not ok]
     print("CHILD", len(res) - len(bad), len(bad))
     for n in bad:

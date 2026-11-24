@@ -191,7 +191,7 @@ def child() -> None:
     dlg2.glass_slider.setValue(0)
     ck("reglaget på 0 kryssar i solid panel", dlg2.solid_check.isChecked())
     dlg2.reset()
-    ck("återställ → skarp bild på, solid av", settings.pref("crisp") is True and not dlg2.solid_check.isChecked() and dlg2.crisp_check.isChecked())
+    ck("återställ → skarp bild på, solid panel på", settings.pref("crisp") is True and dlg2.solid_check.isChecked() and dlg2.crisp_check.isChecked())
 
     # --- snabbvalsprickarna (hög/normal/låg) målas var och en på sig själv --------------------------------------------------
     from PySide6.QtCore import qInstallMessageHandler

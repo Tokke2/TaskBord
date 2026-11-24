@@ -104,7 +104,7 @@ MAX_TITLE_LEN: int = 200
 MAX_NOTE_LEN: int = 4000
 MAX_TAGS: int = 10
 MAX_TAG_LEN: int = 24
-DEFAULT_INBOX_POLL_SEC: int = 3
+DEFAULT_INBOX_POLL_SEC: int = 5
 INBOX_MIN_AGE_SEC: float = 0.75          # vänta tills filen slutat växa
 INBOX_MAX_ATTEMPTS: int = 3
 
@@ -1445,7 +1445,7 @@ class MailBridgeServer:
         if httpd is None:
             return
         try:
-            httpd.serve_forever(poll_interval=0.5)
+            httpd.serve_forever(poll_interval=1.0)
         except Exception as e:
             if self._running:
                 logger.error(f"{LOG_PREFIX} server-loop avslutades: {e}",

@@ -65,3 +65,32 @@ def is_inside(rect: Rect, avail: Rect, slack: int = 0) -> bool:
     x, y, w, h = rect
     ax, ay, aw, ah = avail
     return x >= ax - slack and y >= ay - slack and x + w <= ax + aw + slack and y + h <= ay + ah + slack
+
+
+def auto_scale(avail_w: int, dpr: float = 1.0) -> float:
+    """Automatisk textfaktor efter skärmens logiska bredd (användbar yta, efter Windows-skalning).
+
+    Stora skärmar utan skalning (1440p/4K på 100 %) ger liten text → något större; små skärmar → något mindre så att
+    fönstret ryms. Vanliga lägen (1536–2000 px logiskt, t.ex. 1080p på 125 %) lämnas orörda = 1.0.
+    Rundas till 5 %-steg så att typstorlekarna inte hoppar på små skillnader."""
+    try:
+        w = float(avail_w)
+    except (TypeError, ValueError):
+        return 1.0
+    if w <= 0:
+        return 1.0
+    if w >= 3400:
+        f = 1.30
+    elif w >= 2900:
+        f = 1.20
+    elif w >= 2400:
+        f = 1.10
+    elif w >= 2100:
+        f = 1.05
+    elif w <= 1100:
+        f = 0.90
+    elif w <= 1300:
+        f = 0.95
+    else:
+        f = 1.0
+    return round(f * 20) / 20

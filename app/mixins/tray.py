@@ -490,6 +490,20 @@ class TrayMixin:
             self._tray_menu.addAction(minimized_action)
             self._minimized_action_ref = minimized_action
 
+            # Energisparläge (core/power.py): effektivitetsläge + minnesstädning när fönstret inte syns
+            _ps_on = bool(self.settings.pref("power_save")) if hasattr(self.settings, "pref") else True
+            power_action = self._QAction(
+                f"{'✅' if _ps_on else '⚪'}  Energisparläge (när fönstret inte syns)", self._tray_menu)
+            power_action.setCheckable(True)
+            power_action.setChecked(_ps_on)
+            power_action.setToolTip(
+                "När fönstret är gömt i tray eller dockat i skärmkanten kör Ledgebord i Windows effektivitetsläge\n"
+                "och släpper minne. Påminnelser, mailbryggan och snabbtangenter fungerar som vanligt."
+            )
+            power_action.triggered.connect(self._toggle_power_save)
+            self._tray_menu.addAction(power_action)
+            self._power_action_ref = power_action
+
             self._tray_menu.addSeparator()
 
             new_action = self._QAction("➕  Ny uppgift…", self._tray_menu)

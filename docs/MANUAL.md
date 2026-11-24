@@ -798,8 +798,9 @@ Högerklicka fönstret eller tray-ikonen → **🎨 Teman och utseende…**. All
 | **Bakgrundsdjup** | 0–60 %: mörkare bakgrund i mörkt tema, ljusare i ljust — mer kontrast mot texten. |
 | **Hög kontrast** | Svart/vitt, heltäckande ytor, tjocka kanter, tydliga röda/gula varningsfärger och text med minst 7:1 (WCAG AAA). Följer ljust/mörkt tema. |
 | **Skarp bild** | På som standard: full hinting på texten (glyferna läggs på hela bildpunkter) och ingen mjuk accentglöd över panelens överdel. |
-| **Solid panel** | Ingen genomskinlighet alls = skarpast text. Genomskinliga fönster får grånyans-kantutjämning i stället för Windows ClearType, och skrivbordet skimrar igenom texten — välj solid panel om texten känns grumlig. |
+| **Solid panel** | **Standard.** Ingen genomskinlighet alls = skarpast text (äldre installationer med den gamla standarden 0,85 görs solida en gång vid uppdateringen; egna val rörs aldrig). Genomskinliga fönster får grånyans-kantutjämning i stället för Windows ClearType, och skrivbordet skimrar igenom texten — välj solid panel om texten känns grumlig. |
 | **Textstorlek** | 80–200 % (se nedan). |
+| **Anpassa textstorleken automatiskt efter skärmen** | På som standard. Större text på stora skärmar utan Windows-skalning (1440p ≈ +10 %, 4K ≈ +30 %), något mindre på små (≤ 1300 px). Vanliga skärmar, t.ex. 1080p på 125 %, påverkas inte. Ligger ovanpå reglaget Textstorlek. |
 | **↺ Återställ utseendet** | Tillbaka till standard. |
 
 Temat följer fortfarande ljust/mörkt/auto/Följ Windows — färgtemat läggs ovanpå.
@@ -807,6 +808,8 @@ Temat följer fortfarande ljust/mörkt/auto/Följ Windows — färgtemat läggs 
 **Bredd och ikoner:** standardfönstret är nu 420×700 (förut 340×648), så titelraden, de fyra flikarna och inmatningsfältet ryms utan att kapas. Tray → *Fönsterstorlek* har Smal (340), Standard (420), Bred (560) och Extra bred (720) — eget val av storlek ändras aldrig. Ett fönster som fortfarande har den gamla standardstorleken görs bredare en gång vid första starten efter uppdateringen. Knapparna i titelraden (uppdatera, lås, minimera, stäng) är ritade vektorikoner i textfärgen, så de är skarpa, följer temat och ser likadana ut på alla datorer.
 
 **Anpassar sig till skärmen:** tray → *Fönsterstorlek* → *🖥 Anpassa till skärmen* väljer en storlek efter den skärm fönstret ligger på (ca 24 % av bredden, 400–560 px, och ca 90 % av höjden) avrundad nedåt till **hela bildpunkter** — vid 125 % eller 175 % skalning ger udda storlekar annars en halv bildpunkts kant och suddig text. Om en skärm kopplas ur, byter upplösning eller skalning flyttas och krymps fönstret automatiskt så att det alltid ryms (ett fönster som ligger gömt i skärmkanten eller i tray rörs inte). Appen använder dessutom Qts exakta skalfaktor (125 % = 1,25) i stället för en avrundad.
+
+**Energisnål och minnessnål:** när fönstret inte syns (gömt i tray, dockat i skärmkanten eller minimerat) slås Windows *effektivitetsläge* på för Ledgebord efter ca 45 sekunder — samma läge som i Aktivitetshanteraren — och minnet städas (skräpsamling + släpp arbetsset; därefter högst var 20:e minut). Visas fönstret igen stängs läget av direkt. Påminnelser, mailbryggan och snabbtangenter fungerar som vanligt. Av/på: tray → *Energisparläge*. Dessutom tickar interna timers glesare: skärmkantsdockningen kollar musen ~6 gånger/s i stället för 14 när musen är långt från fönstret (snabbt igen när den närmar sig kanten), den interna statistikräknaren högst var 10:e sekund (förr 30 gånger/s i 5 sekunder och sedan 1 gång/s för alltid), och brygg-, inkorgs- och extern-synk-kontrollerna något glesare.
 
 ### ♿ Tillgänglighet
 * **Textstorlek upp till 200 %:** reglaget i temadialogen eller **Ctrl + Plus / Ctrl + Minus**, **Ctrl + 0** = 100 %. Ligger ovanpå Kompakt/Normal/Stor.
