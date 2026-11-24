@@ -2088,9 +2088,12 @@ def get_recent_app_events(
     Returns:
         Lista av event-dicts, sorterade i kronologisk ordning (äldsta först)
     """
+    today = _datetime.now().date()
     with _central_events_lock:
-        # Senaste N events (fran slutet av deque)
-        events_snapshot = list(_central_events)[-count:]
+        events_snapshot = [
+            event for event in _central_events
+            if _datetime.fromtimestamp(event.timestamp).date() == today
+        ][-count:] if count > 0 else []
     # Filtrera
     level_priority = {
         "DEBUG": 10, "TRACE": 5, "INFO": 20, "WARNING": 30,
@@ -3808,11 +3811,8 @@ class AppController:
             f"{LOG_PREFIX} === DIAGNOSTIK KLAR ==="
         )
         # NY 2026-09-23: Smart cache — rensa __pycache__ varje fredag
-        # NY 2026-09-25: Smart log-cleanup — rensa ALLA gamla loggar (behåll dagens)
         with suppress(Exception):
             self._run_friday_pycache_cleanup(at_startup=True)
-        with suppress(Exception):
-            self._run_friday_log_cleanup(at_startup=True)
 
     def _get_app_health_status(self) -> Dict[str, Any]:
         """
@@ -7911,8 +7911,6 @@ class AppController:
         # Smart cache: fångar också om appen stannar öppen över till fredag
         with suppress(Exception):
             self._run_friday_pycache_cleanup(at_startup=False)
-        with suppress(Exception):
-            self._run_friday_log_cleanup(at_startup=False)
 
     def _run_friday_pycache_cleanup(self, at_startup: bool = False) -> None:
         """
@@ -7947,50 +7945,6 @@ class AppController:
             )
         elif result.get("reason") not in ("inte_fredag", "redan_rensad_denna_vecka"):
             self._log.debug(f"{LOG_PREFIX} [CACHE] friday_pycache: {result}")
-
-    def _run_friday_log_cleanup(self, at_startup: bool = False) -> None:
-        """
-        NY 2026-09-25: Log-rensning varje fredag.
-        Behåll ENDAST dagens log-fil (todo_app.log + aktuell backup).
-        Anropas vid start + via _periodic_cleanup (5 min).
-        """
-        utils_status = self._imports.get("utils")
-        if not utils_status or not utils_status.ok:
-            return
-        inst = utils_status.instance
-        fn = getattr(inst, "smart_friday_log_cleanup", None)
-        if fn is None and isinstance(inst, dict):
-            mod = inst.get("utils") or next(
-                (v for v in inst.values() if hasattr(
-                    v, "smart_friday_log_cleanup"
-                )),
-                None,
-            )
-            fn = getattr(mod, "smart_friday_log_cleanup", None)
-        if fn is None:
-            self._log.debug(
-                f"{LOG_PREFIX} [CACHE] smart_friday_log_cleanup saknas"
-            )
-            return
-        try:
-            data_dir = str(getattr(self, "_SCRIPT_DIR", SCRIPT_DIR) / "data")
-        except Exception:
-            data_dir = str(SCRIPT_DIR / "data")
-        result = fn(data_path=data_dir, force=False)
-        if result.get("ran"):
-            self._log.info(
-                f"{LOG_PREFIX} [CACHE] Fredags-loggrensning: "
-                f"behöll={result.get('logs_kept')} "
-                f"raderade={result.get('logs_removed')} "
-                f"({result.get('week')}, idag={result.get('today_key')}, "
-                f"start={at_startup})"
-            )
-        elif result.get("reason") not in (
-            "inte_fredag", "redan_rensad_denna_vecka"
-        ):
-            self._log.debug(
-                f"{LOG_PREFIX} [CACHE] friday_log_cleanup: {result}"
-            )
 
     def _refresh_metrics(self) -> None:
         """Uppdatera performance-metrics + tooltip."""
@@ -8945,18 +8899,6 @@ class AppController:
             # NY v7-fix25: Full cache-rensning
             with suppress(Exception):
                 self._cleanup_all_caches()
-
-            # NY v7-fix28: Logg-rensning — 3 dagars retention
-            with suppress(Exception):
-                from utils import cleanup_old_logs
-                _lr = cleanup_old_logs(
-                    data_path=str(SCRIPT_DIR / "data"), max_age_days=3
-                )
-                if _lr.get("removed"):
-                    self._log.info(
-                        f"{LOG_PREFIX} Logg-rensning: "
-                        f"{_lr['removed']} gamla loggar raderade"
-                    )
 
             # 5. Flush logging
             for handler in logging.getLogger().handlers:

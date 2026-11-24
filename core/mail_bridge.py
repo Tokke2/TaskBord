@@ -1753,6 +1753,7 @@ class InboxWatcher(threading.Thread):
 
     def _process(self, path: Path) -> bool:
         """Importera en fil. True = klar (även dublett räknas som klar)."""
+        issue_key = f"inbox-import:{path.name}"
         suffix = path.suffix.lower()
         try:
             if suffix in (".eml", ".msg"):
@@ -1763,8 +1764,9 @@ class InboxWatcher(threading.Thread):
             elif suffix == ".json":
                 data = _read_json(path, None)
                 if data is None:
-                    logger.warning(
-                        f"{LOG_PREFIX} inkorg: {path.name} är inte giltig JSON"
+                    logger.error(
+                        f"{LOG_PREFIX} inkorg: {path.name} är inte giltig JSON",
+                        extra={"issue_key": issue_key},
                     )
                     return False
                 payload = data if isinstance(data, dict) else {"_batch": data}
@@ -1776,6 +1778,7 @@ class InboxWatcher(threading.Thread):
             logger.error(
                 f"{LOG_PREFIX} inkorg: {path.name} kunde inte importeras: {e}",
                 exc_info=True,
+                extra={"issue_key": issue_key},
             )
             return False
 
@@ -1786,11 +1789,20 @@ class InboxWatcher(threading.Thread):
         else:
             self.failures += 1
             self.last_error = str(res.get("error"))
-            logger.warning(
+            logger.error(
                 f"{LOG_PREFIX} inkorg: {path.name} misslyckades: "
-                f"{res.get('error')}"
+                f"{res.get('error')}",
+                extra={"issue_key": issue_key},
             )
             return False
+        try:
+            from .logger_setup import resolve_log_issue
+        except ImportError:
+            try:
+                from logger_setup import resolve_log_issue
+            except ImportError:
+                from core.logger_setup import resolve_log_issue
+        resolve_log_issue(issue_key)
         if self.on_import is not None:
             try:
                 self.on_import(

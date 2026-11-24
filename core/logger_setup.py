@@ -3,7 +3,7 @@
 logger_setup.py — Centraliserad loggning (NYTT v6.4) — v6.4.1 v7 (EN fil, AI-säker)
 =====================================================================================================
 ALLT hamnar i EN fil (Rickard 2026-09-22):
-  • data/todo_app.log                (alla events, DEBUG+, daily-rotating, 7 backups)
+  • data/todo_app.log                (alla events, DEBUG+, daglig rotation, arkiv i data/logs/archive/)
 
 Ingen app_*.log / debug_*.log / session_*.log längre.
 
@@ -24,6 +24,11 @@ Användning:
 """
 from __future__ import annotations
 
+import hashlib
+import json
+import re
+import tempfile
+import uuid
 import io
 import logging
 import logging.handlers
@@ -148,6 +153,8 @@ def safe_run(
     )
     try:
         yield ctx
+        if log_errors and not ctx["errors"]:
+            resolve_log_issue(f"safe_run:{operation_name}")
         duration = (time.perf_counter() - start) * 1000
         _module_logger.debug(
             f"{LOG_PREFIX} safe_run OK: {operation_name} ({duration:.2f}ms)"
@@ -160,7 +167,9 @@ def safe_run(
             _module_logger.error(
                 f"{LOG_PREFIX} safe_run FEL: {operation_name} "
                 f"({duration:.2f}ms, kategori={category}): "
-                f"{_describe_logger_exception(exc)}"
+                f"{_describe_logger_exception(exc)}",
+                extra={"issue_key": f"safe_run:{operation_name}"},
+                exc_info=True,
             )
         if reraise:
             raise
@@ -272,7 +281,7 @@ __all__ = [
     # Classes
     "DetailedFormatter", "StreamToLogger",
     # Setup functions
-    "setup_full_logging", "quick_setup",
+    "setup_full_logging", "quick_setup", "resolve_log_issue",
     "exception_hook", "thread_excepthook",
     # Log analysis
     "get_recent_logs", "search_logs", "get_log_stats",
@@ -556,25 +565,23 @@ class WinSafeTimedRotatingFileHandler(logging.handlers.TimedRotatingFileHandler)
             f"nivå2={_describe_logger_exception(err2) if err2 else 'ok'}"
         )
 
-    # --------------------------------------------------------- doRollover --
     def doRollover(self) -> None:
-        """Stdlib-rollover med hårt skal — kraschar ALDRIG emit-pipelinen."""
+        if self.stream:
+            self.stream.close()
+            self.stream = None
+        source = Path(self.baseFilename)
         try:
-            super().doRollover()
-        except OSError as e:
-            # T.ex. backup-städning (os.remove på låst gammal .log.N).
-            # Avanza rolloverAt så vi inte retry-spammar vid varje emit.
-            self.rolloverAt = self.computeRollover(time.time())
-            self._warn_rollover(
-                f"rotation misslyckades (backup-städning?): "
-                f"{_describe_logger_exception(e)} — loggen fortsätter"
-            )
-            return
+            if source.exists():
+                day = datetime.fromtimestamp(source.stat().st_mtime).strftime("%Y%m%d")
+                archive = source.parent / "logs" / "archive"
+                archive.mkdir(parents=True, exist_ok=True)
+                target = _archive_target(archive, f"{source.name}.{day}")
+                self.rotate(str(source), str(target))
+        except OSError as exc:
+            self._rotate_failed_reason = str(exc)
+        self.rolloverAt = self.computeRollover(int(time.time()))
         if self._rotate_failed_reason:
-            self._warn_rollover(
-                f"loggfil låst av annan process — fortsätter i befintlig "
-                f"fil ({self._rotate_failed_reason})"
-            )
+            self._warn_rollover(self._rotate_failed_reason)
 
     # ----------------------------------------------------------- varning ---
     def _warn_rollover(self, message: str) -> None:
@@ -605,6 +612,90 @@ class WinSafeTimedRotatingFileHandler(logging.handlers.TimedRotatingFileHandler)
 # ===========================================================================
 # SETUP: Allt-i-ett
 # ===========================================================================
+
+def _archive_target(archive: Path, name: str) -> Path:
+    target = archive / name
+    if target.exists():
+        target = archive / f"{name}.{uuid.uuid4().hex}"
+    return target
+
+
+def _archive_legacy_logs(data_dir: Path) -> None:
+    logs = data_dir / "logs"
+    archive = logs / "archive"
+    for folder in (data_dir, logs):
+        for source in folder.iterdir() if folder.is_dir() else ():
+            if not re.fullmatch(
+                r"todo_app\.log\.(?:\d+|\d{4}-\d{2}-\d{2})|"
+                r"(?:app|debug|session)_\d{8}(?:_\d{6})?\.log",
+                source.name,
+            ) or not source.is_file():
+                continue
+            archive.mkdir(parents=True, exist_ok=True)
+            source.rename(_archive_target(archive, source.name))
+
+
+class UnresolvedIssueHandler(logging.Handler):
+    """Beständig felsökningslogg, separat från den dagliga historiken."""
+
+    def __init__(self, path: Path) -> None:
+        super().__init__(logging.ERROR)
+        self.path = path
+
+    def update(self, key: str, record: Optional[logging.LogRecord] = None) -> None:
+        with self.lock:
+            try:
+                issues = json.loads(self.path.read_text(encoding="utf-8"))
+            except FileNotFoundError:
+                issues = {}
+            if record is None:
+                if key not in issues:
+                    return
+                del issues[key]
+            else:
+                stamp = datetime.fromtimestamp(record.created).isoformat(timespec="seconds")
+                previous = issues.get(key, {})
+                issues[key] = {
+                    "first_seen": previous.get("first_seen", stamp),
+                    "last_seen": stamp,
+                    "count": previous.get("count", 0) + 1,
+                    "details": self.format(record),
+                }
+            with tempfile.NamedTemporaryFile(
+                mode="w", encoding="utf-8", dir=self.path.parent, delete=False,
+            ) as output:
+                temp = Path(output.name)
+                try:
+                    json.dump(issues, output, ensure_ascii=False, indent=2)
+                    output.write("\n")
+                    output.close()
+                    temp.replace(self.path)
+                finally:
+                    output.close()
+                    temp.unlink(missing_ok=True)
+
+    def emit(self, record: logging.LogRecord) -> None:
+        key = getattr(record, "issue_key", None)
+        if not key:
+            identity = f"{record.name}:{record.module}:{record.funcName}:{record.getMessage()}"
+            key = "log:" + hashlib.sha256(identity.encode("utf-8", "replace")).hexdigest()[:20]
+        try:
+            self.update(key, record)
+        except (OSError, ValueError):
+            # Skriv inte via logging här: det kan återanropa samma handler.
+            with suppress(Exception):
+                sys.__stderr__.write("[LOG] Kunde inte uppdatera felsökningsloggen.\n")
+
+
+def resolve_log_issue(issue_key: str) -> None:
+    """Rensa ett exakt fel-ID efter en bekräftad lyckad kontroll."""
+    for handler in logging.getLogger().handlers:
+        if getattr(handler, "name", None) == "taskbord.unresolved_issues":
+            try:
+                handler.update(issue_key)
+            except (OSError, ValueError):
+                _module_logger.warning("Kunde inte rensa felsökningsloggen: %s", issue_key)
+
 
 def setup_full_logging(
     data_dir: Optional[Path] = None,
@@ -670,14 +761,27 @@ def setup_full_logging(
         log_path,
         when="midnight",
         interval=1,
-        backupCount=7,  # Behåll 7 dagars historik
+        backupCount=0,  # Arkivet rensas inte automatiskt
         encoding="utf-8",
         delay=True,
     )
     file_handler.setLevel(logging.DEBUG)  # Fånga ALLT
     file_handler.setFormatter(detailed_fmt)
-    file_handler.suffix = "%Y%m%d"
+    try:
+        last_day = datetime.fromtimestamp(log_path.stat().st_mtime).date()
+    except OSError:
+        last_day = None
+    if last_day is not None and last_day < datetime.now().date():
+        file_handler.doRollover()
     root.addHandler(file_handler)
+    issues = UnresolvedIssueHandler(data_dir / "felsokning.json")
+    issues.set_name("taskbord.unresolved_issues")
+    issues.setFormatter(detailed_fmt)
+    root.addHandler(issues)
+    try:
+        _archive_legacy_logs(data_dir)
+    except OSError as exc:
+        _module_logger.warning("Kunde inte arkivera äldre loggar: %s", exc)
 
     # 8. === STDOUT/STDERR → fil (om aktiverat) ===
     if capture_stdout:
@@ -903,12 +1007,11 @@ def search_logs(
     """
     if not query:
         return []
-    # EN fil (v6.4.1 v7): sök i todo_app.log + roterade backups
+    # Sök bara i den aktiva loggen.
     single = _resolve_log_file(logs_dir)
     log_files: List[Path] = []
     if single is not None:
-        search_dir = single.parent
-        log_files = sorted(search_dir.glob(f"{SINGLE_LOG_NAME}*"), reverse=True)
+        log_files = [single]
     if not log_files:
         return []
     results: List[Dict[str, Any]] = []
@@ -955,11 +1058,11 @@ def get_log_stats(logs_dir: Optional[Path] = None) -> Dict[str, Any]:
         >>> stats = get_log_stats()
         >>> print(f"Errors: {stats['by_level'].get('ERROR', 0)}")
     """
-    # EN fil (v6.4.1 v7): data/todo_app.log (+ roterade backups)
+    # Statistik för dagens logg, inte arkivet.
     single = _resolve_log_file(logs_dir)
     files: List[Path] = []
     if single is not None:
-        files = list(single.parent.glob(f"{SINGLE_LOG_NAME}*"))
+        files = [single] if single.is_file() else []
     if not files:
         return {
             "total_files": 0,
@@ -1030,7 +1133,7 @@ def create_log_snapshot(logs_dir: Optional[Path] = None) -> Dict[str, Any]:
     single = _resolve_log_file(logs_dir)
     # "session_count" = antal roterade backup-filer (todo_app.log.*)
     backups = (
-        list(single.parent.glob(f"{SINGLE_LOG_NAME}.*"))
+        list((single.parent / "logs" / "archive").glob(f"{SINGLE_LOG_NAME}.*"))
         if single is not None
         else []
     )

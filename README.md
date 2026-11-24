@@ -69,3 +69,12 @@ TaskBord är gratis och utan reklam. Donationer är helt frivilliga och går til
 - ☕ **Ko-fi:** https://ko-fi.com/tokke2
 
 Du hittar samma länkar i appen: högerklicka på fönstret och välj **💖 Stöd TaskBord…**.
+
+## Loggar och felsökning
+
+- **Dagens logg:** `data/todo_app.log`. Vanlig loggsökning och loggstatistik visar den aktiva loggen, inte arkivet.
+- **Historik:** äldre loggfiler flyttas till `data/logs/archive/`. Dagsloggen roteras vid första logghändelsen efter lokal midnatt eller när appen startas nästa dag. Arkivet raderas inte automatiskt.
+- **Olösta fel:** `data/felsokning.json` skapas när ett fel loggas (`ERROR` eller `CRITICAL`). Upprepningar sammanförs med antal, första och senaste tidpunkt samt senaste feldetaljer. Listan finns kvar efter omstart. Redan arkiverade loggar läses inte in som olösta fel.
+- **Automatisk rensning:** när appen kan bekräfta att samma operation lyckades tas dess felpost bort, till exempel när en tidigare misslyckad inkorgsfil importeras på nytt med samma namn. Utan ett uttryckligt besked om att felet är löst ligger posten kvar. Logghistoriken ändras inte när en felpost rensas.
+
+För kod med en verifierbar återhämtning: logga felet med `extra={"issue_key": "stabilt-fel-id"}` och anropa `resolve_log_issue("stabilt-fel-id")` endast efter bekräftad framgång för samma operation.

@@ -195,7 +195,7 @@ curl -X POST http://127.0.0.1:8765/task \
 | *”Kunde inte nå TaskBord”* i tillägget | Starta appen. Kontrollera tray → 📧 E-post & Thunderbird att **Brygga** är ✅. Testa `http://127.0.0.1:8765` i webbläsaren. |
 | *”Token stämmer inte”* | Gör om steg 3: kopiera inställningarna på nytt och klistra in i tillägget. (Om du klickat *Skapa ny token* i appen måste tillägget uppdateras.) |
 | Porten 8765 är upptagen | Appen väljer automatiskt nästa lediga port och skriver den till `data/mail_bridge/bridge_status.json` — kopiera inställningarna igen efter bytet, eller sätt `mail_bridge_port` i `data/settings.json`. |
-| Uppgiften kommer inte in | Titta i loggen: `data/logs/app_*.log` — sök efter `[MAILBRIDGE]`. Kör även `python core/mail_bridge.py` (självtest) för att verifiera bryggan. |
+| Uppgiften kommer inte in | Titta i loggen: `data/todo_app.log` — sök efter `[MAILBRIDGE]`. Kör även `python core/mail_bridge.py` (självtest) för att verifiera bryggan. |
 | Mailet hamnade i kön | Appen kördes inte. Starta den — kön skickas inom en minut (badge på tilläggsikonen visar antalet). |
 | Vill börja om från noll | Ta bort `data/mail_bridge/imported.json` (dedup-registret) så kan samma mail importeras igen. Ändringar i `data/active.json` bör ske när appen är avstängd. |
 
