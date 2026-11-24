@@ -1,0 +1,424 @@
+#!/usr/bin/env python3
+"""
+edge_dock_test.py — dockning vid skärmkant: geometrin (core/edge_dock.py) och EdgeDocker på en riktig
+TodoWidget (offscreen) med skenskärmar, skenmus och riktiga släpp-händelser.
+
+Kör:  python tester/edge_dock_test.py
+"""
+from __future__ import annotations
+
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "core"))
+sys.path.insert(0, str(ROOT / "ui"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+_ok = _fail = 0
+
+
+def check(name, cond, extra=""):
+    global _ok, _fail
+    if cond:
+        _ok += 1
+    else:
+        _fail += 1
+        print(f"  ✗ {name} {extra}")
+
+
+def geometry_tests() -> None:
+    from core import edge_dock as E
+    S = (0, 0, 1536, 864)
+    check("detect: nära vänster", E.detect_edge((6, 100, 340, 648), S) == "left")
+    check("detect: över kanten räknas", E.detect_edge((-30, 100, 340, 648), S) == "left")
+    check("detect: övre kanten även för ett högt fönster (760 px på 816 px arbetsyta)", E.detect_edge((300, 8, 340, 760), (0, 0, 1536, 816)) == "top")
+    check("detect: fönster högre än skärmen kan inte gömmas uppåt", E.detect_edge((300, 0, 340, 900), (0, 0, 1536, 816)) is None)
+    check("detect: höger", E.detect_edge((1536 - 340 - 3, 100, 340, 648), S) == "right")
+    check("detect: övre kanten", E.detect_edge((500, 4, 340, 300), S) == "top")
+    check("detect: mitt på skärmen → None", E.detect_edge((400, 100, 340, 648), S) is None)
+    check("detect: längre än snap → None", E.detect_edge((15, 100, 340, 648), S) is None)
+    check("detect: närmaste kant vinner", E.detect_edge((3, 8, 340, 300), S) == "left")
+    check("detect: kant som inte är tillåten → None", E.detect_edge((2, 100, 340, 648), S, allowed={"right"}) is None)
+    check("detect: för brett fönster dockas inte åt sidan", E.detect_edge((0, 100, 1400, 300), S) is None)
+    check("shown: vänster flush", E.shown_rect((9, 100, 340, 648), S, "left") == (0, 100, 340, 648))
+    check("shown: höger flush", E.shown_rect((1190, 100, 340, 648), S, "right") == (1196, 100, 340, 648))
+    check("shown: överkant + klampad i sidled", E.shown_rect((-50, 9, 340, 300), S, "top") == (0, 0, 340, 300))
+    check("shown: klampas i höjd längs kanten", E.shown_rect((0, 500, 340, 648), S, "left") == (0, 216, 340, 648))
+    sh = E.shown_rect((0, 100, 340, 648), S, "left")
+    check("hidden: vänster, 5 px kvar", E.hidden_rect(sh, S, "left") == (-335, 100, 340, 648))
+    shr = E.shown_rect((1190, 100, 340, 648), S, "right")
+    check("hidden: höger, 5 px kvar", E.hidden_rect(shr, S, "right") == (1531, 100, 340, 648))
+    sht = E.shown_rect((500, 0, 340, 300), S, "top")
+    check("hidden: överkant", E.hidden_rect(sht, S, "top") == (500, -295, 340, 300))
+    check("reveal: musen vid vänsterkanten på fönstrets höjd", E.reveal_hit((0, 300), sh, S, "left"))
+    check("reveal: över list-bredden räcker", E.reveal_hit((4, 300), sh, S, "left"))
+    check("reveal: för långt in → nej", not E.reveal_hit((20, 300), sh, S, "left"))
+    check("reveal: vid kanten men utanför fönstrets höjd → nej", not E.reveal_hit((0, 5), sh, S, "left"))
+    check("reveal: lite tolerans längs kanten", E.reveal_hit((0, 100 - 10), sh, S, "left"))
+    check("reveal: höger", E.reveal_hit((1535, 300), shr, S, "right"))
+    check("reveal: övre", E.reveal_hit((600, 0), sht, S, "top") and not E.reveal_hit((100, 0), sht, S, "top"))
+    check("reveal: utanför skärmen → nej", not E.reveal_hit((-1, 300), sh, S, "left"))
+    check("keep_shown: på fönstret", E.keep_shown((100, 300), sh))
+    check("keep_shown: nära (marginal)", E.keep_shown((350, 300), sh))
+    check("keep_shown: långt bort → nej", not E.keep_shown((600, 300), sh))
+    two = [(0, 0, 1920, 1080), (1920, 0, 1920, 1080)]
+    check("outer: vänster skärm saknar högerkant", E.outer_edges(two[0], two) == {"left", "top"})
+    check("outer: höger skärm saknar vänsterkant", E.outer_edges(two[1], two) == {"right", "top"})
+    check("outer: enda skärm har alla", E.outer_edges(S, [S]) == {"left", "right", "top"})
+    stacked = [(0, 0, 1920, 1080), (0, -1080, 1920, 1080)]
+    check("outer: skärm ovanför stänger överkanten", "top" not in E.outer_edges(stacked[0], stacked))
+    check("screen_for: största överlappet", E.screen_for((1900, 100, 340, 600), two) == two[1])
+    check("lerp: start/slut", E.lerp_point((0, 0), (100, 50), 0) == (0, 0) and E.lerp_point((0, 0), (100, 50), 1) == (100, 50))
+    check("lerp: monoton", E.lerp_point((0, 0), (100, 0), 0.3)[0] < E.lerp_point((0, 0), (100, 0), 0.6)[0])
+
+
+def child() -> None:
+    os.environ["QT_QPA_PLATFORM"] = "offscreen"
+    from PySide6.QtCore import QEvent, QPointF, Qt
+    from PySide6.QtGui import QMouseEvent
+    from PySide6.QtTest import QTest
+    from PySide6.QtWidgets import QApplication, QVBoxLayout, QWidget
+
+    app = QApplication([])
+    from core.settings import Settings
+    from core.store import TaskStore
+    import widget as W
+    import ui.edge_dock as ED
+
+    res: list = []
+
+    def ck(name, cond, extra=""):
+        res.append((name + (" " + str(extra) if not cond and extra else ""), bool(cond)))
+
+    ED.HIDE_DELAY_S = 0.06
+
+    def wait(cond, ms=3000):
+        t = 0
+        while not cond() and t < ms:
+            QTest.qWait(20)
+            t += 20
+        return cond()
+
+    tmp = Path(tempfile.mkdtemp(prefix="taskbord_dock_"))
+    S = (0, 0, 1536, 864)
+    screens = [(S, S)]
+    cursor = {"p": (700, 400), "btn": False}
+
+    def build(name):
+        settings = Settings(str(tmp / f"{name}.json"))
+        store = TaskStore(data_dir_override=tmp / f"data_{name}")
+        shell = QWidget()
+        w = W.TodoWidget(app.primaryScreen(), store, settings, win_id="t", parent=shell)
+        lay = QVBoxLayout(shell)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.addWidget(w)
+        w._shell = shell
+        shell.resize(340, 648)
+        shell.show()
+        shell.move(400, 100)
+        app.processEvents()
+        dk = ED.EdgeDocker(w, settings, "t", screens_fn=lambda: screens,
+                           cursor_fn=lambda: cursor["p"], buttons_fn=lambda: cursor["btn"], anim_ms=40)
+        w._edge_dock = dk
+        return settings, store, shell, w, dk
+
+    def place(sh, x, y, ww, hh):
+        sh.resize(ww, hh)
+        sh.move(x, y)
+        app.processEvents()
+
+    def near(a, b):  # offscreen-plattformen klampar negativa lägen med ±2 px
+        return abs(a - b) <= 2
+
+    def hz(d):
+        z = d.handle_zone()
+        return (z[0] + z[2] // 2, z[1] + z[3] // 2) if z else (0, 300)
+
+    def saved(settings):
+        return [c for c in settings.window_configs() if c.get("id") == "t"][0]
+
+    def release(w):
+        w._drag_active = True
+        ev = QMouseEvent(QEvent.Type.MouseButtonRelease, QPointF(5, 5), QPointF(5, 5),
+                         Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier)
+        w.mouseReleaseEvent(ev)
+        app.processEvents()
+
+    settings, store, shell, w, dk = build("a")
+
+    # --- släpp mitt på skärmen: inget händer ------------------------------------------------------------
+    release(w)
+    ck("mitt på skärmen: inte dockat", dk.state == "idle" and shell.x() == 400 and settings.edge_dock_edge() == "", (dk.state, shell.x(), settings.edge_dock_edge()))
+
+    # --- släpp nära vänsterkanten → dockas ----------------------------------------------------------------
+    shell.move(7, 100)
+    release(w)
+    ck("släpp nära vänsterkanten dockar", dk.state == "shown" and dk.edge == "left")
+    ck("…och fönstret ligger kant i kant (x=0)", shell.x() == 0 and shell.y() == 100)
+    ck("…dockningen sparas i inställningarna", settings.edge_dock_edge() == "left")
+    ck("…och det synliga läget är sparat (x=0)", saved(settings)["x"] == 0)
+
+    # --- musen kvar på fönstret → gömmer sig inte ----------------------------------------------------------
+    cursor["p"] = (100, 300)
+    QTest.qWait(300)
+    ck("musen på fönstret: det stannar framme", dk.state == "shown" and shell.x() == 0)
+
+    # --- musen går bort → glider ut -------------------------------------------------------------------------
+    cursor["p"] = (900, 500)
+    ck("musen borta: fönstret gömmer sig", wait(lambda: dk.state == "hidden"))
+    ck("…med 5 px kvar vid kanten", near(shell.x(), -335) and near(shell.x() + shell.width(), 5), (shell.x(), shell.width()))
+    # det som sparas är ALLTID det synliga läget
+    w._save_geometry_now()
+    ck("gömt: spara geometri skriver det synliga läget (x=0)", saved(settings)["x"] == 0)
+    settings.update_window_position("t", shell.x(), shell.y())
+    ck("gömt: spara position skriver det synliga läget", saved(settings)["x"] == 0)
+    settings.update_window_geometry("t", -335, 100, 340, 648)
+    ck("gömt: update_window_geometry också", saved(settings)["x"] == 0 and saved(settings)["w"] == 340)
+
+    # --- musen nuddar kanten → glider in ---------------------------------------------------------------------
+    cursor["p"] = (900, 200)
+    QTest.qWait(300)
+    ck("musen långt från kanten: förblir gömt", dk.state == "hidden")
+    cursor["p"] = (0, 5)
+    QTest.qWait(300)
+    ck("musen vid kanten men utanför fönstrets höjd: förblir gömt", dk.state == "hidden")
+    cursor["p"] = hz(dk)
+    cursor["btn"] = True
+    QTest.qWait(300)
+    ck("musknapp nedtryckt (t.ex. rullist): visas inte", dk.state == "hidden")
+    cursor["btn"] = False
+    ck("musen nuddar kanten: fönstret glider in", wait(lambda: dk.state == "shown"))
+    ck("…och ligger flush igen", shell.x() == 0)
+    ck("…det synliga läget är fortfarande sparat", saved(settings)["x"] == 0)
+    # svisch förbi kanten (en enda avläsning) räcker inte
+    cursor["p"] = (900, 500)
+    wait(lambda: dk.state == "hidden")
+    cursor["p"] = hz(dk)
+    dk._tick()
+    cursor["p"] = (900, 500)
+    QTest.qWait(250)
+    ck("en snabb svisch förbi kanten visar inte fönstret", dk.state == "hidden")
+
+    # --- fönstret är upptaget → gömmer sig inte -----------------------------------------------------------------
+    cursor["p"] = hz(dk)
+    wait(lambda: dk.state == "shown")
+    w.input_field.setText("skriver något")
+    shell.activateWindow()
+    app.processEvents()
+    cursor["p"] = (900, 500)
+    QTest.qWait(300)
+    ck("text i inmatningsfältet: fönstret gömmer sig inte", dk.state == "shown")
+    w.input_field.clear()
+    ck("tomt fält igen: gömmer sig", wait(lambda: dk.state == "hidden"))
+    dk.reveal()
+    wait(lambda: dk.state == "shown")
+    dk.pin(True)
+    QTest.qWait(300)
+    ck("pin (Ctrl+Alt+V hålls): stannar framme", dk.state == "shown")
+    dk.pin(False)
+    ck("pin av: gömmer sig igen", wait(lambda: dk.state == "hidden"))
+    w._edge_dock_reveal()
+    ck("reveal() från appen (t.ex. push-to-show) glider fram", wait(lambda: dk.state == "shown"))
+
+    # --- storleksändring medan det är framme: dockas om ----------------------------------------------------------
+    shell.resize(380, 648)
+    ck("ny bredd medan framme: dockningen behålls och ligger flush", wait(lambda: dk._rect()[2] == 380 and shell.x() == 0 and dk.state == "shown"))
+
+    # --- dra bort → dockningen släpps ------------------------------------------------------------------------------
+    shell.move(500, 120)
+    release(w)
+    ck("släpp mitt på skärmen: dockningen släpps", dk.state == "idle" and settings.edge_dock_edge() == "" and shell.x() == 500)
+    QTest.qWait(300)
+    ck("…och fönstret gömmer sig aldrig mer", shell.x() == 500)
+
+    # --- höger + överkant ------------------------------------------------------------------------------------------
+    place(shell, 1536 - 340 - 4, 100, 340, 648)
+    release(w)
+    ck("höger: dockad flush (x=1196)", dk.edge == "right" and shell.x() == 1196)
+    cursor["p"] = (300, 300)
+    ck("höger: gömd med 5 px kvar", wait(lambda: dk.state == "hidden") and shell.x() == 1531)
+    cursor["p"] = hz(dk)
+    ck("höger: musen nuddar högerkanten → fram", wait(lambda: dk.state == "shown") and shell.x() == 1196)
+    place(shell, 500, 5, 340, 400)
+    release(w)
+    ck("överkant: dockad (y=0)", dk.edge == "top" and shell.y() == 0)
+    cursor["p"] = (300, 600)
+    ck("överkant: gömd (y=-395)", wait(lambda: dk.state == "hidden") and near(shell.y(), -395), (dk.state, shell.y(), shell.height()))
+    cursor["p"] = hz(dk)
+    ck("överkant: musen nuddar överkanten → fram", wait(lambda: dk.state == "shown") and shell.y() == 0)
+
+    # --- avstängt i inställningarna ---------------------------------------------------------------------------------
+    cursor["p"] = (300, 600)
+    wait(lambda: dk.state == "hidden")
+    settings.set_edge_dock_enabled(False)
+    ck("avstängt medan gömt: fönstret kommer fram och dockningen släpps", wait(lambda: dk.state == "idle") and shell.y() == 0)
+    place(shell, 3, 100, 340, 648)
+    release(w)
+    ck("avstängt: släpp vid kanten dockar inte", dk.state == "idle" and shell.x() == 3, (dk.state, shell.x()))
+    settings.set_edge_dock_enabled(True)
+
+    # --- flera skärmar: bara yttre kanter ----------------------------------------------------------------------------
+    two = [((0, 0, 1536, 864), (0, 0, 1536, 864)), ((1536, 0, 1536, 864), (1536, 0, 1536, 864))]
+    screens[:] = two
+    place(shell, 1536 + 3, 100, 340, 648)
+    release(w)
+    ck("gräns mellan två skärmar: dockas inte (skulle synas på grannen)", dk.state == "idle")
+    place(shell, 3072 - 340 - 3, 100, 340, 648)
+    release(w)
+    ck("yttre högerkant på skärm 2: dockas", dk.state == "shown" and dk.edge == "right" and shell.x() == 3072 - 340)
+    dk.undock()
+    screens[:] = [(S, S)]
+
+    # --- start: dockning återupptas efter omstart ------------------------------------------------------------------------
+    settings2, store2, shell2, w2, dk2 = build("b")
+    place(shell2, 0, 150, 340, 648)
+    settings2.set_edge_dock_edge("left")
+    ck("adopt_saved: dockning återupptas när fönstret ligger vid sparad kant", dk2.adopt_saved() and dk2.state == "shown" and dk2.edge == "left")
+    ck("adopt_saved: ger en nådetid innan det gömmer sig", dk2._outside_since is not None and dk2._outside_since > __import__("time").monotonic())
+    settings3, store3, shell3, w3, dk3 = build("c")
+    place(shell3, 400, 150, 340, 648)
+    settings3.set_edge_dock_edge("left")
+    ck("adopt_saved: fönstret inte vid kanten → ingen dockning, sparad kant rensas", not dk3.adopt_saved() and settings3.edge_dock_edge() == "")
+    settings3.set_edge_dock_enabled(False)
+    settings3.set_edge_dock_edge("left")
+    place(shell3, 0, 150, 340, 648)
+    ck("adopt_saved: avstängt → ingen dockning", not dk3.adopt_saved())
+
+    # --- inställningarna ----------------------------------------------------------------------------------------------------
+    ck("edge_dock_enabled har standardvärde På", Settings(str(tmp / "ny.json")).edge_dock_enabled() is True)
+    settings.set_edge_dock_edge("sidan")
+    ck("ogiltig kant sparas som tom", settings.edge_dock_edge() == "")
+    ck("hjälpen nämner dockningen", "kant" in __import__("core.shortcut_help", fromlist=["x"]).as_text(
+        __import__("core.shortcut_help", fromlist=["x"]).build_sections(settings, platform="linux")))
+
+    # --- menyval: dölj i vald kant utan att dra ------------------------------------------------------------------------------
+    screens[:] = [(S, S)]
+    sm, stm, shm, wm, dkm = build("m")
+    place(shm, 500, 120, 340, 648)
+    ck("dock_now left: ok (tom förklaring)", dkm.dock_now("left") == "" and dkm.state == "shown" and dkm.edge == "left")
+    ck("…fönstret flyttas till kanten och kanten sparas", shm.x() == 0 and shm.y() == 120 and sm.edge_dock_edge() == "left")
+    cursor["p"] = (900, 500)
+    ck("…och gömmer sig när musen är borta", wait(lambda: dkm.state == "hidden"))
+    cursor["p"] = hz(dkm)
+    ck("…och kommer fram när musen nuddar kanten", wait(lambda: dkm.state == "shown"))
+    cursor["p"] = (900, 500)
+    wait(lambda: dkm.state == "hidden")
+    place(shm, 500, 120, 340, 648) if dkm.state == "idle" else None
+    dkm.undock()
+    place(shm, 500, 120, 340, 648)
+    ck("dock_now right", dkm.dock_now("right") == "" and dkm.edge == "right" and shm.x() == 1536 - 340, (dkm.edge, shm.x()))
+    dkm.undock()
+    place(shm, 500, 300, 340, 400)
+    ck("dock_now top", dkm.dock_now("top") == "" and dkm.edge == "top" and shm.y() == 0, (dkm.edge, shm.y()))
+    dkm.undock()
+    sm.set_edge_dock_enabled(False)
+    place(shm, 500, 120, 340, 648)
+    ck("dock_now slår på dockningen om den var av", dkm.dock_now("left") == "" and sm.edge_dock_enabled() is True)
+    dkm.undock()
+    place(shm, 500, 120, 1300, 648)
+    ck("för brett fönster ger förklaring (inte dockat)", "för brett" in dkm.dock_now("left") and dkm.state == "idle")
+    place(shm, 500, 120, 340, 648)
+    place(shm, 500, 20, 340, 800)
+    ck("högt fönster (800 px) kan gömmas uppåt", dkm.dock_now("top") == "" and dkm.edge == "top" and shm.y() == 0, (dkm.edge, shm.y()))
+    dkm.undock()
+    place(shm, 500, 120, 340, 648)
+    ck("okänd kant ger förklaring", dkm.dock_now("bottom") != "" and dkm.state == "idle")
+    screens[:] = [((0, 0, 1536, 864), (0, 0, 1536, 864)), ((1536, 0, 1536, 864), (1536, 0, 1536, 864))]
+    place(shm, 500, 120, 340, 648)
+    ck("kant mot andra skärmen nekas med förklaring", "andra skärm" in dkm.dock_now("right") and dkm.state == "idle")
+    ck("yttre kant på samma skärm går bra", dkm.dock_now("left") == "" and dkm.edge == "left")
+    dkm.undock()
+    # --- start med datorn: lägg fönstret i närmaste ytterkant ----------------------------------------------------------------
+    screens[:] = [(S, S)]
+    sm.set_edge_dock_enabled(True)
+    sm.set_edge_dock_edge("")
+    place(shm, 1100, 120, 340, 648)
+    ck("dock_at_start: närmaste kant (höger) när ingen sparad", dkm.dock_at_start() is True and dkm.edge == "right", dkm.edge)
+    ck("dock_at_start: redan dockat → True utan ändring", dkm.dock_at_start() is True and dkm.edge == "right")
+    dkm.undock()
+    place(shm, 1100, 120, 340, 648)
+    sm.set_edge_dock_edge("left")
+    ck("dock_at_start: sparad kant går före närmaste", dkm.dock_at_start() is True and dkm.edge == "left", dkm.edge)
+    dkm.undock()
+    screens[:] = [((0, 0, 1536, 864), (0, 0, 1536, 864)), ((1536, 0, 1536, 864), (1536, 0, 1536, 864))]
+    place(shm, 1190, 8, 340, 760)
+    ck("dock_at_start: fönster vid innerkanten mellan två skärmar → närmaste YTTERkant (övre)", dkm.dock_at_start() is True and dkm.edge == "top", dkm.edge)
+    dkm.undock()
+    place(shm, 1190, 120, 340, 648)
+    sm.set_edge_dock_enabled(False)
+    ck("dock_at_start: dockning avstängd → False (göms till tray i stället)", dkm.dock_at_start() is False and dkm.state == "idle")
+    sm.set_edge_dock_enabled(True)
+    screens[:] = [(S, S)]
+    src = (ROOT / "ui/widget_parts/window_ops.py").read_text(encoding="utf-8")
+    ck("högerklicksmenyn har 'Dölj i skärmkanten' med tre kanter", "↔ Dölj i skärmkanten" in src and "Dölj vid vänster kant" in src and "Dölj vid övre kanten" in src and "_dock_to_edge_now" in src)
+
+    # --- energisnål avsökning: långsamt när musen är långt borta, snabbt nära --------------------------------------------------
+    sp, stp, shp, wp, dkp = build("p")
+    place(shp, 500, 120, 340, 648)
+    dkp.dock_now("left")
+    ck("dockad: avsökningen startar snabbt (70 ms)", dkp._timer.interval() == ED.POLL_MS and dkp._timer.isActive())
+    cursor["p"] = (1300, 700)
+    dkp._tick()
+    ck("musen långt borta → ~6 gånger/s (160 ms)", dkp._timer.interval() == ED.POLL_SLOW_MS, dkp._timer.interval())
+    cursor["p"] = (60, 300)
+    dkp._tick()
+    ck("musen nära fönstret/kanten → snabb avsökning igen", dkp._timer.interval() == ED.POLL_MS, dkp._timer.interval())
+    cursor["p"] = (1300, 700)
+    dkp._tick()
+    ck("…och långsamt igen när den åker bort", dkp._timer.interval() == ED.POLL_SLOW_MS)
+    ck("långsam avsökning är fortfarande snabbare än 0,2 s", ED.POLL_SLOW_MS <= 200 and ED.NEAR_PX >= 300)
+    dkp.hide()
+    wait(lambda: dkp.state == "hidden")
+    cursor["p"] = (1300, 700)
+    dkp._tick()
+    ck("gömd + musen långt borta → långsam avsökning", dkp._timer.interval() == ED.POLL_SLOW_MS)
+    cursor["p"] = hz(dkp)
+    dkp._tick()
+    ck("gömd + musen vid kanten → snabb (reveal fungerar som förr)", dkp._timer.interval() == ED.POLL_MS)
+    for _ in range(ED.REVEAL_TICKS + 2):
+        dkp._tick()
+    wait(lambda: dkp.state == "shown")
+    ck("musen vid kanten visar fönstret", dkp.state == "shown", dkp.state)
+    cursor["p"] = (700, 400)
+
+    bad = [n for n, ok in res if not ok]
+    print("CHILD", len(res) - len(bad), len(bad))
+    for n in bad:
+        print("  ✗", n)
+    shutil.rmtree(tmp, ignore_errors=True)
+    sys.stdout.flush()
+    os._exit(0)
+
+
+if "--child" in sys.argv:
+    child()
+else:
+    geometry_tests()
+    from _qtenv import qt_env
+
+    work = Path(tempfile.mkdtemp(prefix="taskbord_docktest_"))
+    env, why = qt_env(work)
+    if env is None:
+        print(f"edge_dock_test: Qt-delen hoppas över ({why})")
+    else:
+        r = subprocess.run([sys.executable, str(Path(__file__).resolve()), "--child"], cwd=ROOT, env=env,
+                           capture_output=True, text=True, timeout=300)
+        line = [l for l in r.stdout.splitlines() if l.startswith("CHILD ")]
+        if line:
+            _, a, b = line[-1].split()
+            _ok += int(a)
+            _fail += int(b)
+            for l in r.stdout.splitlines():
+                if l.strip().startswith("✗"):
+                    print(l)
+        else:
+            check("barnprocessen körde klart", False, (r.stdout + r.stderr)[-2500:])
+    shutil.rmtree(work, ignore_errors=True)
+    print(f"\nedge_dock_test: {_ok} lyckades, {_fail} misslyckades")
+    sys.exit(1 if _fail else 0)

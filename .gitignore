@@ -1,4 +1,27 @@
-# TaskBords lokala data (uppgifter, mail, loggar, backup) — ska inte i git
+# Ledgebords lokala data (uppgifter, mail, loggar, backup) — ska inte i git
 /data/
 __pycache__/
 *.pyc
+
+# Google Calendar (lokal OAuth) — hemligheter får aldrig hamna i git
+token.json
+token*.json
+credentials.json
+client_secret*.json
+/js/google/
+
+# Loggar och körningsdata (skapas lokalt, ska inte i git)
+*.log
+/ui/debug/data/
+
+# Lokal Python-miljö (starta.sh)
+.venv/
+
+# Genvägen Ledgebord.lnk skapas lokalt av appen (Windows)
+/Ledgebord.lnk
+
+# Tryckfiler för logotypen byggs av icon/bygg_ikoner.py och laddas upp på releasen — inte i git/appen
+/logotyp/
+
+# Loggar (egen undermapp i appmappen) — lokala, ska inte i git
+/loggar/

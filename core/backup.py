@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-backup.py — TaskBord v6.4.1 v7 (18 888 888% bättre kod & design + AI-felsökning)
+backup.py — Ledgebord v6.4.1 v7 (18 888 888% bättre kod & design + AI-felsökning)
 =====================================================================================
 Copyright Rickard Längkvist, 2025–2026
 
 Backup-hantering med rotation, restore, export/import.
 Stödjer ZIP-baserade snapshots av data + settings.
 
-DONATION: inaktiverad (R4 pausad 2026-08-11)
+STÖD: frivillig donation via ui/donate.py (mottagarna är låsta i core/donate_info.py)
 
 DESIGN-FILOSOFI (R2 5000% bättre)
 ====================================
@@ -1995,7 +1995,7 @@ if __name__ == "__main__":
         datefmt="%H:%M:%S",
     )
     print("=" * 60)
-    print("TaskBord backup.py v6.4.0 — självtest")
+    print("Ledgebord backup.py v6.4.0 — självtest")
     print("=" * 60)
     
     mgr = BackupManager(keep=5)

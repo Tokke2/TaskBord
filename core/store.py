@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-store.py — TaskBord v6.4.1 v7 (18 888 888% bättre: snabbhet + minne + kod + AI-felsökning)
+store.py — Ledgebord v6.4.1 v7 (18 888 888% bättre: snabbhet + minne + kod + AI-felsökning)
 ================================================================================================
 Copyright © Rickard Längkvist, 2025–2026
 
@@ -836,7 +836,7 @@ def _safe_copy(obj: Any) -> Any:
 class _LRUCache:
     """LRU-cache med TTL (för snabb lookup)."""
 
-    __slots__ = ("_data", "_access_order", "_max_size", "_ttl", "_lock", "_hits", "_misses")
+    __slots__ = ("_data", "_access_order", "_max_size", "_ttl", "_lock", "_hits", "_misses", "_gen")
 
     def __init__(self, max_size: int = LUCACHE_MAX_SIZE, ttl_sec: float = LUCACHE_TTL_SEC) -> None:
         self._data: Dict[Any, Tuple[float, Any]] = {}
@@ -846,6 +846,12 @@ class _LRUCache:
         self._lock = threading.Lock()
         self._hits = 0
         self._misses = 0
+        self._gen = 0  # FIX v8: ökas vid clear() — stoppar inaktuella resultat från att cachas
+
+    def token(self) -> int:
+        """FIX v8: hämta generation FÖRE ögonblicksbilden; skicka till set(token=...)."""
+        with self._lock:
+            return self._gen
 
     def get(self, key: Any) -> Tuple[bool, Any]:
         """Hämta värde (returnerar (hit, value))."""
@@ -873,9 +879,17 @@ class _LRUCache:
             self._hits += 1
             return True, value
 
-    def set(self, key: Any, value: Any) -> None:
-        """Sätt värde (LRU-eviction vid full)."""
+    def set(self, key: Any, value: Any, token: Optional[int] = None) -> None:
+        """Sätt värde (LRU-eviction vid full).
+
+        FIX v8: om `token` anges och cachen rensats sedan token togs (en annan tråd
+        la till/ändrade en uppgift under tiden) sparas inget. Annars kunde en lista
+        beräknad FÖRE en mail-import cachas EFTER att importen rensat cachen → den nya
+        uppgiften "försvann" ur listan tills nästa ändring.
+        """
         with self._lock:
+            if token is not None and token != self._gen:
+                return
             if key in self._data:
                 try:
                     self._access_order.remove(key)
@@ -890,6 +904,7 @@ class _LRUCache:
     def clear(self) -> None:
         """Rensa cache."""
         with self._lock:
+            self._gen += 1
             self._data.clear()
             self._access_order.clear()
             self._hits = 0
@@ -1051,6 +1066,103 @@ def _reset_subtasks(subs: List[Dict[str, Any]]) -> None:
         _reset_subtasks(s.get("children") or [])
 
 
+# NY v8: extra (valfria) textfält på en uppgift som ska överleva omstart.
+_EXTRA_TASK_KEYS: Final[Tuple[str, ...]] = (
+    "start_date", "note",
+    "email_from", "email_subject", "email_body", "email_path", "email_message_id",
+    "email_date", "email_to", "email_attachments",
+)
+_EXTRA_TASK_MAX_LEN: Final[int] = 50_000
+MAX_LINKS_PER_TASK: Final[int] = 20
+MAX_ATTACHMENTS_PER_TASK: Final[int] = 50
+
+
+def _coerce_remind_dates(raw: Any) -> List[str]:
+    """Extra påminnelsedatum ur importerade mail (core/mail_dates.py): sorterad lista med ISO-datum (YYYY-MM-DD)."""
+    out: Set[str] = set()
+    if isinstance(raw, list):
+        for v in raw:
+            s = str(v)[:10]
+            if re.fullmatch(r"\d{4}-\d\d-\d\d", s):
+                out.add(s)
+    return sorted(out)[:24]
+
+
+def _coerce_remind_info(raw: Any) -> Dict[str, str]:
+    """Raden ur mailet per påminnelsedatum: {ISO-datum: text}."""
+    out: Dict[str, str] = {}
+    if isinstance(raw, dict):
+        for k, v in raw.items():
+            if isinstance(k, str) and re.fullmatch(r"\d{4}-\d\d-\d\d", k) and isinstance(v, str) and v.strip():
+                out[k] = v.strip()[:200]
+            if len(out) >= 24:
+                break
+    return out
+
+
+MAX_AMOUNT_CENTS: Final[int] = 10 ** 12
+
+
+def _coerce_amount(raw: Any) -> int:
+    """Belopp i ören: heltal 1 … 10^12, annars 0 (inget belopp)."""
+    if isinstance(raw, bool) or not isinstance(raw, int):
+        return 0
+    return raw if 0 < raw <= MAX_AMOUNT_CENTS else 0
+
+
+def _coerce_links(raw: Any) -> List[Dict[str, str]]:
+    """Länkar på en uppgift: ``[{url, title}]`` (bara http/https, utan dubbletter)."""
+    out: List[Dict[str, str]] = []
+    if not isinstance(raw, list):
+        return out
+    seen: Set[str] = set()
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        url = item.get("url")
+        if not isinstance(url, str):
+            continue
+        url = url.strip()
+        if not url.lower().startswith(("http://", "https://")) or len(url) > 2000 or url in seen:
+            continue
+        title = item.get("title")
+        out.append({"url": url, "title": title.strip()[:200] if isinstance(title, str) else ""})
+        seen.add(url)
+        if len(out) >= MAX_LINKS_PER_TASK:
+            break
+    return out
+
+
+def _coerce_attachments(raw: Any) -> List[Dict[str, Any]]:
+    """Bilagor: ``[{name, file, size, added}]``; ``file`` är relativ till datamappen (attachments/…)."""
+    out: List[Dict[str, Any]] = []
+    if not isinstance(raw, list):
+        return out
+    seen: Set[str] = set()
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        f = item.get("file")
+        if not isinstance(f, str):
+            continue
+        f = f.strip().replace("\\", "/")
+        if (not f.startswith("attachments/") or ".." in f.split("/") or len(f) > 400 or f in seen):
+            continue
+        name = item.get("name")
+        size = item.get("size")
+        added = item.get("added")
+        out.append({
+            "name": (name.strip()[:200] if isinstance(name, str) and name.strip() else f.rsplit("/", 1)[-1]),
+            "file": f,
+            "size": size if isinstance(size, int) and not isinstance(size, bool) and size >= 0 else 0,
+            "added": added[:40] if isinstance(added, str) else "",
+        })
+        seen.add(f)
+        if len(out) >= MAX_ATTACHMENTS_PER_TASK:
+            break
+    return out
+
+
 def _coerce_task(raw: Any, idx: int = 0) -> Optional[Dict[str, Any]]:
     """Coerce task (snabb inline-validering, alla fält)."""
     if not isinstance(raw, dict):
@@ -1083,7 +1195,7 @@ def _coerce_task(raw: Any, idx: int = 0) -> Optional[Dict[str, Any]]:
                 "interval": interval,
                 "next_due": _coerce_str_or_none(rec.get("next_due")),
             }
-    return {
+    out: Dict[str, Any] = {
         "id": tid,
         "title": title,
         "done": _coerce_bool(raw.get("done"), False),
@@ -1097,6 +1209,32 @@ def _coerce_task(raw: Any, idx: int = 0) -> Optional[Dict[str, Any]]:
         "created": _coerce_str_or_none(raw.get("created")) or _now_iso(),
         "completed": _coerce_str_or_none(raw.get("completed")),
     }
+    # NY v8: valfritt startdatum (för kalendern) + fält som lagts till via
+    # set_task_metadata. De sparades men DROPPADES vid inläsning, så t.ex.
+    # 📧-ikonen och mailinfon försvann efter omstart.
+    for key in _EXTRA_TASK_KEYS:
+        val = raw.get(key)
+        if isinstance(val, str) and val.strip():
+            out[key] = val[:_EXTRA_TASK_MAX_LEN]
+    # Påminnelsedatum från datum i importerade mail (listor) — sparas bara om de finns
+    rdates = _coerce_remind_dates(raw.get("remind_dates"))
+    if rdates:
+        out["remind_dates"] = rdates
+        rinfo = _coerce_remind_info(raw.get("remind_info"))
+        if rinfo:
+            out["remind_info"] = rinfo
+    # Belopp i ören (heltal) — sparas bara om det finns
+    amount = _coerce_amount(raw.get("amount_cents"))
+    if amount:
+        out["amount_cents"] = amount
+    # Länkar och bilagor (listor) — sparas bara om de finns
+    links = _coerce_links(raw.get("links"))
+    if links:
+        out["links"] = links
+    atts = _coerce_attachments(raw.get("attachments"))
+    if atts:
+        out["attachments"] = atts
+    return out
 
 
 def _next_recurring_due(
@@ -1160,6 +1298,7 @@ class TaskStore(QObject):
         task_updated = Signal(str)
         tags_changed = Signal()
         archive_changed = Signal()
+        dates_changed = Signal(str)   # start- eller förfallodatum ändrat (Google Calendar-synk)
     else:
         def __getattr__(self, name: str) -> Any:
             # v7-fix11: returnera CACHEAD dummy-signal. Tidigare skapades en
@@ -1194,7 +1333,7 @@ class TaskStore(QObject):
         # Meta
         "_schema_version", "_saved_at", "_dirty",
         # Locks
-        "_lock", "_save_lock", "_save_thread",
+        "_lock", "_save_lock", "_save_thread", "_known_ids", "_disk_sig",
         # Audit
         "_audit_log",
         # Stats
@@ -1251,13 +1390,17 @@ class TaskStore(QObject):
         self._active_mtime: float = 0.0
         self._archive_mtime: float = 0.0
         self._mtime_cache_time: float = 0.0
+        # FIX v8: skydd mot att en ANNAN process (t.ex. en andra Ledgebord-instans)
+        # skriver samma filer — se _merge_external()
+        self._known_ids: Set[str] = set()
+        self._disk_sig: Optional[Tuple[Any, ...]] = None
         # Dummy-signaler (v7-fix11): utan Qt skapas EN cachead _DummySignal
         # per signalnamn — connect()/emit() funkar då identiskt i tester.
         self._dummy_signals: Dict[str, Any] = {}
         if not _QT_AVAILABLE:
             for _sig_name in (
                 "changed", "task_added", "task_removed", "task_toggled",
-                "task_updated", "tags_changed", "archive_changed",
+                "task_updated", "tags_changed", "archive_changed", "dates_changed",
             ):
                 self._dummy_signals[_sig_name] = _DummySignal()
 
@@ -1557,6 +1700,7 @@ class TaskStore(QObject):
         # Rensa cache (indices ändrade)
         self._find_cache.clear()
         self._filter_cache.clear()
+        self._remember_disk_state()
         duration = (time.perf_counter() - start) * 1000
         logger.debug(
             f"{LOG_PREFIX} rebuild_index: {len(self._by_id)} tasks, "
@@ -1574,6 +1718,79 @@ class TaskStore(QObject):
         self._by_priority.setdefault(priority, set()).add(tid)
         if task.get("pinned"):
             self._pinned_ids.add(tid)
+
+    # ------------------------------------------------------------------
+    # FIX v8: flera processer mot samma filer (t.ex. två Ledgebord-fönster)
+    # ------------------------------------------------------------------
+    def _disk_signature(self) -> Tuple[Any, ...]:
+        sig: List[Any] = []
+        for p in (self._active_path, self._archive_path):
+            try:
+                st = p.stat()
+                sig.append((st.st_mtime_ns, st.st_size))
+            except OSError:
+                sig.append(None)
+        return tuple(sig)
+
+    def _remember_disk_state(self) -> None:
+        """Kom ihåg vilka id:n vi känner till + hur filerna såg ut (för _merge_external)."""
+        with suppress(Exception):
+            with self._lock:
+                self._known_ids = set(self._by_id.keys())
+            self._disk_sig = self._disk_signature()
+
+    def _merge_external(self) -> int:
+        """
+        Om en ANNAN process skrivit active/archive.json sedan vi senast läste/sparade:
+        lägg till uppgifter vi inte känner till (3-vägs på id). Sparas vi utan detta
+        skriver vi över den andras uppgifter → de "ploppar upp och försvinner".
+
+        Uppgifter vi själva tagit bort (id finns i _known_ids men inte i minnet) återskapas
+        inte. Ändringar i uppgifter som finns hos båda: sista skrivaren vinner.
+        Returnerar antal tillagda uppgifter. Kastar aldrig.
+        """
+        try:
+            sig = self._disk_signature()
+            if sig == self._disk_sig:
+                return 0
+            added = 0
+            with self._lock:
+                for path, target in (
+                    (self._active_path, self._active_tasks),
+                    (self._archive_path, self._archive_tasks),
+                ):
+                    for ct in self._load_from_path(path):
+                        tid = ct.get("id")
+                        if not tid or tid in self._by_id or tid in self._known_ids:
+                            continue
+                        target.append(ct)
+                        self._known_ids.add(tid)
+                        added += 1
+                        self._by_id[tid] = ct
+                if added:
+                    self._dirty = True
+                    self._rebuild_index()
+                else:
+                    self._disk_sig = sig
+            if added:
+                logger.warning(
+                    f"{LOG_PREFIX} ★ en annan process ändrade filerna — {added} uppgift(er) "
+                    f"hämtades in (annars hade de skrivits över)"
+                )
+                self._emit("changed")
+            return added
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} _merge_external misslyckades: {e}")
+            return 0
+
+    def sync_external(self) -> int:
+        """Anropas regelbundet av appen: hämta in uppgifter som en annan process lagt till."""
+        if not self._save_lock.acquire(timeout=1.0):
+            return 0
+        try:
+            return self._merge_external()
+        finally:
+            self._save_lock.release()
 
     @_log_call
     def save(self) -> bool:
@@ -1595,6 +1812,7 @@ class TaskStore(QObject):
             )
             return _SaveResult(False, 0.0, "Save-timeout")
         try:
+            self._merge_external()  # FIX v8: skriv aldrig över en annan process uppgifter
             with self._lock:
                 # Snapshot
                 saved_at = _now_iso()
@@ -1626,6 +1844,8 @@ class TaskStore(QObject):
                 self._save_count += 1
                 self._active_mtime = self._active_path.stat().st_mtime
                 self._archive_mtime = self._archive_path.stat().st_mtime
+                self._known_ids = set(self._by_id.keys())
+                self._disk_sig = self._disk_signature()
             duration = time.perf_counter() - start
             logger.info(
                 f"{LOG_PREFIX} save OK: {len(self._active_tasks)} active, "
@@ -1806,9 +2026,20 @@ class TaskStore(QObject):
         return tid
 
     @_log_crud("remove_task")
-    def remove_task(self, task_id: str) -> bool:
-        """Ta bort task (från active OCH archive)."""
+    def remove_task(self, task_id: str, force: bool = False) -> bool:
+        """Ta bort en AKTIV uppgift.
+
+        Arkiverade uppgifter är historik som sparas för alltid och tas inte bort
+        (returnerar False). ``force=True`` är bara till för underhåll/tester.
+        """
+        removed_active = False
         with self._lock:
+            if task_id in self._archive_index and not force:
+                logger.warning(
+                    f"{LOG_PREFIX} remove_task: {task_id!r} är arkiverad — "
+                    f"arkivet är permanent historik, tar inte bort"
+                )
+                return False
             # Active
             idx = self._active_index.get(task_id)
             if idx is not None:
@@ -1824,11 +2055,11 @@ class TaskStore(QObject):
                     f"{LOG_PREFIX} remove_task: {task_id!r} (active, "
                     f"title='{task['title'][:50]}')"
                 )
+                removed_active = True
                 self._emit("task_removed", task_id)
                 self._emit("changed")
-                return True
             # Archive
-            idx = self._archive_index.get(task_id)
+            idx = None if removed_active else self._archive_index.get(task_id)
             if idx is not None:
                 task = self._archive_tasks.pop(idx)
                 self._deindex_task(task, archive=True)
@@ -1842,8 +2073,23 @@ class TaskStore(QObject):
                 self._emit("task_removed", task_id)
                 self._emit("changed")
                 return True
+        if removed_active:
+            self._drop_attachment_files(task_id)  # bilagorna följer med den borttagna uppgiften
+            return True
         logger.warning(f"{LOG_PREFIX} remove_task: {task_id!r} hittades inte")
         return False
+
+    def is_archived(self, task_id: str) -> bool:
+        """True om uppgiften ligger i arkivet (historik som aldrig tas bort)."""
+        with self._lock:
+            return task_id in self._archive_index
+
+    def _drop_attachment_files(self, task_id: str) -> None:
+        try:
+            from core import attachments as _att
+            _att.delete_task_files(self._data_dir, task_id)
+        except Exception as e:  # städning får aldrig välta en borttagning
+            logger.warning(f"{LOG_PREFIX} bilagestädning misslyckades för {task_id!r}: {e}")
 
     def _deindex_task(self, task: Dict[str, Any], archive: bool = False) -> None:
         """Ta bort task från index (inline)."""
@@ -1923,8 +2169,23 @@ class TaskStore(QObject):
                         next_task["id"] = recurring_task_id
                         next_task["done"] = False
                         next_task["due_date"] = next_due
+                        # NY v8: startdatumet flyttas lika långt som förfallodatumet
+                        if task.get("start_date") and task.get("due_date"):
+                            try:
+                                _shift = (
+                                    datetime.fromisoformat(next_due).date()
+                                    - datetime.fromisoformat(str(task["due_date"])).date()
+                                )
+                                next_task["start_date"] = (
+                                    datetime.fromisoformat(str(task["start_date"])).date() + _shift
+                                ).isoformat()
+                            except (ValueError, TypeError):
+                                next_task.pop("start_date", None)
+                        else:
+                            next_task.pop("start_date", None)
                         next_task["created"] = _now_iso()
                         next_task["completed"] = None
+                        next_task.pop("attachments", None)  # filerna hör till den arkiverade kopian
                         next_task["snoozed_until"] = None
                         _reset_subtasks(next_task.get("subtasks", []))
                         self._active_tasks.append(next_task)
@@ -2110,7 +2371,33 @@ class TaskStore(QObject):
         self._audit_log.add("set_due_date", task_id, before=before, after=_safe_copy(task))
         logger.info(f"{LOG_PREFIX} set_due_date: {task_id!r} → {nd}")
         self._emit("task_updated", task_id)
+        self._emit("dates_changed", task_id)
         self._emit("changed")  # v7-fix11 (UI-refresh)
+        return True
+
+    @_log_crud("set_start_date")
+    def set_start_date(self, task_id: str, start_date: Optional[str]) -> bool:
+        """NY v8: sätt startdatum (None för att ta bort). Används av kalenderexporten."""
+        nd = _coerce_str_or_none(start_date)
+        with self._lock:
+            task = self._by_id.get(task_id)
+            if task is None:
+                return False
+            before = _safe_copy(task)
+            if (task.get("start_date") or None) == nd:
+                return False
+            if nd:
+                task["start_date"] = nd
+            else:
+                task.pop("start_date", None)
+            self._dirty = True
+        self._find_cache.clear()
+        self._filter_cache.clear()
+        self._audit_log.add("set_start_date", task_id, before=before, after=_safe_copy(task))
+        logger.info(f"{LOG_PREFIX} set_start_date: {task_id!r} → {nd}")
+        self._emit("task_updated", task_id)
+        self._emit("dates_changed", task_id)
+        self._emit("changed")
         return True
 
     @_log_crud("snooze_task")
@@ -2156,6 +2443,145 @@ class TaskStore(QObject):
         self._emit("task_updated", task_id)
         self._emit("changed")  # v7-fix11 (UI-refresh)
         return True
+
+    # ------------------------------------------------------------------
+    # Länkar och bilagor (fungerar på aktiva OCH arkiverade uppgifter; att TA BORT
+    # en länk/bilaga går bara på aktiva — arkivet är historik som inte ändras bakåt)
+    # ------------------------------------------------------------------
+    def _set_optional_field(self, task_id: str, key: str, value: Any, action: str) -> bool:
+        """Sätt (eller ta bort, vid value=None) ett valfritt fält på en uppgift — även på arkiverade (ingen historik förloras)."""
+        with self._lock:
+            task = self._by_id.get(task_id)
+            if task is None:
+                logger.warning(f"{LOG_PREFIX} {action}: {task_id!r} hittades inte")
+                return False
+            before = _safe_copy(task)
+            if task.get(key) == value or (value is None and key not in task):
+                return False
+            if value is None:
+                task.pop(key, None)
+            else:
+                task[key] = value
+            self._dirty = True
+        self._find_cache.clear()
+        self._filter_cache.clear()
+        self._audit_log.add(action, task_id, before=before, after=_safe_copy(task))
+        logger.info(f"{LOG_PREFIX} {action}: {task_id!r}")
+        self._emit("task_updated", task_id)
+        self._emit("changed")
+        return True
+
+    @_log_crud("set_note")
+    def set_note(self, task_id: str, note: Optional[str]) -> bool:
+        """Anteckning (flera rader, max 50 000 tecken). Tom text tar bort anteckningen."""
+        text = str(note or "").replace("\r\n", "\n").replace("\r", "\n").strip()[:_EXTRA_TASK_MAX_LEN]
+        return self._set_optional_field(task_id, "note", text or None, "set_note")
+
+    @_log_crud("set_amount")
+    def set_amount(self, task_id: str, amount_cents: Optional[int]) -> bool:
+        """Belopp i ören (None/0 tar bort beloppet)."""
+        v = _coerce_amount(amount_cents)
+        return self._set_optional_field(task_id, "amount_cents", v or None, "set_amount")
+
+    def _change_task_list(
+        self, task_id: str, key: str, action: str, fn: Any, allow_archived: bool = True
+    ) -> bool:
+        """Gemensam mutation av en lista på en uppgift. ``fn(list) -> bool`` ändrar listan på plats."""
+        with self._lock:
+            task = self._by_id.get(task_id)
+            if task is None:
+                logger.warning(f"{LOG_PREFIX} {action}: {task_id!r} hittades inte")
+                return False
+            if not allow_archived and task_id in self._archive_index:
+                logger.warning(f"{LOG_PREFIX} {action}: {task_id!r} är arkiverad (historik) — ändras inte")
+                return False
+            before = _safe_copy(task)
+            lst = task.get(key)
+            if not isinstance(lst, list):
+                lst = []
+            if not fn(lst):
+                return False
+            if lst:
+                task[key] = lst
+            else:
+                task.pop(key, None)
+            self._dirty = True
+        self._find_cache.clear()
+        self._filter_cache.clear()
+        self._audit_log.add(action, task_id, before=before, after=_safe_copy(task))
+        logger.info(f"{LOG_PREFIX} {action}: {task_id!r}")
+        self._emit("task_updated", task_id)
+        self._emit("changed")
+        return True
+
+    def add_link(self, task_id: str, url: str, title: str = "") -> bool:
+        """Lägg till en länk (http/https). False om ogiltig, redan finns eller max uppnått."""
+        cl = _coerce_links([{"url": url, "title": title}])
+        if not cl:
+            return False
+        item = cl[0]
+
+        def _do(lst: List[Any]) -> bool:
+            if len(lst) >= MAX_LINKS_PER_TASK or any(x.get("url") == item["url"] for x in lst):
+                return False
+            lst.append(item)
+            return True
+
+        return self._change_task_list(task_id, "links", "add_link", _do)
+
+    def set_link_title(self, task_id: str, url: str, title: str) -> bool:
+        """Sätt sidtiteln på en befintlig länk."""
+        t = str(title or "").strip()[:200]
+        if not t:
+            return False
+
+        def _do(lst: List[Any]) -> bool:
+            for x in lst:
+                if x.get("url") == url and x.get("title") != t:
+                    x["title"] = t
+                    return True
+            return False
+
+        return self._change_task_list(task_id, "links", "set_link_title", _do)
+
+    def remove_link(self, task_id: str, url: str) -> bool:
+        def _do(lst: List[Any]) -> bool:
+            n = len(lst)
+            lst[:] = [x for x in lst if x.get("url") != url]
+            return len(lst) != n
+
+        return self._change_task_list(task_id, "links", "remove_link", _do, allow_archived=False)
+
+    def add_attachment(self, task_id: str, name: str, file: str, size: int = 0, added: str = "") -> bool:
+        """Registrera en redan kopierad bilaga (se core/attachments.copy_in)."""
+        ca = _coerce_attachments([{"name": name, "file": file, "size": size, "added": added or _now_iso()}])
+        if not ca:
+            return False
+        item = ca[0]
+
+        def _do(lst: List[Any]) -> bool:
+            if len(lst) >= MAX_ATTACHMENTS_PER_TASK or any(x.get("file") == item["file"] for x in lst):
+                return False
+            lst.append(item)
+            return True
+
+        return self._change_task_list(task_id, "attachments", "add_attachment", _do)
+
+    def remove_attachment(self, task_id: str, file: str) -> bool:
+        """Ta bort bilagan från uppgiften OCH raderar den kopierade filen (bara aktiva uppgifter)."""
+        def _do(lst: List[Any]) -> bool:
+            n = len(lst)
+            lst[:] = [x for x in lst if x.get("file") != file]
+            return len(lst) != n
+
+        ok = self._change_task_list(task_id, "attachments", "remove_attachment", _do, allow_archived=False)
+        if ok:
+            try:
+                from core import attachments as _att
+                _att.delete_file(self._data_dir, file)
+            except Exception as e:
+                logger.warning(f"{LOG_PREFIX} kunde inte radera bilagefilen {file!r}: {e}")
+        return ok
 
     @_log_crud("archive_task")
     def archive_task(self, task_id: str) -> bool:
@@ -2215,8 +2641,11 @@ class TaskStore(QObject):
         return True
 
     @_log_crud("clear_archive")
-    def clear_archive(self) -> int:
-        """Rensa ALLA arkiverade tasks. Returnerar antal."""
+    def clear_archive(self, force: bool = False) -> int:
+        """Rensa arkivet — NEJ: arkivet är permanent historik. Returnerar 0 om inte ``force``."""
+        if not force:
+            logger.warning(f"{LOG_PREFIX} clear_archive: nekad — arkivet sparas för alltid")
+            return 0
         with self._lock:
             count = len(self._archive_tasks)
             if count == 0:
@@ -2495,9 +2924,10 @@ class TaskStore(QObject):
         hit, value = self._filter_cache.get(cache_key)
         if hit:
             return value
+        _tok = self._filter_cache.token()
         with self._lock:
             tags = sorted(self._by_tag.keys())
-        self._filter_cache.set(cache_key, tags)
+        self._filter_cache.set(cache_key, tags, _tok)
         logger.trace(f"{LOG_PREFIX} all_tags: {len(tags)} unika")
         return tags
 
@@ -2508,9 +2938,10 @@ class TaskStore(QObject):
         hit, value = self._filter_cache.get(cache_key)
         if hit:
             return value
+        _tok = self._filter_cache.token()
         with self._lock:
             counts = {tag: len(ids) for tag, ids in self._by_tag.items()}
-        self._filter_cache.set(cache_key, counts)
+        self._filter_cache.set(cache_key, counts, _tok)
         return counts
 
     @_log_call
@@ -2609,6 +3040,7 @@ class TaskStore(QObject):
             return value
         # Filtrera
         q = (query or "").lower().strip()
+        _tok = self._filter_cache.token()  # FIX v8: se _LRUCache.set
         with self._lock:
             # Snapshot tasks (för att inte blocka vid sortering)
             tasks = list(self._active_tasks)
@@ -2636,7 +3068,8 @@ class TaskStore(QObject):
         # Query (text search)
         if q:
             tasks = [t for t in tasks if q in t["title"].lower() or
-                     any(q in tag.lower() for tag in t.get("tags", []))]
+                     any(q in tag.lower() for tag in t.get("tags", [])) or
+                     q in str(t.get("note") or "").lower()]
         # Sortering
         if sort_by == "pinned_first":
             # Pinned först, sedan enligt sort_by
@@ -2667,7 +3100,7 @@ class TaskStore(QObject):
             tasks.sort(key=lambda t: t.get("created") or "", reverse=reverse)
         # Kopiera (för säkerhet)
         result = [_safe_copy(t) for t in tasks]
-        self._filter_cache.set(cache_key, result)
+        self._filter_cache.set(cache_key, result, _tok)
         logger.trace(
             f"{LOG_PREFIX} active_tasks_filtered: "
             f"query={q!r}, priority={priority}, tag={tag}, "
@@ -2682,6 +3115,7 @@ class TaskStore(QObject):
         hit, value = self._filter_cache.get(cache_key)
         if hit:
             return value
+        _tok = self._filter_cache.token()
         with self._lock:
             active = self._active_tasks
             archive = self._archive_tasks
@@ -2717,7 +3151,7 @@ class TaskStore(QObject):
             "top_tags": top_tags,
             "schema_version": self._schema_version,
         }
-        self._filter_cache.set(cache_key, result)
+        self._filter_cache.set(cache_key, result, _tok)
         return result
 
     @_log_call

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-desktop.py — TaskBord v6.4.1 v7 (18 888 888% bättre kod & design + AI-felsökning)
+desktop.py — Ledgebord v6.4.1 v7 (18 888 888% bättre kod & design + AI-felsökning)
 ====================================================================================
 Copyright Rickard Längkvist, 2025–2026
 
@@ -9,7 +9,7 @@ Glasmorphism (DWM Blur / Mica / Acrylic), hotkeys, visuell feedback,
 Windows-version-detektering, anti-deadlock timeouts, robust multi-OS autostart,
 ANTI-OCCLUSION (widgeten får ALDRIG dölja ikoner).
 
-DONATION: inaktiverad (R4 pausad 2026-08-11)
+STÖD: frivillig donation via ui/donate.py (mottagarna är låsta i core/donate_info.py)
 
 DESIGN-FILOSOFI (R2 5000% bättre)
 ====================================
@@ -37,6 +37,7 @@ NYTT I v6.4.0 (5000% bättre):
 from __future__ import annotations
 
 import ctypes
+import json
 import logging
 import os
 import platform
@@ -772,9 +773,10 @@ E_FAIL = 0x80004005
 
 # Autostart (multi-OS)
 AUTOSTART_KEY: str = r"Software\Microsoft\Windows\CurrentVersion\Run"
-AUTOSTART_VALUE_NAME: str = "TaskBord"
+AUTOSTART_VALUE_NAME: str = "Ledgebord"
+LEGACY_AUTOSTART_NAMES: Tuple[str, ...] = ("TaskBord",)  # namnet före bytet till Ledgebord
 WINDOWS_STARTUP_SUBPATH: str = r"Microsoft\Windows\Start Menu\Programs\Startup"
-SCHTASKS_NAME: str = "TaskBord"
+SCHTASKS_NAME: str = "Ledgebord"
 XDG_AUTOSTART_DIR: str = ".config/autostart"
 LINUX_DESKTOP_FILE: str = "desktop-todo-py.desktop"
 MACOS_LAUNCH_AGENTS_DIR: str = "Library/LaunchAgents"
@@ -1485,7 +1487,7 @@ def _validate_hwnd(hwnd: Any) -> bool:
 
 _REGION_CACHE: Dict[int, Any] = {}
 _WINDOW_CLASS_REGISTERED: Optional[str] = None
-WINDOW_CLASS_NAME: str = "TaskBordMain"
+WINDOW_CLASS_NAME: str = "LedgebordMain"
 
 
 def _clear_region_cache(hwnd: int) -> None:
@@ -3986,7 +3988,7 @@ def stop_flash_window(hwnd: int) -> bool:
     return flash_window(hwnd, count=0, flags=FLASHW_STOP)
 
 
-def message_box(text: str, title: str = "TaskBord",
+def message_box(text: str, title: str = "Ledgebord",
                 flags: int = 0x00000040) -> int:
     if not IS_WINDOWS or user32 is None:
         return 0
@@ -4272,8 +4274,22 @@ def is_autostart_enabled() -> bool:
     return False
 
 
+def _autostart_lnk_mod():
+    """core/autostart_lnk.py (Startup-genväg med appens ikon) — importeras tolerant (core/ kan ligga på sys.path)."""
+    try:
+        from core import autostart_lnk as _m
+    except ImportError:
+        import autostart_lnk as _m  # type: ignore
+    return _m
+
+
 def _is_autostart_enabled_windows() -> bool:
-    if not IS_WINDOWS or winreg is None:
+    if not IS_WINDOWS:
+        return False
+    with suppress(Exception):
+        if _autostart_lnk_mod().exists():
+            return True
+    if winreg is None:
         return False
     try:
         with _safe_call():
@@ -4343,9 +4359,15 @@ def enable_autostart_windows(
 ) -> bool:
     if not IS_WINDOWS:
         return False
-    if methods is None:
-        methods = ["registry", "startup"]
     cmd = _resolve_exe_command(executable_path=executable_path, args=args)
+    if methods is None:
+        # Genväg i Startup-mappen med Ledgebords EGEN ikon (en registerpost/.bat visar Pythons ikon);
+        # registret + .bat bara som reserv om genvägen inte går att skapa.
+        with suppress(Exception):
+            if _autostart_lnk_mod().install(cmd):
+                logger.info("Autostart aktiverat (Startup-genväg med appens ikon)")
+                return True
+        methods = ["registry", "startup"]
     results = []
     for method in methods:
         try:
@@ -4390,10 +4412,12 @@ def _enable_autostart_startup(cmd: str) -> bool:
         with suppress(OSError):
             os.makedirs(startup_dir, exist_ok=True)
     bat_path = os.path.join(startup_dir, f"{AUTOSTART_VALUE_NAME}.bat")
-    cmd_unquoted = cmd.replace('"', "")
     try:
-        with open(bat_path, "w", encoding="utf-8") as f:
-            f.write(f'@echo off\nstart "" "{cmd_unquoted}"\n')
+        # FIX v8: tidigare togs ALLA citattecken bort och hela kommandot citerades
+        # som EN fil ("pythonw.exe main.pyw") → Windows: "Det går inte att hitta
+        # filen" vid varje inloggning. Nu behålls citaten runt exe och skript.
+        with open(bat_path, "w", encoding="utf-8", newline="") as f:
+            f.write(f'@echo off\r\nchcp 65001 >nul\r\nstart "" {cmd}\r\n')
         logger.info(f"Autostart aktiverat (Startup-mapp): {bat_path}")
         return True
     except OSError as e:
@@ -4427,6 +4451,9 @@ def disable_autostart_windows() -> bool:
                 winreg.HKEY_CURRENT_USER, AUTOSTART_KEY, 0, winreg.KEY_SET_VALUE
             )
         try:
+            for _legacy in LEGACY_AUTOSTART_NAMES:
+                with suppress(OSError):
+                    winreg.DeleteValue(key, _legacy)
             winreg.DeleteValue(key, AUTOSTART_VALUE_NAME)
             return True
         except FileNotFoundError:
@@ -4441,15 +4468,18 @@ def disable_autostart_windows() -> bool:
 def disable_autostart_startup() -> bool:
     if not IS_WINDOWS:
         return False
+    with suppress(Exception):
+        _autostart_lnk_mod().remove()
     appdata = os.environ.get("APPDATA")
     if not appdata:
         return False
     startup_dir = os.path.join(appdata, *WINDOWS_STARTUP_SUBPATH.split("\\"))
-    for ext in (".bat", ".lnk", ".cmd", ".vbs"):
-        p = os.path.join(startup_dir, f"{AUTOSTART_VALUE_NAME}{ext}")
-        with suppress(OSError):
-            if os.path.exists(p):
-                os.remove(p)
+    for _name in (AUTOSTART_VALUE_NAME,) + tuple(LEGACY_AUTOSTART_NAMES):
+        for ext in (".bat", ".lnk", ".cmd", ".vbs"):
+            p = os.path.join(startup_dir, f"{_name}{ext}")
+            with suppress(OSError):
+                if os.path.exists(p):
+                    os.remove(p)
     return True
 
 
@@ -4468,7 +4498,12 @@ def disable_autostart_schtasks() -> bool:
 
 def get_autostart_command() -> Optional[str]:
     if IS_WINDOWS:
-        if not IS_WINDOWS or winreg is None:
+        with suppress(Exception):
+            _m = _autostart_lnk_mod()
+            if _m.exists():
+                _w = json.loads(_m.marker_path().read_text(encoding="utf-8"))
+                return f'"{_w["target"]}" {_w["args"]}'.strip()
+        if winreg is None:
             return None
         try:
             with _safe_call():
@@ -4599,12 +4634,14 @@ def enable_autostart_linux(
     delay_line = (
         f"X-GNOME-Autostart-Delay={delay_sec}\n" if delay_sec > 0 else ""
     )
+    icon_png = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "icon", "ledgebord.png")
+    icon_line = f"Icon={icon_png}\n" if os.path.isfile(icon_png) else ""   # Ledgebords ikon i inställningar/aktivitetsvyer
     content = f"""[Desktop Entry]
 Type=Application
-Name=TaskBord
+Name=Ledgebord
 GenericName=Desktop Todo
 Comment=Desktop todo widget (autostart)
-Exec={cmd}
+{icon_line}Exec={cmd}
 Terminal=false
 StartupNotify=false
 X-GNOME-Autostart-enabled=true
@@ -5136,7 +5173,7 @@ def get_foreground_window_info() -> Dict[str, Any]:
           - title: str
           - class_name: str
           - pid: int
-          - is_ours: bool (class_name matchar TaskBordMain)
+          - is_ours: bool (class_name matchar LedgebordMain)
     """
     if not IS_WINDOWS or user32 is None:
         return {
@@ -5383,7 +5420,7 @@ __all__ = [
 if __name__ == "__main__":
     import json as _json
     print("=" * 60)
-    print(f"TaskBord desktop.py v6.4.0 — självtest ({sys.platform})")
+    print(f"Ledgebord desktop.py v6.4.0 — självtest ({sys.platform})")
     print("=" * 60)
     print(dump_system_info())
     print()

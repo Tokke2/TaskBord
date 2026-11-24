@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
 debug_run.py — Diagnostisk körning med full logging v6.4.1 v7 (18 888 888% bättre)
 ==============================================================================

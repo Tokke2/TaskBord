@@ -6,3 +6,8 @@
 
 extract-msg>=0.50          # Importera Outlook .msg-mejl som uppgifter (📧-knappen)
 reportlab>=4.0             # PDF-export av checklistan (📄)
+# Google Calendar (lokal OAuth-koppling i appen, ☁️-menyn)
+# Inloggningen sker i din webbläsare och svaret kommer till 127.0.0.1 —
+# inga konton eller nycklar hos någon mellanhand.
+google-api-python-client>=2.100   # skicka/läsa händelser
+google-auth-oauthlib>=1.2         # själva inloggningen (OAuth 2.0)

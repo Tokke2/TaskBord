@@ -2,7 +2,7 @@
 <html lang="sv">
 <head>
   <meta charset="utf-8">
-  <title>TaskBord — inställningar</title>
+  <title>Ledgebord — inställningar</title>
   <style>
     :root { color-scheme: dark; }
     body {
@@ -40,15 +40,15 @@
   </style>
 </head>
 <body>
-  <h1>📋 TaskBord — inställningar</h1>
+  <h1>📋 Ledgebord — inställningar</h1>
   <p class="lead">
-    Tillägget skickar mail till TaskBords lokala e-postbrygga
+    Tillägget skickar mail till Ledgebords lokala e-postbrygga
     (<code>http://127.0.0.1:8765</code>). Uppgiften sparas i appens
     JSON-fil (<code>data/active.json</code>) och finns kvar efter omstart.
   </p>
 
   <fieldset>
-    <legend>1. Klistra in inställningar från TaskBord</legend>
+    <legend>1. Klistra in inställningar från Ledgebord</legend>
     <label for="paste">Klistra in JSON (rekommenderat)</label>
     <textarea id="paste" placeholder='{"url":"http://127.0.0.1:8765","token":"..."}'></textarea>
     <div class="buttons">
@@ -56,7 +56,7 @@
       <button id="pasteUrlOnly" class="ghost">Endast adress</button>
     </div>
     <div class="hint">
-      I TaskBord: högerklicka tray-ikonen → <b>📧 E-post &amp; Thunderbird</b> →
+      I Ledgebord: högerklicka tray-ikonen → <b>📧 E-post &amp; Thunderbird</b> →
       <b>Kopiera inställningar för Thunderbird</b>. Då ligger JSON på urklipp —
       klistra in här och tryck <b>Läs in och spara</b>.
       Alternativt: filen <code>data/mail_bridge/tillagg_installningar.json</code>.
@@ -65,10 +65,10 @@
 
   <fieldset>
     <legend>2. Anslutning</legend>
-    <label for="url">Adress till TaskBord</label>
+    <label for="url">Adress till Ledgebord</label>
     <input type="text" id="url" placeholder="http://127.0.0.1:8765">
     <label for="token">Token (hemlig nyckel)</label>
-    <input type="text" id="token" placeholder="32 tecken — från TaskBord">
+    <input type="text" id="token" placeholder="32 tecken — från Ledgebord">
     <div class="check">
       <input type="checkbox" id="useRaw">
       <label for="useRaw" style="margin:0">
@@ -84,7 +84,7 @@
     <div class="check">
       <input type="checkbox" id="includeTags">
       <label for="includeTags" style="margin:0">
-        Thunderbird-taggar blir taggar i TaskBord
+        Thunderbird-taggar blir taggar i Ledgebord
       </label>
     </div>
     <div class="check">
@@ -101,11 +101,11 @@
   <fieldset>
     <legend>3. Så använder du tillägget</legend>
     <div class="hint">
-      • <b>Högerklicka på ett mail</b> i listan → <i>📋 Skicka till TaskBord</i><br>
+      • <b>Högerklicka på ett mail</b> i listan → <i>📋 Skicka till Ledgebord</i><br>
       • <b>Verktygsfältsknappen</b> (huvudfönstret) eller
         <b>meddelandeknappen</b> (öppet mail) → popup med prioritet,
         förfallodatum och taggar<br>
-      • TaskBord måste köra (tray-ikonen). Kör appen inte, läggs mailet i en
+      • Ledgebord måste köra (tray-ikonen). Kör appen inte, läggs mailet i en
         kö och skickas automatiskt när appen startar.
     </div>
   </fieldset>

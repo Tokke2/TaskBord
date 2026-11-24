@@ -1,7 +1,8 @@
+# Copyright © Rickard Längkvist, 2025–2026
 """
-single_instance.py — TaskBord v7-fix87: instans-meddelandekanal.
+single_instance.py — Ledgebord v7-fix87: instans-meddelandekanal.
 
-UPPGIFT: när en ANDRA instans av TaskBord startar ska den (1) upptäcka
+UPPGIFT: när en ANDRA instans av Ledgebord startar ska den (1) upptäcka
 att en redan kör, (2) SIGNALERA den befintliga instansen att visa sitt
 fönster, och (3) avsluta sig själv tyst.
 
@@ -41,9 +42,117 @@ def default_key() -> str:
     return f"TaskBord_SingleInstance_{safe_user or 'default'}"
 
 
+# /health svarar "Ledgebord" (äldre versioner: "TaskBord") — båda räknas som vår app
+APP_NAMES_ON_HEALTH = ("ledgebord", "taskbord")
+
+
+def probe_taskbord(port: int, timeout: float = 0.4, host: str = "127.0.0.1") -> bool:
+    """
+    FIX v8: svarar en KÖRANDE Ledgebord (valfri version/mapp) på 127.0.0.1:port?
+
+    Mail-bryggans /health kräver ingen token och svarar {"app": "Ledgebord", ...}. Fungerar
+    därför även mot äldre kopior som saknar mutex/fillås. Kastar aldrig.
+    """
+    try:
+        import json
+        import urllib.request
+
+        req = urllib.request.Request(f"http://{host}:{int(port)}/health")
+        # ingen proxy för localhost
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        with opener.open(req, timeout=timeout) as resp:
+            data = json.loads(resp.read(65536).decode("utf-8", "replace"))
+        return isinstance(data, dict) and str(data.get("app", "")).lower() in APP_NAMES_ON_HEALTH
+    except Exception:
+        return False
+
+
+def find_running_taskbord(first_port: int = 8765, attempts: int = 12) -> Optional[int]:
+    """FIX v8: porten där en redan körande Ledgebord svarar (annars None).
+
+    Portarna provas SAMTIDIGT. En efter en kunde varje stängd port ta hela timeouten på Windows
+    (brandvägg/antivirus på 127.0.0.1): 12 × 0,4 s ≈ 5 s extra vid VARJE start. Nu tar det ~0,4 s i värsta fall.
+    Resultatet är detsamma som förr: den LÄGSTA port som svarar."""
+    ports = list(range(int(first_port), int(first_port) + int(attempts)))
+    if len(ports) <= 1:
+        return next((p for p in ports if probe_taskbord(p)), None)
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=min(len(ports), 16), thread_name_prefix="probe") as ex:
+        hits = list(ex.map(probe_taskbord, ports))
+    return next((p for p, ok in zip(ports, hits) if ok), None)
+
+
+class DataDirLock:
+    """
+    FIX v8: ett andra, FILBASERAT lås per datamapp (js/).
+
+    Bakgrund: det namngivna mutex-låset räckte inte — två Ledgebord-processer mot samma
+    uppgiftsfiler (t.ex. autostart + manuell start) skriver över varandras uppgifter, och
+    mail-bryggan hamnar hos den ena medan fönstret man tittar på tillhör den andra
+    → uppgifter "ploppar upp och försvinner". Operativsystemet släpper fillåset
+    automatiskt när processen dör (även vid krasch), så inget kan fastna.
+
+    Windows: msvcrt.locking · Unix: fcntl.flock. Filen ligger i datamappen (appmappen).
+    """
+
+    def __init__(self, data_dir) -> None:
+        from pathlib import Path
+        self._path = Path(data_dir) / ".taskbord_instans.lock"
+        self._fh = None
+
+    def acquire(self) -> bool:
+        """True = vi äger låset (eller låsning går inte att göra → fortsätt, blockera aldrig)."""
+        try:
+            self._path.parent.mkdir(parents=True, exist_ok=True)
+            fh = open(self._path, "a+b")
+        except OSError as e:
+            logger.debug(f"{LOG_PREFIX} datamapps-lås: kan inte öppna ({e}) — hoppar över")
+            return True
+        try:
+            try:
+                import msvcrt  # Windows
+                fh.seek(0)
+                msvcrt.locking(fh.fileno(), msvcrt.LK_NBLCK, 1)
+            except ImportError:
+                import fcntl  # Unix
+                fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            with __import__("contextlib").suppress(Exception):
+                fh.close()
+            return False
+        except Exception as e:
+            logger.debug(f"{LOG_PREFIX} datamapps-lås ej möjligt ({e}) — hoppar över")
+            with __import__("contextlib").suppress(Exception):
+                fh.close()
+            return True
+        with __import__("contextlib").suppress(Exception):
+            import os
+            fh.seek(0)
+            fh.truncate()
+            fh.write(f"{os.getpid()}\n".encode("ascii"))
+            fh.flush()
+        self._fh = fh
+        return True
+
+    def release(self) -> None:
+        fh, self._fh = self._fh, None
+        if fh is None:
+            return
+        with __import__("contextlib").suppress(Exception):
+            try:
+                import msvcrt
+                fh.seek(0)
+                msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
+            except ImportError:
+                import fcntl
+                fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+        with __import__("contextlib").suppress(Exception):
+            fh.close()
+
+
 class InstanceMessenger:
     """
-    NY v7-fix87: lyssna/meddela mellan TaskBord-instanser.
+    NY v7-fix87: lyssna/meddela mellan Ledgebord-instanser.
 
     Användning (första instansen):
         m = InstanceMessenger()
@@ -89,7 +198,7 @@ class InstanceMessenger:
                     probe.disconnectFromServer()
                 logger.info(
                     f"{LOG_PREFIX} instans-kanal '{key}' upptagen — "
-                    f"en annan TaskBord körs redan"
+                    f"en annan Ledgebord körs redan"
                 )
                 return False
             # 2. Ingen lyssnar — städa eventuell DÖD socket-fil (Unix,
@@ -102,7 +211,7 @@ class InstanceMessenger:
             if not server.listen(key):
                 logger.info(
                     f"{LOG_PREFIX} instans-kanal '{key}' kunde ej lyssna — "
-                    f"en annan TaskBord körs troligen redan"
+                    f"en annan Ledgebord körs troligen redan"
                 )
                 return False
             server.newConnection.connect(self._on_new_connection)
@@ -196,6 +305,40 @@ class InstanceMessenger:
         except Exception as e:
             logger.warning(f"{LOG_PREFIX} notify misslyckades: {e}")
             return False
+
+
+def tell_running_instance(autostart: bool = False, key: Optional[str] = None, notify=None,
+                          total: float = 15.0, step: float = 0.5, sleep=None, clock=None) -> bool:
+    """
+    En ANDRA start av Ledgebord (en annan instans äger redan låset) ska ÖPPNA den som kör.
+
+    Den körande instansen lyssnar först när fönstren är byggda (några sekunder efter start) — därför
+    provas kanalen om och om igen i upp till ``total`` sekunder i stället för att ge upp direkt och visa
+    en ruta. Meddelandet ligger kvar i kanalen tills den körande appens händelseloop går igång.
+
+    * ``autostart=True`` (den fördröjda Starta-med-datorn-starten kom efter att du redan startat själv):
+      inget meddelande — fönstret är ju redan öppet och ska inte hoppa fram igen.
+    * Returnerar True när den körande instansen fick \"SHOW\" (eller när inget behövdes), annars False.
+    """
+    if autostart:
+        return True
+    import time as _t
+    sleep = sleep or _t.sleep
+    clock = clock or _t.monotonic
+    if notify is None:
+        def notify(k):  # noqa: E306
+            return InstanceMessenger().notify(k, "SHOW")
+    key = key or default_key()
+    end = clock() + max(0.0, float(total))
+    while True:
+        try:
+            if notify(key):
+                return True
+        except Exception as e:  # kastar aldrig vidare
+            logger.debug(f"{LOG_PREFIX} notify kastade: {e}")
+        if clock() >= end:
+            return False
+        sleep(step)
 
 
 # Qt-signalen måste vara en riktig PySide6-Signal — bygg upp klassen

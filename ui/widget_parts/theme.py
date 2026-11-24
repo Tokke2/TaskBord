@@ -1,0 +1,677 @@
+# -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
+"""
+ui/widget_parts/theme.py — Tema och utseende: automatiskt tema och _apply_theme (QSS, textstorlek, densitet).
+
+Del av TodoWidget (delad ur ui/widget.py). Metoderna är oförändrade; klassen
+blandas in i TodoWidget i ui/widget.py. Gemensamma konstanter, hjälpfunktioner
+och Qt-importer kommer från ui/widget_base.py, små UI-klasser från ui/widget_atoms.py.
+"""
+from __future__ import annotations
+
+from ui.widget_base import *  # noqa: F401,F403
+from ui.widget_atoms import *  # noqa: F401,F403
+
+from core import themes as _themes
+
+
+class ThemeMixin:
+    """Tema och utseende: automatiskt tema och _apply_theme (QSS, textstorlek, densitet)."""
+
+    def _check_auto_theme(self, *_ignored: Any) -> None:
+        """
+        Följ temat live: växla utan omstart när det som styr temat ändras.
+
+        * "Följ Windows" (system): Windows ljust/mörkt läge läses färskt — kontrollen körs var 5:e
+          sekund (``_init_timers``) och direkt när Qt säger att färgschemat ändrats
+          (``QStyleHints.colorSchemeChanged``, se ``_watch_system_theme``).
+        * "Auto": klockan passerade 07:00 / 19:00.
+        Övriga lägen (ljust/mörkt fast) gör ingenting. Gränsen detekteras genom att jämföra det
+        sparade ``_theme_is_dark`` med aktuellt värde → ``_apply_theme()``. Tyst (ingen loggning)
+        om inget ändrats, eftersom den körs ofta.
+        """
+        try:
+            raw = None
+            with suppress(Exception):
+                if hasattr(self.settings, "theme_raw"):
+                    raw = self.settings.theme_raw()
+            if raw not in ("auto", "system"):
+                return  # fast tema valt — gör ingenting
+            want_dark = None
+            with suppress(Exception):
+                if hasattr(self.settings, "is_dark_quiet"):
+                    want_dark = bool(self.settings.is_dark_quiet())
+                elif hasattr(self.settings, "is_dark"):
+                    want_dark = bool(self.settings.is_dark())
+            if want_dark is None:
+                return
+            current = bool(getattr(self, "_theme_is_dark", not want_dark))
+            if want_dark != current:
+                why = "Windows bytte läge" if raw == "system" else "klockan passerade gränsen"
+                logger.info(
+                    f"{LOG_PREFIX} Tema följer {'Windows' if raw == 'system' else 'klockan'}: {why} "
+                    f"→ växlar till {'mörkt' if want_dark else 'ljust'}"
+                )
+                self._apply_theme()
+        except Exception as e:
+            logger.debug(f"{LOG_PREFIX} _check_auto_theme: {e}")
+
+    def _watch_system_theme(self) -> None:
+        """Lyssna på Qt:s färgschema-signal (Qt ≥ 6.5) så temat byts direkt när Windows byter läge."""
+        try:
+            from PySide6.QtGui import QGuiApplication
+            app = QGuiApplication.instance()
+            if app is None:
+                return
+            hints = app.styleHints()
+            sig = getattr(hints, "colorSchemeChanged", None)
+            if sig is not None:
+                sig.connect(self._check_auto_theme)
+                self._system_theme_signal = True
+        except Exception as e:
+            logger.debug(f"{LOG_PREFIX} _watch_system_theme: {e}")
+
+    def _look_key(self) -> tuple:
+        """Det som ändrar kortens storlek/utseende (ingår i kortens cache-nyckel så de byggs om)."""
+        try:
+            return (int(self.settings.pref("text_scale")), str(self.settings.density_mode()), str(self.settings.pref("ui_font")),
+                    round(self._auto_scale_factor(), 2))
+        except Exception:
+            return (100, "comfortable", "standard", 1.0)
+
+    # ------------------------------------------------------------ ♿ tillgänglighet (ui/a11y.py)
+    def _a11y_install_shortcuts(self) -> None:
+        """Ctrl+Plus/Minus/0 = textstorlek · Ctrl+1–4 = flikar (Meny-tangenten/Skift+F10 hanteras i keynav)."""
+        try:
+            self._a11y_shortcuts = []
+            for seq, fn in (
+                ("Ctrl++", lambda: self._zoom_text(1)), ("Ctrl+=", lambda: self._zoom_text(1)),
+                ("Ctrl+-", lambda: self._zoom_text(-1)), ("Ctrl+0", lambda: self._zoom_text(0)),
+                ("Ctrl+1", lambda: self._goto_tab(0)), ("Ctrl+2", lambda: self._goto_tab(1)),
+                ("Ctrl+3", lambda: self._goto_tab(2)), ("Ctrl+4", lambda: self._goto_tab(3)),
+            ):
+                sc = QShortcut(QKeySequence(seq), self)
+                sc.activated.connect(fn)
+                self._a11y_shortcuts.append(sc)
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} _a11y_install_shortcuts: {e}")
+
+    def _goto_tab(self, index: int) -> None:
+        tabs = getattr(self, "tabs", None)
+        if tabs is not None and 0 <= index < tabs.count():
+            tabs.setCurrentIndex(index)
+
+    def _open_selected_task_menu(self) -> None:
+        """Samma meny som högerklick, för den uppgift som är markerad med piltangenterna."""
+        try:
+            tid = getattr(self, "_sel_tid", None)
+            task = self.store.find_task(tid) if tid else None
+            if task:
+                self._show_task_menu(dict(task))
+        except Exception as e:
+            logger.debug(f"{LOG_PREFIX} _open_selected_task_menu: {e}")
+
+    def _set_text_scale(self, pct: int) -> None:
+        """Textstorlek 80–200 % (sparas); fönstret ritas om direkt."""
+        try:
+            if not hasattr(self.settings, "set_pref") or not self.settings.set_pref("text_scale", int(pct)):
+                return
+            self._apply_theme()
+            self._rebuild_task_list()
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} _set_text_scale: {e}")
+
+    def _zoom_text(self, direction: int) -> None:
+        from ui import a11y as _a11y
+        self._set_text_scale(_a11y.next_zoom(int(self.settings.pref("text_scale")), direction))
+
+    def _a11y_apply_names(self) -> None:
+        with suppress(Exception):
+            from ui import a11y as _a11y
+            _a11y.apply_names(self)
+
+    def _apply_crisp_rendering(self, on: bool) -> None:
+        """Skarp text: full hinting (glyferna läggs på hela bildpunkter) + kantutjämning, för hela appen.
+        Av = Qts standard. Sätts bara om värdet ändras (QApplication.setFont gör om all stil)."""
+        from PySide6.QtGui import QFont
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance()
+        if app is None:
+            return
+        f = app.font()
+        want = QFont.HintingPreference.PreferFullHinting if on else QFont.HintingPreference.PreferDefaultHinting
+        if f.hintingPreference() != want:
+            f.setHintingPreference(want)
+            f.setStyleStrategy(f.styleStrategy() | QFont.StyleStrategy.PreferAntialias)
+            app.setFont(f)
+
+    def _theme_prefs(self) -> Any:
+        """(färgtema, bakgrundsdjup %, högkontrast?) ur inställningarna — alltid giltiga värden."""
+        try:
+            st = self.settings
+            preset = str(st.pref("theme_preset"))
+            return preset, int(st.pref("bg_dim")), _themes.is_high_contrast(preset, bool(st.pref("high_contrast")))
+        except Exception:
+            return "standard", 0, False
+
+    def _auto_scale_factor(self) -> float:
+        """Automatisk faktor efter skärmen fönstret ligger på (core/screen_fit.auto_scale). 1.0 om av eller okänt."""
+        try:
+            if not self.settings.pref("auto_scale"):
+                return 1.0
+            if QGuiApplication.platformName() == "offscreen":
+                return 1.0                      # testmiljö utan riktig skärm
+            from core.screen_fit import auto_scale
+            sh = getattr(self, "_shell", None) or self
+            scr = sh.screen() if hasattr(sh, "screen") else None
+            if scr is None:
+                scr = QGuiApplication.primaryScreen()
+            return float(auto_scale(scr.availableGeometry().width(), float(scr.devicePixelRatio() or 1.0)))
+        except Exception:
+            return 1.0
+
+    def _text_scale_factor(self) -> float:
+        """Textstorlek i % (80–200) som faktor — ovanpå Kompakt/Normal/Stor — gånger skärmens automatiska faktor."""
+        try:
+            return int(self.settings.pref("text_scale")) / 100.0 * self._auto_scale_factor()
+        except Exception:
+            return 1.0
+
+    def _theme_extra_qss(self, t: Dict[str, str], is_dark: bool, accent_hex: str) -> str:
+        """Extra QSS: högkontrast (tjocka kanter, tydliga varningsfärger) + synliga fokusringar (ui/a11y.py)."""
+        out = ""
+        try:
+            if getattr(self, "_hc_active", False):
+                warn, today = ("#ff5252", "#ffd740") if is_dark else ("#b00020", "#7a4f00")
+                for _prio in ("high", "medium", "low", "none"):
+                    out += (
+                        f'QFrame[taskCard="true"][taskPriority="{_prio}"] {{ background-color: {t["surface"]}; '
+                        f'border: 2px solid {t["surface_edge"]}; border-left: 6px solid {PRIORITY_COLORS[_prio]}; }} '
+                    )
+                out += (
+                    f'QFrame[taskCard="true"][taskDue="overdue"] {{ background-color: {t["surface"]}; '
+                    f"border: 2px solid {warn}; border-left: 6px solid {warn}; }} "
+                    f'QFrame[taskCard="true"][taskDue="today"] {{ background-color: {t["surface"]}; '
+                    f"border: 2px solid {today}; border-left: 6px solid {today}; }} "
+                )
+            from ui import a11y as _a11y
+            out += _a11y.focus_qss(t, is_dark, accent_hex, bool(getattr(self, "_hc_active", False)))
+        except Exception as e:
+            logger.debug(f"{LOG_PREFIX} _theme_extra_qss: {e}")
+        return out
+
+    def _apply_theme(self) -> None:
+        """
+        NY v6.4.1 v7: Applicera tema + proffsig glass-design (2026-09-24).
+
+        Rickard: "designen på fönstret ska vara bättre".
+        Använder settings.stylesheet() som bas + widget-specifik QSS
+        (header, tabs, sök, input, uppgiftskort) — färger via accent-palette (R3).
+        """
+        try:
+            is_dark = (
+                self.settings.is_dark()
+                if hasattr(self.settings, "is_dark")
+                else True
+            )
+            accent = (
+                self.settings.accent_color()
+                if hasattr(self.settings, "accent_color")
+                else "indigo"
+            )
+            # Etapp 10 (v7-fix10): design-tokens + accent via GLASS_ACCENTS
+            accent_hex = GLASS_ACCENTS.get(accent, "#818cf8")
+            t = _glass_tokens(is_dark)
+            # Färgtema, bakgrundsdjup och högkontrast (core/themes.py) — standard = oförändrade tokens
+            _tp, _dim, _hc = self._theme_prefs()
+            t = _themes.adjust_tokens(t, is_dark, _tp, _dim, _hc)
+            self._hc_active: bool = bool(_hc)
+            try:
+                self._crisp_on: bool = bool(self.settings.pref("crisp"))
+                self._apply_crisp_rendering(self._crisp_on)
+            except Exception:
+                self._crisp_on = True
+            try:
+                _font_family = _themes.font_css(str(self.settings.pref("ui_font")))
+            except Exception:
+                _font_family = _themes.font_css("standard")
+            # NY v7-fix38: genomskinligt skal → skala panelens bas-alfa
+            # så skrivbordsikonerna syns igenom glaset (högkontrast = alltid heltäckande)
+            self._transparency_factor: float = 0.0 if _hc else self._window_transparency_factor()
+            t = _tokens_with_transparency(t, self._transparency_factor)
+            _radius_css: str = (
+                "border-radius: 14px;" if self._transparency_factor > 0.0 else ""
+            )
+            # NY v7-fix17: spara tema för paintEvent-auroran + accent-tinter
+            self._theme_is_dark: bool = is_dark
+            self._theme_accent_hex: str = accent_hex
+            with suppress(Exception):  # kalenderfliken har egen QSS (ui/calendar_view.py)
+                _cv = getattr(self, "calendar_view", None)
+                if _cv is not None:
+                    _cv.apply_theme(
+                        is_dark, accent_hex, t["fg"], t["muted"], t["surface_edge"], t["surface"],
+                        _scaled_px(12),
+                    )
+            with suppress(Exception):  # anteckningsfliken har egen QSS (ui/notes_view.py)
+                _nv = getattr(self, "notes_view", None)
+                if _nv is not None:
+                    _nv.apply_theme(
+                        is_dark, accent_hex, t["fg"], t["muted"], t["surface_edge"], t["surface"],
+                        _scaled_px(12),
+                    )
+            tab_tint = _hex_rgba(accent_hex, 0.17 if is_dark else 0.14)
+            tab_edge = _hex_rgba(accent_hex, 0.45)
+
+            base_qss = ""
+            if hasattr(self.settings, "stylesheet"):
+                try:
+                    base_qss = self.settings.stylesheet()
+                except Exception:
+                    base_qss = ""
+
+            # Prioritets-regler genereras ur PRIORITY_COLORS + tint-dictar
+            # (ett enda ställe att justera kulörerna på).
+            prio_rules = ""
+            # NY v8: ALLA rader (även "ingen prio") får färgad vänsterkant.
+            # Hög prioritet får tjockare kant (5px) för tydligare markering.
+            for _prio in ("high", "medium", "low", "none"):
+                _edge = PRIORITY_COLORS[_prio]
+                _edge_w = 5 if _prio == "high" else 3
+                prio_rules += (
+                    f'QFrame[taskCard="true"][taskPriority="{_prio}"] {{ '
+                    f"background-color: {PRIORITY_ROW_TINT[_prio]}; "
+                    f"border: 1px solid {t['surface_edge']}; "
+                    f"border-left: {_edge_w}px solid {_edge}; }} "
+                    f'QFrame[taskCard="true"][taskPriority="{_prio}"]:hover {{ '
+                    f"background-color: {PRIO_HOVER_TINT[_prio]}; "
+                    f"border: 1px solid {t['edge_hov']}; "
+                    f"border-left: {_edge_w}px solid {_edge}; }} "
+                )
+
+            # NY v7-fix41: deadline-ring (röd=övertruten, orange=idag)
+            due_rules = (
+                'QFrame[taskCard="true"][taskDue="overdue"] { '
+                "background-color: rgba(239, 68, 68, 0.15); "
+                "border: 1px solid rgba(239, 68, 68, 0.65); "
+                "border-left: 3px solid #ef4444; } "
+                'QFrame[taskCard="true"][taskDue="today"] { '
+                "background-color: rgba(245, 158, 11, 0.12); "
+                "border: 1px solid rgba(245, 158, 11, 0.55); "
+                "border-left: 3px solid #f59e0b; } "
+            )
+
+            # NY v7-fix41: ⋯-knapp, snooze/återkommande-badges, delmoment
+            fix41_rules = (
+                "QPushButton#taskMenuBtn { "
+                f"background: {t['surface']}; "
+                f"border: 1px solid {t['surface_edge']}; "
+                "border-radius: 9px; "
+                "font-size: 13px; font-weight: 700; "
+                f"color: {t['muted']}; }} "
+                "QPushButton#taskMenuBtn:hover { "
+                f"background: {t['surface_hov']}; "
+                f"border: 1px solid {t['edge_hov']}; }} "
+                "QLabel#snoozeBadge { "
+                "background: rgba(129, 140, 248, 0.16); "
+                "border: 1px solid rgba(129, 140, 248, 0.35); "
+                f"color: {t['muted']}; "
+                "border-radius: 8px; padding: 1px 7px; "
+                "font-size: 10px; font-weight: 600; } "
+                "QLabel#recBadge { background: transparent; "
+                "font-size: 12px; } "
+                f"QLabel#subtaskTitle {{ color: {t['muted']}; "
+                "font-size: 12px; } "
+                f"QLabel#subtaskProgress {{ color: {t['muted']}; "
+                "font-size: 10px; font-weight: 600; } "
+                "QLabel#subtaskDoneAll { color: #34d399; "
+                "font-size: 10px; font-weight: 600; } "
+                f"QLabel#taskDate {{ color: {t['muted']}; "
+                "font-size: 10px; font-weight: 500; } "
+                f"QLabel#linkChip {{ color: {t['fg']}; "
+                "background: rgba(56, 189, 248, 0.16); "
+                "border: 1px solid rgba(56, 189, 248, 0.45); "
+                "border-radius: 8px; padding: 1px 8px; "
+                "font-size: 11px; font-weight: 600; } "
+                f"QLabel#amountChip {{ color: {t['fg']}; "
+                "background: rgba(52, 211, 153, 0.18); "
+                "border: 1px solid rgba(52, 211, 153, 0.5); "
+                "border-radius: 8px; padding: 1px 8px; "
+                "font-size: 11px; font-weight: 700; } "
+                f"QLabel#noteChip {{ color: {t['fg']}; "
+                "background: rgba(167, 139, 250, 0.16); "
+                "border: 1px solid rgba(167, 139, 250, 0.5); "
+                "border-radius: 8px; padding: 1px 8px; "
+                "font-size: 11px; font-weight: 500; } "
+                f"QLabel#contactChip {{ color: {t['fg']}; "
+                "background: rgba(45, 212, 191, 0.16); "
+                "border: 1px solid rgba(45, 212, 191, 0.5); "
+                "border-radius: 8px; padding: 1px 8px; "
+                "font-size: 11px; font-weight: 600; } "
+                f"QPushButton#amountSummary {{ color: {t['fg']}; "
+                f"background: {t['surface']}; border: 1px solid {t['surface_edge']}; "
+                "border-radius: 9px; padding: 3px 10px; text-align: left; "
+                "font-size: 11px; font-weight: 600; } "
+                f"QPushButton#amountSummary:hover {{ background: {t['surface_hov']}; "
+                f"border: 1px solid {t['edge_hov']}; }} "
+                f"QLabel#attachChip {{ color: {t['fg']}; "
+                "background: rgba(251, 191, 36, 0.16); "
+                "border: 1px solid rgba(251, 191, 36, 0.5); "
+                "border-radius: 8px; padding: 1px 8px; "
+                "font-size: 11px; font-weight: 600; } "
+            )
+
+            self.setObjectName("TodoWidget")
+            _dp_qss = _density_profile(self.settings)
+            _sel_bg = _hex_rgba(accent_hex, 0.20 if is_dark else 0.14)
+            widget_qss = f"""
+                /* ============ ETAPP 10 — MODERN FROSTED GLASS (v7-fix10) ===== */
+                QWidget#TodoWidget {{
+                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                        stop:0 {t['bg_top']}, stop:1 {t['bg_bottom']});
+                    color: {t['fg']};
+                    border: none;
+                    {_radius_css}
+                    font-family: {_font_family};
+                    font-size: 13px;
+                }}
+                QLabel#dragHandle {{
+                    background: transparent;
+                    color: {t['fg']};
+                    font-size: 12px;
+                    font-weight: 700;
+                    border: none;
+                    padding: 2px 4px;
+                }}
+                QLabel#dragHint {{
+                    background: transparent;
+                    color: {t['hint']};
+                    font-size: 10px;
+                    font-weight: 400;
+                    border: none;
+                    padding: 2px 0;
+                }}
+                QLabel#statsChip {{
+                    background: {t['surface']};
+                    border: 1px solid {t['surface_edge']};
+                    color: {t['muted']};
+                    border-radius: 9px;
+                    padding: 3px 9px;
+                    font-size: 10px;
+                    font-weight: 600;
+                }}
+                QPushButton#lockBtn {{
+                    background: {t['surface']};
+                    border: 1px solid {t['surface_edge']};
+                    border-radius: 9px;
+                    font-size: 13px;
+                    padding: 2px 6px;
+                    min-width: 28px;
+                }}
+                QPushButton#lockBtn:hover {{
+                    background: {t['surface_hov']};
+                    border: 1px solid {t['edge_hov']};
+                }}
+                QPushButton#lockBtn:checked {{
+                    background: {accent_hex};
+                    color: white;
+                    border: 1px solid {accent_hex};
+                }}
+                QPushButton#winBtn, QPushButton#closeBtn {{
+                    background: {t['surface']};
+                    color: {t['fg']};
+                    border: 1px solid {t['surface_edge']};
+                    border-radius: 9px;
+                    font-size: 14px;
+                    font-weight: 700;
+                    padding: 0px;
+                }}
+                QPushButton#winBtn:hover {{
+                    background: {t['surface_hov']};
+                    border: 1px solid {t['edge_hov']};
+                }}
+                QPushButton#closeBtn:hover {{
+                    background: #dc2626;
+                    color: #ffffff;
+                    border: 1px solid #dc2626;
+                }}
+                QLineEdit#searchInput, QLineEdit#inputField {{
+                    background: {t['field_bg']};
+                    border: 1px solid {t['surface_edge']};
+                    border-radius: 12px;
+                    padding: 9px 14px;
+                    font-size: 13px;
+                    color: {t['fg']};
+                    placeholder-text-color: {t['muted']};
+                    selection-background-color: {accent_hex};
+                    selection-color: white;
+                }}
+                QLineEdit#searchInput:hover, QLineEdit#inputField:hover {{
+                    border: 1px solid {t['edge_hov']};
+                }}
+                QLineEdit#searchInput:focus, QLineEdit#inputField:focus {{
+                    border: 1.5px solid {accent_hex};
+                    background: {t['field_focus']};
+                }}
+                QTabWidget::pane {{
+                    border: none;
+                    border-top: 1px solid {t['divider']};
+                    background: transparent;
+                    top: -1px;
+                }}
+                QTabBar {{ background: transparent; border: none; }}
+                QTabBar::tab {{
+                    background: transparent;
+                    color: {t['muted']};
+                    padding: 7px 8px;
+                    margin: 2px 3px 2px 0;
+                    border: 1px solid transparent;
+                    border-radius: 10px;
+                    font-weight: 600;
+                    font-size: 12px;
+                }}
+                QTabBar::tab:selected {{
+                    background: {tab_tint};
+                    color: {accent_hex};
+                    border: 1px solid {tab_edge};
+                }}
+                QTabBar::tab:hover:!selected {{
+                    color: {t['fg_hov']};
+                    background: {t['surface']};
+                }}
+                QScrollArea {{ border: none; background: transparent; }}
+                QScrollArea > QWidget > QWidget {{ background: transparent; }}
+                QScrollBar:vertical {{
+                    background: transparent;
+                    width: 10px;
+                    margin: 2px;
+                }}
+                QScrollBar::handle:vertical {{
+                    background: {t['surface_edge']};
+                    border-radius: 5px;
+                    min-height: 28px;
+                }}
+                QScrollBar::handle:vertical:hover {{ background: {accent_hex}; }}
+                QScrollBar::add-line:vertical,
+                QScrollBar::sub-line:vertical {{ height: 0; }}
+                /* --- Uppgiftskort (glas-cards) -------------------------------- */
+                QFrame[taskCard="true"] {{
+                    background-color: {t['surface']};
+                    border: 1px solid {t['surface_edge']};
+                    border-radius: 12px;
+                    padding: {_dp_qss['card_pad']};
+                    margin: {_dp_qss['card_margin']};
+                }}
+                QFrame[taskCard="true"]:hover {{
+                    background-color: {t['surface_hov']};
+                    border: 1px solid {t['edge_hov']};
+                }}
+                {prio_rules}
+                {due_rules}
+                {fix41_rules}
+                /* Fästa (pinned) uppgifter — amber-glas; kommer EFTER
+                   prioritets-reglerna = vinner vid konflikt. */
+                QFrame[taskCard="true"][pinned="true"] {{
+                    background-color: rgba(251, 191, 36, 0.10);
+                    border: 1px solid rgba(251, 191, 36, 0.55);
+                    border-left: 3px solid #fbbf24;
+                }}
+                QFrame[taskCard="true"][pinned="true"]:hover {{
+                    background-color: rgba(251, 191, 36, 0.17);
+                    border: 1px solid rgba(251, 191, 36, 0.80);
+                    border-left: 3px solid #fbbf24;
+                }}
+                /* Markerad uppgift (tangentbordsnavigering ↑/↓) */
+                QFrame[taskCard="true"][taskSelected="true"],
+                QFrame[taskCard="true"][taskSelected="true"]:hover {{
+                    background-color: {_sel_bg};
+                    border-top: 2px solid {accent_hex};
+                    border-right: 2px solid {accent_hex};
+                    border-bottom: 2px solid {accent_hex};
+                }}
+                QLabel#taskTitle {{
+                    color: {t['fg']};
+                    font-size: 12px;
+                    font-weight: 600;
+                    border: none;
+                    background: transparent;
+                    padding: 0;
+                }}
+                QFrame[taskCard="true"][taskDone="true"] QLabel#taskTitle {{
+                    color: {t['muted']};
+                    font-weight: 400;
+                    text-decoration: line-through;
+                }}
+                QLabel#pinBadge {{
+                    background: transparent;
+                    color: #fbbf24;
+                    font-size: 12px;
+                    border: none;
+                    padding: 0;
+                }}
+                QLabel#emptyHint {{
+                    color: {t['muted']};
+                    font-style: italic;
+                    padding: 24px;
+                    border: none;
+                    background: transparent;
+                }}
+                /* --- Checkbox (målad glas-indikator) -------------------------- */
+                QCheckBox {{
+                    background: transparent;
+                    spacing: 0;
+                }}
+                QCheckBox::indicator {{
+                    width: 22px;
+                    height: 22px;
+                    border-radius: 7px;
+                    border: 2px solid {t['edge_hov']};
+                    background: {t['field_bg']};
+                }}
+                QCheckBox::indicator:hover {{
+                    border: 2px solid {accent_hex};
+                }}
+                QCheckBox::indicator:checked {{
+                    background: {accent_hex};
+                    border: 2px solid {accent_hex};
+                }}
+                /* --- Focus Mode-knappar --------------------------------------- */
+                QPushButton#emailImportBtn, QPushButton#emailBadge {{
+                    background: {t['surface']};
+                    border: 1px solid {t['surface_edge']};
+                    border-radius: 9px;
+                    font-size: 14px;
+                    padding: 2px;
+                }}
+                QPushButton#emailImportBtn:hover, QPushButton#emailBadge:hover {{
+                    background: {t['surface_hov']};
+                    border: 1px solid {t['edge_hov']};
+                }}
+                QPushButton#focusNav {{
+                    background: {t['surface']};
+                    color: {t['fg']};
+                    border: 1px solid {t['surface_edge']};
+                    border-radius: 10px;
+                    padding: 8px 12px;
+                    font-weight: 600;
+                }}
+                QPushButton#focusNav:hover {{
+                    background: {t['surface_hov']};
+                    border: 1px solid {t['edge_hov']};
+                }}
+                QPushButton#focusDone {{
+                    background: rgba(16, 185, 129, 0.78);
+                    color: white;
+                    border: 1px solid rgba(16, 185, 129, 0.95);
+                    border-radius: 10px;
+                    padding: 8px 14px;
+                    font-weight: 700;
+                }}
+                QPushButton#focusDone:hover {{
+                    background: rgba(16, 185, 129, 0.95);
+                }}
+                /* --- Menyer + tooltips (prioritetsmeny m.m.) ------------------ */
+                QMenu {{
+                    background: {t['field_focus']};
+                    color: {t['fg']};
+                    border: 1px solid {t['surface_edge']};
+                    border-radius: 10px;
+                    padding: 4px;
+                }}
+                QMenu::item {{ padding: 6px 24px; border-radius: 6px; }}
+                QMenu::item:selected {{ background: {accent_hex}; color: white; }}
+                QToolTip {{
+                    background: {t['field_focus']};
+                    color: {t['fg']};
+                    border: 1px solid {t['surface_edge']};
+                    border-radius: 6px;
+                    padding: 4px 8px;
+                }}
+                QSizeGrip {{
+                    background: transparent;
+                    width: 14px;
+                    height: 14px;
+                }}
+                """
+            # v7-fix10: objectNames MÅSTE vara satta FÖRE setStyleSheet()
+            # (annars hinner QSS-reglerna #inputField m.fl. aldrig träffa).
+            import contextlib as _ctx
+            with _ctx.suppress(Exception):
+                if hasattr(self, "drag_handle"):
+                    self.drag_handle.setObjectName("dragHandle")
+                if hasattr(self, "lock_btn"):
+                    self.lock_btn.setObjectName("lockBtn")
+                    self.lock_btn.setCheckable(True)
+                if hasattr(self, "search_input"):
+                    self.search_input.setObjectName("searchInput")
+                if hasattr(self, "input_field"):
+                    self.input_field.setObjectName("inputField")
+                if getattr(self, "_glass", None) is not None:
+                    self._glass.set_theme(is_dark, accent_hex)
+
+            # NY: textstorlek (Kompakt/Normal/Stor) skalar alla font-size i widget-QSS
+            # (skalan ligger kvar i widget_base — där läses den av _scaled_px)
+            widget_qss += self._theme_extra_qss(t, is_dark, accent_hex)
+            _ui_scale = set_ui_font_scale(_dp_qss["font"] * self._text_scale_factor())
+            widget_qss = _scale_font_sizes(widget_qss, _ui_scale)
+            self.setStyleSheet(base_qss + widget_qss)
+
+            self._a11y_apply_names()
+            logger.info(
+                f"{LOG_PREFIX} tema+design applicerat: "
+                f"dark={is_dark}, accent={accent}"
+            )
+            self._audit.add(
+                "theme_applied", {"is_dark": is_dark, "accent": accent}
+            )
+        except Exception as e:
+            logger.warning(
+                f"{LOG_PREFIX} _apply_theme misslyckades: "
+                f"{_describe_widget_error(e)}",
+                exc_info=True,
+            )
+            try:
+                self.setStyleSheet(
+                    "QWidget { background-color: #1a1a2e; color: white; }"
+                )
+            except Exception:
+                pass

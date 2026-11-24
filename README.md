@@ -1,80 +1,85 @@
-# TaskBord
-📋 TaskBord — A lightweight, portable desktop todo widget for Windows, built with Python and PySide6. Features reminders, recurring tasks, email import, snooze, natural-language task entry and customizable desktop modes.
+<p align="center">
+  <img src="docs/img/banner.png" alt="Ledgebord — uppgiftslistan som ligger på skrivbordet" width="100%">
+</p>
 
-## 🚀 Installation (Windows)
+# Ledgebord
 
-1. Ladda ner eller klona repot och öppna mappen `TaskBord`.
-2. Dubbelklicka på **`FORSTA_START.bat`**. Filen:
-   - hämtar senaste stabila Python-versionen från python.org (inget versionsnummer är hårdkodat),
-   - installerar Python om det saknas, eller uppgraderar det om installerad version är äldre än senaste,
-   - installerar eller uppgraderar alla paket i `requirements.txt` och `requirements-optional.txt` till senaste version,
-   - startar TaskBord med den nyaste Python som finns.
-3. Nästa gång: dubbelklicka på **`STARTA_HAR.bat`**. Den startar direkt med nyaste installerade Python och installerar bara om Python saknas.
+**Ledgebord är en liten uppgiftslista som ligger på skrivbordet.** Skriv en uppgift, tryck Enter — klart. Appen
+påminner dig, tar emot uppgifter från mail och sparar allt i en mapp på din egen dator. Gratis, utan konto och utan moln.
 
-> Plattform: TaskBord är idag gjord för Windows. Den använder Windows-specifika funktioner för fönsterlägen och skrivbordsikoner.
+*English: a lightweight desktop to-do widget for Windows (Python + PySide6), with reminders, mail import, calendar view and payment plans.*
 
-## 📧 Importera uppgifter från mail (Thunderbird, Outlook m.m.)
+---
 
-Det finns ett **Thunderbird-tillägg** som skickar mail till appen och
-skapar uppgifter. Uppgifterna sparas i **JSON** (`data/active.json`) och
-finns kvar efter omstart.
+## 🚀 Kom igång (Windows)
 
-* **Thunderbird-tillägget** — högerklicka på ett mail → *📋 Skicka till
-  TaskBord*, eller använd knappen i meddelandefönstret (prioritet,
-  förfallodatum, taggar). Källkoden ligger i `thunderbird-tillagg/`,
-  färdig fil skapas med `SKAPA_XPI.bat` → `TaskBord-Thunderbird.xpi`.
-* **Inkorgsmappen** `data/inbox/` — släpp `.eml`, `.msg` eller `.json` där
-  så importeras de automatiskt (även mail som kom när appen var avstängd).
-* **📧-knappen i widgeten / tray-menyn** — importera vanliga
-  `.eml`/`.msg`-filer från disken.
+1. **Ladda ner:** klicka på den gröna knappen **Code → Download ZIP** här på GitHub och packa upp mappen var du vill.
+2. **Första gången:** dubbelklicka på **`FORSTA_START.bat`**. Saknas Python på datorn **frågar** den om du vill
+   att senaste Python installeras (J/N); finns Python frågar den aldrig. Sedan installeras tilläggen och Ledgebord startar.
+   Det tar någon minut.
+3. **Nästa gång:** dubbelklicka på **`STARTA_DOLT.vbs`** (inget terminalfönster alls) eller `STARTA_HAR.bat` — eller
+   bocka i *Starta med datorn* i tray-menyn så startar appen själv. Ledgebord startar alltid minimerad i systemfältet.
 
-Full guide (installation, API, felsökning, JSON-format):
-**[THUNDERBIRD.md](THUNDERBIRD.md)**
+> Har du redan Python används den som den är — **Python uppdateras inte**. Tilläggen uppdateras en gång i veckan.
+> macOS och Linux: kör `./starta.sh` (se [manualen](docs/MANUAL.md#-windows--macos--linux)).
 
-Snabbstart:
+## ✨ Det här kan den
 
-```text
-1. Kör SKAPA_XPI.bat                        → TaskBord-Thunderbird.xpi
-2. Thunderbird → Tillägg och teman → ⚙️ → Installera tillägg från fil…
-3. TaskBord: tray → 📧 E-post & Thunderbird → 📋 Kopiera inställningar
-4. Thunderbird: tilläggets Inställningar → klistra in JSON → spara
-5. Högerklicka på ett mail → 📋 Skicka till TaskBord
-```
+| | |
+|---|---|
+| ➕ **Snabbt** | Skriv och tryck Enter. Skriv `Skicka offert start måndag` så fattar den startdatumet. Ctrl+Alt+N från var som helst. |
+| 🏷 **Ordning** | Prioritet, taggar med färger, förfallodatum, delmoment, återkommande uppgifter, sök, arkiv som sparas för alltid. |
+| 🔔 **Påminnelser** | Påminner tills uppgiften är klar. Siffra på tray-ikonen visar hur många som väntar. |
+| 📆 **Kalender** | Månadsvy som visar vilka dagar som är tunga, med röda dagar. Skicka uppgifter till Google Calendar eller `.ics` — ändrar du datum flyttas händelsen med automatiskt. |
+| 📝 **Anteckningsflik** | Egen flik för fria anteckningar: skapa, redigera, fäst och sök. Sparas automatiskt och ingår i backup. |
+| 📧 **Mail** | Högerklicka ett mail i Thunderbird → uppgift. Datum i mailet blir påminnelser. |
+| 💸 **Delbetalning** | Dela en faktura i flera betalningar — varje del blir en uppgift med datum och belopp. |
+| 📋 **Jobbmallar** | Ett klick skapar alla uppgifter för ett jobb (t.ex. Limojobb) med datum från jobbdagen — och kan skicka dem automatiskt till Google Calendar. |
+| 💰 **Belopp** | Belopp på uppgifter med summor per månad och tagg ("att fakturera"). |
+| 📝 **Anteckningar** | Längre text per uppgift. Telefonnummer och adresser blir klickbara (ring, SMS, Google Maps). |
+| 🖥 **Skrivbordet** | Ligger bakom dina fönster, eller överst om du vill. Gömmer sig i skärmkanten och lämnar en liten flik (antal aktiva/försenade) – håll musen på den så glider fönstret fram. Följer Windows ljusa/mörka tema. |
+| 🔄 **Uppdatering** | Hittar nya versioner själv och uppdaterar tyst. Dina uppgifter och inställningar rörs aldrig. |
+| 💾 **Säkert** | Automatiska backuper, felloggar och självläkning. Bara en instans åt gången — startar du igen öppnas den som kör. |
+| 🗣 **Naturliga datum** | Skriv `fre 14`, `om 3 dagar` eller `nästa mån` — överallt där ett datum skrivs. |
+| 🌙 **Tysta timmar** | Inga påminnelser på natten eller helgen, valbart ljud (Pling, Klocka, Mjukt). |
+| 👋 **Välkomstguide** | Vid första start: kort guide + exempeluppgift och en förklarande tom vy. Finns alltid under högerklick. |
+| 🎨 **Teman & tillgänglighet** | Färgteman, glasstyrka, hög kontrast, text upp till 200 %, tydliga fokusringar och namn för skärmläsare. |
 
-## 📅 Exportera uppgifter till kalendern (Google Calendar m.fl.)
+Alla detaljer, steg för steg: **[docs/MANUAL.md](docs/MANUAL.md)**.
 
-Vill du se vissa uppgifter i Google Calendar? Högerklicka på en uppgift:
+## ❓ Vanliga frågor
 
-* **📅 Lägg till i Google Calendar** — öppnar Google Calendar med uppgiften
-  förifylld (förfallodatumet blir en heldagshändelse). Inget konto eller
-  någon nyckel behövs i appen — du trycker bara *Spara*.
-* **📅 Exportera uppgiften (.ics)…** — sparar uppgiften som kalenderfil.
+**Var sparas mina uppgifter?** I appmappen: `js\` (uppgifter och bilagor), `data\` och `loggar\`. Ingenting skrivs utanför
+mappen — utom genvägen för *Starta med datorn* i Windows Startup-mapp, om du slår på den.
 
-Flera på en gång? Högerklicka på fönstret eller använd tray-menyn →
-**📅 Exportera till kalender (.ics)…** Alla uppgifter med förfallodatum blir
-då händelser i en kalenderfil. Importera den i Google Calendar via
-*⚙️ Inställningar → Importera och exportera → Importera* — filen fungerar
-också i Outlook och Apple Kalender. Uppgifter utan förfallodatum kan inte
-bli händelser och hoppas över (antalet visas i dialogen).
+**Hur uppdaterar jag?** Det sker av sig självt två gånger per dygn. Vill du kolla direkt: tray-ikonen → **Sök ny version**.
 
-> En full tvåvägssynk mot Google Calendar kräver OAuth-uppsättning i Google
-> Cloud (klient-id/hemlighet) — det här är den nyckelfria vägen, som täcker
-> "exportera vissa uppgifter dit".
+**Hur tar jag bort appen?** Stäng den (tray → Avsluta), slå av *Starta med datorn* och radera mappen. Vill du spara
+uppgifterna, kopiera `js\` först.
+
+**Appen syns inte.** Klicka på tray-ikonen (vid klockan), eller starta appen igen — då öppnas fönstret.
+
+**Något gick fel.** Tray-menyn → **🧯 Öppna felloggen**, eller **🩺 Skapa felrapport…**.
+
+## 📚 Mer
+
+- [Manual](docs/MANUAL.md) — alla funktioner, genvägar och inställningar
+- [Thunderbird-tillägget](THUNDERBIRD.md) — skicka mail till Ledgebord
+- [Google Calendar](GOOGLE_CALENDAR.md) — koppla kalendern
+- [Logotyp som SVG för tryck](https://github.com/Tokke2/TaskBord/releases/latest) (under *Assets* på releasen) · [Ikoner](docs/MANUAL.md#-namn-och-ikon) · [Kodstruktur](docs/MANUAL.md#-kodstruktur-för-den-som-ändrar-koden)
 
 ## 💖 Stöd projektet
 
-TaskBord är gratis och utan reklam. Donationer är helt frivilliga och går till utveckling och underhåll. Appen fungerar exakt lika bra utan donation.
+Ledgebord är gratis och utan reklam. Donationer är helt frivilliga och görs i appen: högerklicka på fönstret
+(eller tray-ikonen) → **💖 Stöd Ledgebord…** (under hjälpen) → välj belopp och skanna Swish-QR-koden eller klicka på knappen för
+PayPal eller Ko-fi. Mottagarna är inbyggda och låsta.
 
-- 💙 **PayPal:** https://paypal.me/Rickard3dPrint
-- ☕ **Ko-fi:** https://ko-fi.com/tokke2
+## 📄 Licens
 
-Du hittar samma länkar i appen: högerklicka på fönstret och välj **💖 Stöd TaskBord…**.
+**MIT** — se [`LICENSE`](LICENSE). Du får använda, kopiera, ändra och dela Ledgebord **både privat och kommersiellt**
+(till exempel i ditt företag), utan avgift. Enda villkoret: behåll copyright- och licenstexten i kopior av programmet.
+Programmet levereras utan garanti.
 
-## Loggar och felsökning
+---
 
-- **Dagens logg:** `data/todo_app.log`. Vanlig loggsökning och loggstatistik visar den aktiva loggen, inte arkivet.
-- **Historik:** äldre loggfiler flyttas till `data/logs/archive/`. Dagsloggen roteras vid första logghändelsen efter lokal midnatt eller när appen startas nästa dag. Arkivet raderas inte automatiskt.
-- **Olösta fel:** `data/felsokning.json` skapas när ett fel loggas (`ERROR` eller `CRITICAL`). Upprepningar sammanförs med antal, första och senaste tidpunkt samt senaste feldetaljer. Listan finns kvar efter omstart. Redan arkiverade loggar läses inte in som olösta fel.
-- **Automatisk rensning:** när appen kan bekräfta att samma operation lyckades tas dess felpost bort, till exempel när en tidigare misslyckad inkorgsfil importeras på nytt med samma namn. Utan ett uttryckligt besked om att felet är löst ligger posten kvar. Logghistoriken ändras inte när en felpost rensas.
-
-För kod med en verifierbar återhämtning: logga felet med `extra={"issue_key": "stabilt-fel-id"}` och anropa `resolve_log_issue("stabilt-fel-id")` endast efter bekräftad framgång för samma operation.
+<sub>Copyright © Rickard Längkvist, 2025–2026. Licens: MIT (se [`LICENSE`](LICENSE)).</sub>

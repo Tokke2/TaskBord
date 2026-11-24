@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-mail_bridge.py — TaskBord v7-fix90: e-postbrygga (Thunderbird → uppgifter)
+mail_bridge.py — Ledgebord v7-fix90: e-postbrygga (Thunderbird → uppgifter)
 =========================================================================
 Copyright © Rickard Längkvist, 2025–2026
 
@@ -15,7 +15,7 @@ finns kvar även efter omstart/krasch.
 
 TVÅ VÄGAR IN (båda använder samma kodväg → samma dedup, samma metadata)
 ======================================================================
-1. HTTP-bryggan (live, kräver att TaskBord körs)
+1. HTTP-bryggan (live, kräver att Ledgebord körs)
      Tillägget POST:ar mailet till http://127.0.0.1:8765
        POST /task   → JSON-payload (ämne, avsändare, brödtext, prioritet ...)
        POST /eml    → RÅ .eml (hela originalmailet sparas som bilaga)
@@ -24,7 +24,7 @@ TVÅ VÄGAR IN (båda använder samma kodväg → samma dedup, samma metadata)
 2. Inkorgsmappen `data/inbox/` (fungerar även om appen var avstängd)
      Lägg/spara .eml, .msg eller .json i data/inbox/ → import sker
      automatiskt inom några sekunder, filen flyttas till inbox/imported/.
-     TaskBord importerar allt som ligger där redan vid start.
+     Ledgebord importerar allt som ligger där redan vid start.
 
 JSON-FILER (allt överlever omstart)
 ====================================
@@ -39,7 +39,7 @@ JSON-FILER (allt överlever omstart)
 API (allt utom /health kräver token i headern X-TaskBord-Token)
 ===============================================================
     GET  /                → statussida (HTML, kan testas i webbläsaren)
-    GET  /health          → {"ok": true, "app": "TaskBord", ...}
+    GET  /health          → {"ok": true, "app": "Ledgebord", ...}
     GET  /tasks           → aktiva uppgifter (id, title, priority, due_date)
     GET  /imported?message_id=<id>  → är mailet redan importerat?
     POST /task            → skapa uppgift från JSON
@@ -80,7 +80,7 @@ LOG_PREFIX: str = "[MAILBRIDGE]"
 
 # --- Versioner/namn --------------------------------------------------------
 BRIDGE_VERSION: str = "1.0.0 (v7-fix90)"
-APP_NAME: str = "TaskBord"
+APP_NAME: str = "Ledgebord"
 
 # --- Kataloger/filer -------------------------------------------------------
 BRIDGE_DIRNAME: str = "mail_bridge"
@@ -104,7 +104,7 @@ MAX_TITLE_LEN: int = 200
 MAX_NOTE_LEN: int = 4000
 MAX_TAGS: int = 10
 MAX_TAG_LEN: int = 24
-DEFAULT_INBOX_POLL_SEC: int = 3
+DEFAULT_INBOX_POLL_SEC: int = 5
 INBOX_MIN_AGE_SEC: float = 0.75          # vänta tills filen slutat växa
 INBOX_MAX_ATTEMPTS: int = 3
 
@@ -289,7 +289,7 @@ def extension_config(data_dir: Path, port: int, token: str) -> Dict[str, Any]:
         "bridge_version": BRIDGE_VERSION,
         "generated": _now_iso(),
         "instruktion": (
-            "Kopiera hela innehållet och klistra in i TaskBord-tilläggets "
+            "Kopiera hela innehållet och klistra in i Ledgebord-tilläggets "
             "inställningar i Thunderbird (fältet 'Klistra in inställningar')."
         ),
     }
@@ -727,6 +727,13 @@ def create_task_from_payload(
                 except Exception as e:
                     logger.debug(f"{LOG_PREFIX} metadata {k} misslyckades: {e}")
 
+    # --- Datum i mailet ("15/11", "november") → påminnelser (core/mail_dates.py) ---
+    try:
+        from core import mail_dates
+        result["remind_dates"] = list(mail_dates.apply_to_task(store, task_id, subject, body) or [])
+    except Exception as e:
+        logger.debug(f"{LOG_PREFIX} datum i mail: {e}")
+
     # --- Dedup-registret (JSON) -----------------------------------------
     registry.register(
         key,
@@ -935,6 +942,8 @@ def import_email_file(
             )
         result["title"] = str(task.get("title", filepath.name))
         result["priority"] = str(task.get("priority", "medium"))
+        if not duplicate and task.get("remind_dates"):
+            result["remind_dates"] = [str(x) for x in task.get("remind_dates") or []]
     except Exception as e:
         logger.debug(f"{LOG_PREFIX} dedup-registrering misslyckades: {e}")
 
@@ -1038,7 +1047,7 @@ class _BridgeHTTPServer(ThreadingHTTPServer):
 class _BridgeHandler(BaseHTTPRequestHandler):
     """Hanterar alla bryggans endpointar. Se modulens docstring för API:t."""
 
-    server_version = f"TaskBord-MailBridge/{BRIDGE_VERSION.split()[0]}"
+    server_version = f"Ledgebord-MailBridge/{BRIDGE_VERSION.split()[0]}"
     protocol_version = "HTTP/1.1"
 
     # -------------------------------------------------------------- utils
@@ -1112,7 +1121,33 @@ class _BridgeHandler(BaseHTTPRequestHandler):
         except Exception:
             return False
 
+    def _drain_unread_body(self) -> None:
+        """
+        Läs bort en POST-kropp som handlern inte läste (t.ex. vid 401 fel token).
+        Annars tolkas kroppen som nästa förfrågan på samma keep-alive-anslutning och
+        nästa (korrekta) anrop får ett kryptiskt HTTP 400.
+        """
+        try:
+            length = int(self.headers.get("Content-Length", "0") or "0")
+        except ValueError:
+            length = 0
+        if length <= 0:
+            return
+        if length > MAX_EML_BODY:
+            self.close_connection = True
+            return
+        remaining = length
+        try:
+            while remaining > 0:
+                chunk = self.rfile.read(min(remaining, 65536))
+                if not chunk:
+                    break
+                remaining -= len(chunk)
+        except Exception:
+            self.close_connection = True
+
     def _read_body(self, limit: int) -> bytes:
+        self._body_read = True
         try:
             length = int(self.headers.get("Content-Length", "0") or "0")
         except ValueError:
@@ -1187,6 +1222,14 @@ class _BridgeHandler(BaseHTTPRequestHandler):
             self._send_json({"ok": False, "error": str(e)}, 500)
 
     def do_POST(self) -> None:  # noqa: N802
+        self._body_read = False
+        try:
+            self._do_post()
+        finally:
+            if not self._body_read:
+                self._drain_unread_body()
+
+    def _do_post(self) -> None:
         query = self._query()
         path = self._path_only
         try:
@@ -1199,7 +1242,7 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                         "ok": False,
                         "error": (
                             "Ogiltig token. Kopiera inställningarna från "
-                            "TaskBord: tray-menyn → 📧 E-post & Thunderbird."
+                            "Ledgebord: tray-menyn → 📧 E-post & Thunderbird."
                         ),
                     },
                     401,
@@ -1356,6 +1399,21 @@ class MailBridgeServer:
     def _bind_server(self) -> Optional[_BridgeHTTPServer]:
         """Binda porten (provar nästa port om den är upptagen)."""
         attempts = PORT_SCAN_ATTEMPTS if self.allow_port_scan else 1
+        # FIX v8: är porten upptagen av en ANNAN Ledgebord ska vi inte starta en andra brygga
+        # på nästa port — då finns två appar som tävlar om mailen. Den som kör först äger den.
+        try:
+            from core.single_instance import probe_taskbord
+        except Exception:
+            try:
+                from single_instance import probe_taskbord  # type: ignore
+            except Exception:
+                probe_taskbord = None  # type: ignore
+        if probe_taskbord is not None and self.requested_port and probe_taskbord(self.requested_port):
+            logger.error(
+                f"{LOG_PREFIX} port {self.requested_port} används redan av en annan körande "
+                f"Ledgebord — startar ingen andra brygga (en instans åt gången)"
+            )
+            return None
         for offset in range(attempts):
             port = self.requested_port + offset
             if port > 65535:
@@ -1387,7 +1445,7 @@ class MailBridgeServer:
         if httpd is None:
             return
         try:
-            httpd.serve_forever(poll_interval=0.5)
+            httpd.serve_forever(poll_interval=1.0)
         except Exception as e:
             if self._running:
                 logger.error(f"{LOG_PREFIX} server-loop avslutades: {e}",
@@ -1551,6 +1609,7 @@ class MailBridgeServer:
                                 "title": r.get("title", ""),
                                 "duplicate": bool(r.get("duplicate")),
                                 "error": r.get("error"),
+                                "remind_dates": list(r.get("remind_dates") or []),
                             }
                             for r in results
                         ],
@@ -1591,7 +1650,7 @@ class MailBridgeServer:
                 ("Status", "🟢 körs" if self.running else "🔴 stoppad"),
                 ("Adress", h["url"]),
                 ("Port", h["port"]),
-                ("TaskBord-version", h["app_version"] or "?"),
+                ("Ledgebord-version", h["app_version"] or "?"),
                 ("Brygga", BRIDGE_VERSION),
                 ("Aktiva uppgifter", h["tasks"]),
                 ("Importerade mail (denna körning)", self.imports),
@@ -1604,7 +1663,7 @@ class MailBridgeServer:
         )
         return f"""<!DOCTYPE html>
 <html lang="sv"><head><meta charset="utf-8">
-<title>TaskBord e-postbrygga</title>
+<title>Ledgebord e-postbrygga</title>
 <style>
  body{{font-family:Segoe UI,system-ui,sans-serif;background:#0f172a;color:#e2e8f0;margin:0;padding:32px}}
  .card{{max-width:720px;margin:auto;background:#1e293b;border-radius:14px;padding:24px;
@@ -1615,7 +1674,7 @@ class MailBridgeServer:
  code{{background:#0f172a;padding:2px 6px;border-radius:6px}}
  .hint{{margin-top:18px;font-size:13px;color:#94a3b8;line-height:1.5}}
 </style></head><body><div class="card">
-<h1>📧 TaskBord — e-postbrygga</h1>
+<h1>📧 Ledgebord — e-postbrygga</h1>
 <p class="sub">Bryggan tar emot mail från Thunderbird-tillägget och skapar uppgifter.
 Uppgifterna sparas i <code>data/active.json</code> och finns kvar efter omstart.</p>
 <table>{rows}</table>
@@ -2112,7 +2171,7 @@ def _selftest() -> int:
 
     # 1. /health utan token
     code, health = get("/health")
-    assert code == 200 and health["ok"] and health["app"] == "TaskBord"
+    assert code == 200 and health["ok"] and health["app"] == "Ledgebord"
     print(f"  ✓ GET /health: {health['app']} {health['bridge_version']}")
 
     # 2. POST /task utan token → 401

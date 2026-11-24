@@ -15,6 +15,7 @@ psutil>=5.9.0                           # Process-/minnes-info (stability, backu
 
 # --- Valfria (snabbare / battre) ---
 orjson>=3.9.0                           # Snabbare JSON I/O for store + utils
+segno>=1.6                              # Swish-QR i stöddialogen (ren Python, liten)
 
 # --- Standardbibliotek (behöver INTE installeras) ---
 # argparse, atexit, ctypes, datetime, functools, gc, json, locale,

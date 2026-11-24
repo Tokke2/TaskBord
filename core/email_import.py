@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
+# Copyright © Rickard Längkvist, 2025–2026
 """
-email_import.py — TaskBord v7-fix35 → v7-fix85 (50 000 000 % bättre).
+email_import.py — Ledgebord v7-fix35 → v7-fix85 (50 000 000 % bättre).
 
 Rickard 2026-09-30: "kunna importera uppgift från mail, importera
 outlook/thunderbird fil för att konvertera till uppgift, samt spara
@@ -560,6 +561,13 @@ def import_email(
                 ", ".join(data["attachments"]),
             )
 
+    # 8b. Datum i mailet ("15/11", "november", "december") → påminnelser på de datumen (core/mail_dates.py)
+    try:
+        from core import mail_dates
+        mail_dates.apply_to_task(store, task_id, data.get("subject", ""), data.get("body", ""))
+    except Exception as e:
+        logger.debug(f"{LOG_PREFIX} datum i mail: {e}")
+
     # 9. NY v7-fix85: registrera importen (dedup)
     with _REGISTRY_LOCK:
         registry = _load_registry(data_dir)
@@ -643,6 +651,62 @@ def open_email(email_path: str) -> bool:
     except Exception as e:
         logger.error(f"{LOG_PREFIX} Kunde inte öppna e-post: {e}")
         return False
+
+
+_EMAIL_META_KEYS = (
+    "email_path", "email_message_id", "email_subject", "email_from",
+    "email_body",
+)
+
+
+def has_email(task: Dict[str, Any]) -> bool:
+    """Kommer uppgiften från ett mail? (sparad fil ELLER sparad mailtext)"""
+    return any(task.get(k) for k in _EMAIL_META_KEYS)
+
+
+def find_email_file(
+    task: Dict[str, Any], data_dir: Optional[Any] = None
+) -> Optional[Path]:
+    """
+    Hitta originalmailets fil för en uppgift (eller None).
+
+    Det sparade ``email_path`` är en ABSOLUT sökväg. Flyttas appmappen
+    (D:\\Program\\todo → D:\\Program\\Ledgebord) pekar den fel, och knappen
+    verkade då död. Därför letar vi också i datamappens ``emails\\`` på
+    samma filnamn och på ``<uppgifts-id>.eml/.msg``.
+    """
+    stored = str(task.get("email_path") or "").strip()
+    if stored:
+        p = Path(stored)
+        if p.is_file():
+            return p
+    if data_dir:
+        email_dir = Path(data_dir) / "emails"
+        names = []
+        if stored:
+            # Windows-sökväg (backslash) kan skickas in på Linux i tester
+            names.append(stored.replace("\\", "/").rsplit("/", 1)[-1])
+        tid = str(task.get("id") or "")
+        if tid:
+            names += [f"{tid}.eml", f"{tid}.msg"]
+        for name in names:
+            if name and (email_dir / name).is_file():
+                return email_dir / name
+    return None
+
+
+def open_task_email(
+    task: Dict[str, Any], data_dir: Optional[Any] = None
+) -> bool:
+    """Öppna uppgiftens originalmail i standardprogrammet. True om det öppnades."""
+    f = find_email_file(task, data_dir)
+    if f is None:
+        logger.info(
+            f"{LOG_PREFIX} originalmail-filen saknas för "
+            f"{str(task.get('id'))!r} (email_path={task.get('email_path')!r})"
+        )
+        return False
+    return open_email(str(f))
 
 
 # ---------------------------------------------------------------------------

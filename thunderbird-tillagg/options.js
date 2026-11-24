@@ -1,7 +1,7 @@
 "use strict";
 
-/* TaskBord — options.js
- * Inställningar: adress + token (klistra in från TaskBord), anslutningstest.
+/* Ledgebord — options.js
+ * Inställningar: adress + token (klistra in från Ledgebord), anslutningstest.
  */
 
 const api = globalThis.messenger ?? globalThis.browser;
@@ -38,7 +38,7 @@ async function send(message) {
   return await api.runtime.sendMessage(message);
 }
 
-/* --- Läs in JSON som kopierats från TaskBord --------------------------- */
+/* --- Läs in JSON som kopierats från Ledgebord --------------------------- */
 
 function parsePasted(text) {
   const raw = String(text || "").trim();
@@ -66,7 +66,7 @@ el("applyPaste").addEventListener("click", async () => {
   const data = parsePasted(el("paste").value);
   if (!data) {
     setStatus(
-      "⚠️ Kunde inte tolka texten. Klistra in hela JSON-raden från TaskBord.",
+      "⚠️ Kunde inte tolka texten. Klistra in hela JSON-raden från Ledgebord.",
       "warn"
     );
     return;
@@ -112,7 +112,7 @@ async function doTest() {
     setStatus(res.message, "ok");
   } else {
     setStatus(
-      (res && res.message) || "⚠️ Ingen kontakt med TaskBord.",
+      (res && res.message) || "⚠️ Ingen kontakt med Ledgebord.",
       res && res.level === "bad-token" ? "warn" : "err"
     );
   }

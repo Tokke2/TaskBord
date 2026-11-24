@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-settings.py — TaskBord v6.4.1 v7 (18 888 888% bättre kod & design + AI-felsökning)
+settings.py — Ledgebord v6.4.1 v7 (18 888 888% bättre kod & design + AI-felsökning)
 =====================================================================================
 Copyright © Rickard Längkvist, 2025–2026
 
-Configuration manager for TaskBord.
+Configuration manager for Ledgebord.
 
 ** Ansvar (v6.4 — 5000% bättre) **
     • JSON-persistens med schema-versionering (v8)
@@ -101,9 +101,9 @@ except ImportError:
 # MODUL-KONSTANTER
 # ===========================================================================
 LOG_PREFIX: Final[str] = "[SETTINGS]"
-SETTINGS_VERSION: Final[int] = 10
+SETTINGS_VERSION: Final[int] = 11
 APP_VERSION_TAG: Final[str] = "6.4.1-v7"
-MIN_SUPPORTED_VERSION: Final[int] = 3  # v3 → v10 migrering
+MIN_SUPPORTED_VERSION: Final[int] = 3  # v3 → v11 migrering
 AUDIT_LOG_MAX_ENTRIES: Final[int] = 500
 DEFAULT_AUTOSTART_METHOD: Final[str] = "registry"  # registry | shortcut | schtask
 SAVE_TIMEOUT_SEC: Final[float] = 3.0
@@ -192,9 +192,9 @@ VALID_GLASS_STYLES: Final[frozenset] = frozenset(g.value for g in GlassStyle)
 VALID_DENSITY_MODES: Final[frozenset] = frozenset(d.value for d in DensityMode)
 
 # NY v7-fix38: Win+D-säkert skrivbordsläge + fönstertransparens
-VALID_DESKTOP_MODES: Final[frozenset] = frozenset(("above", "behind"))  # v7-fix56: legacy BORT
+VALID_DESKTOP_MODES: Final[frozenset] = frozenset(("above", "behind", "top"))  # top = alltid överst (val i tray)
 DEFAULT_DESKTOP_MODE: Final[str] = "behind"  # v7-fix63: behind = beprövat
-DEFAULT_WINDOW_TRANSPARENCY: Final[float] = 0.85
+DEFAULT_WINDOW_TRANSPARENCY: Final[float] = 0.0   # solid panel = skarpast text (ClearType fungerar inte i genomskinliga fönster)
 
 # NY v7-fix40: enbart ett fönster (Rickard 2026-10-01: "ska enbart visa
 # ett fönster, när man väljer öppna nytt fönster, så ska den enbart
@@ -884,6 +884,12 @@ def _coerce_int(value: Any, default: int = 0, min_val: int = 0, max_val: int = 2
         return default
 
 
+def _clean_tag_colors(value: Any) -> Dict[str, str]:
+    """Taggfärger från filen → bara giltiga {gement namn: '#rrggbb'} (resten tas bort)."""
+    from core import tag_colors as _tc
+    return _tc.clean_overrides(value)
+
+
 def _coerce_list(value: Any, default: Optional[List[Any]] = None) -> List[Any]:
     """Konvertera värde till lista."""
     if isinstance(value, list):
@@ -955,6 +961,7 @@ class Settings(QObject):
         windows_updated = Signal(list)
         tabs_changed = Signal(list)
         shortcuts_changed = Signal(dict)
+        tag_colors_changed = Signal(dict)
         settings_saved = Signal()
         settings_loaded = Signal()
         error_occurred = Signal(str)
@@ -972,7 +979,7 @@ class Settings(QObject):
     # ========================================================================
 
     DEFAULT_WINDOWS: ClassVar[List[Dict[str, Any]]] = [
-        {"id": "default", "x": -1, "y": -1, "w": 340, "h": 648, "locked": False}  # -1 = centrera vid första start (v7-fix47)
+        {"id": "default", "x": -1, "y": -1, "w": 420, "h": 700, "locked": False}  # -1 = centrera vid första start (v7-fix47)
     ]
 
     DEFAULT_VISIBLE_TABS: ClassVar[List[str]] = ["Aktiva", "Arkiverade"]
@@ -987,6 +994,7 @@ class Settings(QObject):
         "edit_task": "F2",
         "delete_task": "Delete",
         "toggle_done": "Space",
+        "done_next": "Ctrl+D",  # klar och nästa: bocka av markerad uppgift, markera nästa
     }
 
     # ========================================================================
@@ -1219,6 +1227,21 @@ class Settings(QObject):
                     self._log.debug(
                         f"{LOG_PREFIX} Migration: lade till {key}={default!r}"
                     )
+        if old_version < 11:
+            # NY v8 (2026-10-12): v10 → v11 — lokal Google Calendar (OAuth):
+            # google_calendar_enabled, google_calendar_id,
+            # google_calendar_color_by_priority
+            self._log.debug(
+                f"{LOG_PREFIX} v10→v11: lägger till Google Calendar-inställningar "
+                f"(lokal OAuth-anslutning)"
+            )
+            defaults = self._default_settings()
+            for key, default in defaults.items():
+                if key not in data:
+                    data[key] = default
+                    self._log.debug(
+                        f"{LOG_PREFIX} Migration: lade till {key}={default!r}"
+                    )
         data["version"] = new_version
         self._log.info(
             f"{LOG_PREFIX} Migration klar: {len(data)} nycklar, version={new_version}"
@@ -1256,7 +1279,7 @@ class Settings(QObject):
             "glass_style": GlassStyle.AUTO.value,
             "accent_color": AccentColor.INDIGO.value,
             "animations": True,
-            "start_minimized_to_tray": False,
+            "start_minimized_to_tray": True,
             "start_hidden": False,
             "first_run": True,
             "autostart": False,
@@ -1266,11 +1289,13 @@ class Settings(QObject):
             "last_backup_at": None,
             "custom_tags": [],
             "active_tag_filter": [],
+            "tag_colors": {},  # {gement taggnamn: "#rrggbb"} — användarens egna taggfärger
             "shortcuts": copy.deepcopy(self.DEFAULT_SHORTCUTS),
             "diagnostics": {"log_level": "INFO", "max_log_files": 5},
             "language": "sv",
             "density_mode": DensityMode.COMFORTABLE.value,
             "notification_sound": NotificationSound.GENTLE.value,
+            "prefs": {},  # nya inställningar (core/prefs.py): tysta timmar, teman, textstorlek, mini-läge …
             # NY v7-fix38: Win+D-säkert skrivbordsläge + fönstertransparens
             "desktop_mode": DEFAULT_DESKTOP_MODE,  # v7-fix63: behind
             "window_transparency": DEFAULT_WINDOW_TRANSPARENCY,
@@ -1287,6 +1312,16 @@ class Settings(QObject):
             # Format: "Ctrl+Alt+V", "Ctrl+Shift+Space", "Alt+F1" etc.
             "push_show_hotkey": "Ctrl+Alt+V",
             "quick_add_hotkey": "Ctrl+Alt+N",
+            # Markerad text i valfritt program → uppgift (Ctrl+Alt+K)
+            "clip_task_enabled": True,
+            "clip_task_hotkey": "Ctrl+Alt+K",
+            # Global tangent som slår "Alltid överst" på/av (Ctrl+Alt+T) + läget att gå tillbaka till
+            "top_toggle_enabled": True,
+            "top_toggle_hotkey": "Ctrl+Alt+T",
+            "top_toggle_prev_mode": "behind",
+            "links_fetch_titles": True,
+            "edge_dock_enabled": True,
+            "edge_dock_edge": "",
             # NY v7-fix72: tray-klick lyfter fönstret i X sekunder
             "tray_lift_seconds": 5,
             # NY v7-fix90: e-postbrygga — Thunderbird-tillägg + inkorgsmapp
@@ -1296,6 +1331,24 @@ class Settings(QObject):
             "mail_bridge_token": "",       # skapas automatiskt (secrets)
             "inbox_watch_enabled": True,   # bevaka data/inbox/ automatiskt
             "inbox_poll_seconds": 3,
+            # NY v8: lokal Google Calendar-anslutning (OAuth, loopback).
+            # OBS: själva åtkomstbeviset ligger i <data>/google/token.json —
+            # här finns bara användarens val.
+            "google_calendar_enabled": False,
+            "google_calendar_id": "primary",
+            "google_calendar_color_by_priority": True,
+            # Klara uppgifter i kalendern: "grey" | "strike" | "off"
+            "google_calendar_done_style": "grey",
+            # NY v8: automatisk, tyst koll efter ny version (2 gånger/dygn)
+            "update_check_enabled": True,
+            "update_last_check": 0,        # epoch-sekunder, senaste LYCKADE kollen
+            "update_notified": "",         # fingeravtryck för uppdatering vi redan sagt till om
+            "update_failed": "",           # fingeravtryck för uppdatering som återställdes (startade inte)
+            "update_auto_install": True,   # installera nya versioner tyst + starta om själv (efter den tysta kollen)
+            "update_auto_fp": "",          # fingeravtryck för uppdatering som redan installerats automatiskt (skydd mot loop)
+            # NY: Thunderbird-tillägget (.xpi) — se core/addon_watch.py
+            "addon_xpi_seen": "",          # .xpi som användaren bekräftat installerad
+            "addon_xpi_notified": "",      # .xpi vi redan visat notis om
             "_meta": {
                 "schema_version": SETTINGS_VERSION,
                 "created_at": datetime.now(timezone.utc).isoformat(),
@@ -1338,6 +1391,14 @@ class Settings(QObject):
             # NY v7-fix69 (sträng, max 40 tecken)
             "push_show_hotkey": lambda v: _coerce_str(v, "Ctrl+Alt+V")[:40],
             "quick_add_hotkey": lambda v: _coerce_str(v, "Ctrl+Alt+N")[:40],
+            "clip_task_enabled": lambda v: _coerce_bool(v, True),
+            "clip_task_hotkey": lambda v: _coerce_str(v, "Ctrl+Alt+K")[:40],
+            "top_toggle_enabled": lambda v: _coerce_bool(v, True),
+            "top_toggle_hotkey": lambda v: _coerce_str(v, "Ctrl+Alt+T")[:40],
+            "top_toggle_prev_mode": lambda v: (str(v) if str(v) in ("above", "behind") else "behind"),
+            "links_fetch_titles": lambda v: _coerce_bool(v, True),
+            "edge_dock_enabled": lambda v: _coerce_bool(v, True),
+            "edge_dock_edge": lambda v: (str(v) if str(v) in ("left", "right", "top") else ""),
             # NY v7-fix72 (1-60 sekunder)
             "tray_lift_seconds": lambda v: _coerce_int(v, 5, 1, 60),
             # NY v7-fix90: e-postbrygga (Thunderbird-tillägget)
@@ -1346,9 +1407,24 @@ class Settings(QObject):
             "mail_bridge_token": lambda v: _coerce_str(v, "")[:64],
             "inbox_watch_enabled": lambda v: _coerce_bool(v, True),
             "inbox_poll_seconds": lambda v: _coerce_int(v, 3, 1, 60),
+            # NY v8: Google Calendar (kalender-id max 200 tecken)
+            "google_calendar_enabled": lambda v: _coerce_bool(v, False),
+            "google_calendar_id": lambda v: _coerce_str(v, "primary")[:200],
+            "google_calendar_color_by_priority": lambda v: _coerce_bool(v, True),
+            "google_calendar_done_style": lambda v: _coerce_str(
+                v, "grey", ("grey", "strike", "off")
+            ),
+            "update_check_enabled": lambda v: _coerce_bool(v, True),
+            "update_last_check": lambda v: _coerce_int(v, 0, 0, 4102444800),
+            "update_notified": lambda v: _coerce_str(v, "")[:64],
+            "update_failed": lambda v: _coerce_str(v, "")[:64],
+            "update_auto_install": lambda v: _coerce_bool(v, True),
+            "update_auto_fp": lambda v: _coerce_str(v, "")[:64],
+            "addon_xpi_seen": lambda v: _coerce_str(v, "")[:64],
+            "addon_xpi_notified": lambda v: _coerce_str(v, "")[:64],
             "autostart_method": lambda v: _coerce_str(v, DEFAULT_AUTOSTART_METHOD, VALID_AUTOSTART_METHODS),
             "animations": lambda v: _coerce_bool(v, True),
-            "start_minimized_to_tray": lambda v: _coerce_bool(v, False),
+            "start_minimized_to_tray": lambda v: _coerce_bool(v, True),
             "start_hidden": lambda v: _coerce_bool(v, False),
             "first_run": lambda v: _coerce_bool(v, True),
             "autostart": lambda v: _coerce_bool(v, False),
@@ -1358,6 +1434,8 @@ class Settings(QObject):
             "windows": lambda v: _coerce_list(v, self.DEFAULT_WINDOWS),
             "custom_tags": lambda v: _coerce_list(v, []),
             "active_tag_filter": lambda v: _coerce_list(v, []),
+            "tag_colors": lambda v: _clean_tag_colors(v),
+            "prefs": lambda v: v if isinstance(v, dict) else {},
             "shortcuts": lambda v: v if isinstance(v, dict) else copy.deepcopy(self.DEFAULT_SHORTCUTS),
         }
         if key not in validators:
@@ -1385,7 +1463,8 @@ class Settings(QObject):
     @_log_call
     def save(self) -> bool:
         """Spara settings till JSON (synkron, anti-deadlock via timeout)."""
-        return self._save_internal() is not None and self._save_internal().success  # type: ignore[union-attr]
+        res = self._save_internal()  # EN gång (tidigare anropades den två gånger)
+        return res is not None and res.success
 
     def _save_internal(self) -> Optional[SaveResult]:
         """Privat save: trådsäker + anti-deadlock."""
@@ -1582,48 +1661,54 @@ class Settings(QObject):
     # THEME / ACCENT / GLASS
     # ========================================================================
 
-    @_log_call
-    def theme(self) -> str:
-        """Hämta aktuellt tema (med system-fallback)."""
+    def system_theme(self) -> Optional[str]:
+        """
+        Windows/macOS/Linux:s eget val just nu: "light" / "dark" (None om det inte går att avgöra).
+
+        Läses färskt vid varje anrop (ingen cache) — det är det som låter appen följa Windows live.
+        Windows: registret (AppsUseLightTheme, appläget); övriga och som reserv: Qt:s colorScheme.
+        Tyst (ingen loggning) — anropas var femte sekund av widgetens tema-vakt.
+        """
+        try:
+            if sys.platform == "win32":
+                try:
+                    import winreg
+                    with winreg.OpenKey(
+                        winreg.HKEY_CURRENT_USER,
+                        r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+                    ) as key:
+                        value, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
+                        return "light" if value else "dark"
+                except OSError:
+                    pass
+            from PySide6.QtCore import Qt as _Qt
+            from PySide6.QtGui import QGuiApplication
+            _app = QGuiApplication.instance()
+            if _app is not None:
+                _cs = _app.styleHints().colorScheme()
+                if _cs == _Qt.ColorScheme.Light:
+                    return "light"
+                if _cs == _Qt.ColorScheme.Dark:
+                    return "dark"
+        except Exception:
+            pass
+        return None
+
+    def theme_quiet(self) -> str:
+        """Det tema som gäller just nu ("light"/"dark"): system → Windows val, auto → klockan. Tyst."""
         with self._lock:
             theme = self._data.get("theme", Theme.SYSTEM.value)
         if theme == Theme.AUTO.value:
-            # NY v7-fix82: klockstyrt tema — ljust dagtid (07:00–18:59),
-            # mörkt kväll/natt (19:00–06:59). Växling under körning sköts
-            # av widgetens _check_auto_theme-timer (var 10:e minut).
-            _hour = datetime.now().hour
-            _resolved = "light" if 7 <= _hour < 19 else "dark"
-            return _resolved
+            # klockstyrt: ljust dagtid (07:00–18:59), mörkt kväll/natt (19:00–06:59)
+            return "light" if 7 <= datetime.now().hour < 19 else "dark"
         if theme == Theme.SYSTEM.value:
-            # Detektera systemtema
-            try:
-                import sys as _sys
-                if _sys.platform == "win32":
-                    try:
-                        import winreg
-                        with winreg.OpenKey(
-                            winreg.HKEY_CURRENT_USER,
-                            r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
-                        ) as key:
-                            value, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
-                            resolved = "light" if value else "dark"
-                            self._log.debug(
-                                f"{LOG_PREFIX} Systemtema detekterat: {resolved}"
-                            )
-                            return resolved
-                    except OSError as e:
-                        self._log.debug(
-                            f"{LOG_PREFIX} Kunde inte läsa systemtema: {e}"
-                        )
-                resolved = "dark"  # Default fallback
-                self._log.debug(f"{LOG_PREFIX} Default-tema: {resolved}")
-                return resolved
-            except Exception as e:
-                self._log.warning(
-                    f"{LOG_PREFIX} Tema-detektering misslyckades: {e}"
-                )
-                return "dark"
+            return self.system_theme() or "dark"
         return theme
+
+    @_log_call
+    def theme(self) -> str:
+        """Hämta aktuellt tema (system/auto löses till light/dark)."""
+        return self.theme_quiet()
 
     @_log_call
     def theme_setting(self) -> str:
@@ -1646,6 +1731,10 @@ class Settings(QObject):
     def is_dark(self) -> bool:
         """Är mörkt tema aktivt just nu?"""
         return self.theme() == Theme.DARK.value
+
+    def is_dark_quiet(self) -> bool:
+        """Som is_dark() men utan loggning (för periodiska kontroller)."""
+        return self.theme_quiet() == Theme.DARK.value
 
     @_log_call
     def theme_raw(self) -> str:
@@ -1744,7 +1833,7 @@ class Settings(QObject):
     def start_minimized(self) -> bool:
         """Starta minimerad till tray?"""
         with self._lock:
-            return _coerce_bool(self._data.get("start_minimized_to_tray", False))
+            return _coerce_bool(self._data.get("start_minimized_to_tray", True), True)
 
     @_log_setter("start_minimized_to_tray")
     def set_start_minimized(self, enabled: bool) -> bool:
@@ -2078,7 +2167,7 @@ class Settings(QObject):
 
     @_log_call
     def add_window(
-        self, x: int, y: int, w: int = 340, h: int = 648, locked: bool = False
+        self, x: int, y: int, w: int = 420, h: int = 700, locked: bool = False
     ) -> Optional[str]:
         """Lägg till nytt fönster. Returnerar window-id.
         FIX 2026-09-24: logga VEM som anropade (stack-frame → UI/förälder)."""
@@ -2142,6 +2231,7 @@ class Settings(QObject):
         Sandner INTE windows_updated (undviker populate-loop).
         """
         try:
+            x, y, w, h = self._filter_geometry(wid, x, y, w, h)
             with self._lock:
                 windows = self._data.get("windows", [])
                 found = False
@@ -2165,6 +2255,11 @@ class Settings(QObject):
             self._log.debug(
                 f"{LOG_PREFIX} window {wid}: geometri ({x},{y}) {w}x{h}"
             )
+            # FIX v8 (2026-10-12): spara PÅ DISK. Tidigare sattes bara _dirty —
+            # ingenting skrev filen (och nedstängningen sparade inte settings),
+            # så storlek/position försvann vid omstart. Anropas bara efter
+            # avslutad drag/resize (debouncad), så en bakgrundssparning räcker.
+            self.save_async()
             return True
         except Exception as e:
             self._log.warning(
@@ -2174,6 +2269,7 @@ class Settings(QObject):
 
     def update_window_position(self, wid: str, x: int, y: int) -> bool:
         """Uppdatera fönsterposition (för BUGG 26 auto-reposition)."""
+        x, y = self._filter_geometry(wid, x, y)[:2]
         with self._lock:
             windows = self._data.get("windows", [])
             updated = False
@@ -2217,7 +2313,7 @@ class Settings(QObject):
                 )
                 windows.append({
                     "id": wid, "x": int(x), "y": int(y),
-                    "w": 340, "h": 648, "locked": False,
+                    "w": 420, "h": 700, "locked": False,
                 })
                 updated = True
                 was_auto_added = True
@@ -2273,6 +2369,42 @@ class Settings(QObject):
         self._log.info(
             f"{LOG_PREFIX} set_custom_tags: {len(clean_tags)} unika tags"
         )
+        return True
+
+    @_log_call
+    def tag_colors(self) -> Dict[str, str]:
+        """Användarens egna taggfärger: {gement taggnamn: '#rrggbb'} (tomt = alla standardfärger)."""
+        with self._lock:
+            return dict(_clean_tag_colors(self._data.get("tag_colors", {})))
+
+    @_log_setter("tag_colors")
+    def set_tag_color(self, tag: str, color: Optional[str]) -> bool:
+        """Välj färg för en tagg ('#rrggbb'). color=None/'' = tillbaka till standardfärgen."""
+        from core import tag_colors as _tc
+        key = _tc.normalize(tag)
+        if not key:
+            return False
+        new = _tc.normalize_hex(color) if color else None
+        if color and new is None:
+            self._log.error(f"{LOG_PREFIX} set_tag_color: ogiltig färg {color!r}")
+            return False
+        with self._lock:
+            cur = _clean_tag_colors(self._data.get("tag_colors", {}))
+            if new is None:
+                if key not in cur:
+                    return True
+                cur.pop(key, None)
+            else:
+                if cur.get(key) == new:
+                    return True
+                if key not in cur and len(cur) >= _tc.MAX_CUSTOM:
+                    return False
+                cur[key] = new
+            self._data["tag_colors"] = cur
+            snapshot = dict(cur)
+        self._dirty = True
+        self._save_async_worker(self._data)
+        self._safe_emit("tag_colors_changed", snapshot)
         return True
 
     @_log_call
@@ -2476,6 +2608,7 @@ class Settings(QObject):
         above  — widgeten ÖVER skrivbordsikonerna, barn till skrivbordet
                  (Win+D kan aldrig gömma den) + transparent glas-skal
         behind — widgeten BAKOM ikonerna (Rainmeter "On Desktop")
+        top    — widgeten ALLTID ÖVERST, ovanpå alla andra fönster
         legacy — gammalt v7-fix32-beteende (HWND_BOTTOM + blockerare)
         """
         mode = _coerce_str(mode, DEFAULT_DESKTOP_MODE, VALID_DESKTOP_MODES)
@@ -2681,6 +2814,225 @@ class Settings(QObject):
         self._save_async_worker(self._data)
         return True
 
+    # ------------------------------------------------------------------
+    # NY v8 (2026-10-12): GOOGLE CALENDAR (lokal OAuth-anslutning)
+    # ------------------------------------------------------------------
+
+    @_log_call
+    def google_calendar_enabled(self) -> bool:
+        """
+        Är ett Google-konto kopplat?
+
+        Själva beviset är token-filen i <data>/google/token.json — denna
+        flagga är appens minne av att anslutningen gjordes (och slås av
+        när man kopplar från).
+        """
+        with self._lock:
+            return bool(self._data.get("google_calendar_enabled", False))
+
+    @_log_setter("google_calendar_enabled")
+    def set_google_calendar_enabled(self, enabled: bool) -> bool:
+        """Kom ihåg att Google Calendar är kopplad (eller inte)."""
+        v = _coerce_bool(enabled, False)
+        with self._lock:
+            self._data["google_calendar_enabled"] = v
+        self._dirty = True
+        self._log.info(f"{LOG_PREFIX} google_calendar_enabled: {v}")
+        self._save_async_worker(self._data)
+        return True
+
+    @_log_call
+    def google_calendar_id(self) -> str:
+        """Kalendern som uppgifterna skickas till ("primary" = huvudkalendern)."""
+        with self._lock:
+            return _coerce_str(
+                self._data.get("google_calendar_id", "primary"), "primary"
+            )[:200]
+
+    @_log_setter("google_calendar_id")
+    def set_google_calendar_id(self, calendar_id: str) -> bool:
+        """Välj vilken kalender händelserna ska hamna i."""
+        v = _coerce_str(calendar_id, "primary")[:200]
+        with self._lock:
+            self._data["google_calendar_id"] = v
+        self._dirty = True
+        self._log.info(f"{LOG_PREFIX} google_calendar_id: {v}")
+        self._save_async_worker(self._data)
+        return True
+
+    @_log_call
+    def google_calendar_color_by_priority(self) -> bool:
+        """Färga händelser efter uppgiftens prioritet (röd/gul/grön)?"""
+        with self._lock:
+            return bool(self._data.get("google_calendar_color_by_priority", True))
+
+    @_log_setter("google_calendar_color_by_priority")
+    def set_google_calendar_color_by_priority(self, enabled: bool) -> bool:
+        """Slå på/av färgkodning av händelser efter prioritet."""
+        v = _coerce_bool(enabled, True)
+        with self._lock:
+            self._data["google_calendar_color_by_priority"] = v
+        self._dirty = True
+        self._log.info(f"{LOG_PREFIX} google_calendar_color_by_priority: {v}")
+        self._save_async_worker(self._data)
+        return True
+
+    @_log_call
+    def google_calendar_done_style(self) -> str:
+        """Hur klara uppgifter syns i kalendern: grey | strike | off."""
+        with self._lock:
+            return _coerce_str(
+                self._data.get("google_calendar_done_style", "grey"),
+                "grey", ("grey", "strike", "off"),
+            )
+
+    @_log_setter("google_calendar_done_style")
+    def set_google_calendar_done_style(self, style: str) -> bool:
+        """Välj hur klara uppgifter markeras i Google Calendar."""
+        v = _coerce_str(style, "grey", ("grey", "strike", "off"))
+        with self._lock:
+            self._data["google_calendar_done_style"] = v
+        self._dirty = True
+        self._log.info(f"{LOG_PREFIX} google_calendar_done_style: {v}")
+        self._save_async_worker(self._data)
+        return True
+
+    # --- NY v8: automatisk uppdateringskoll ------------------------------
+    @_log_call
+    def update_check_enabled(self) -> bool:
+        """Sök tyst efter ny version vid start och därefter 2 gånger/dygn (var 12:e timme)?"""
+        with self._lock:
+            return bool(self._data.get("update_check_enabled", True))
+
+    @_log_setter("update_check_enabled")
+    def set_update_check_enabled(self, enabled: bool) -> bool:
+        v = _coerce_bool(enabled, True)
+        with self._lock:
+            self._data["update_check_enabled"] = v
+        self._dirty = True
+        self._save_async_worker(self._data)
+        return True
+
+    @_log_call
+    def update_last_check(self) -> int:
+        """Epoch-sekunder för senaste lyckade uppdateringskollen (0 = aldrig)."""
+        with self._lock:
+            return _coerce_int(self._data.get("update_last_check", 0), 0, 0, 4102444800)
+
+    @_log_setter("update_last_check")
+    def set_update_last_check(self, ts: int) -> bool:
+        v = _coerce_int(ts, 0, 0, 4102444800)
+        with self._lock:
+            self._data["update_last_check"] = v
+        self._dirty = True
+        self._save_async_worker(self._data)
+        return True
+
+    @_log_call
+    def update_notified(self) -> str:
+        """Fingeravtryck för den uppdatering användaren redan blivit underrättad om."""
+        with self._lock:
+            return _coerce_str(self._data.get("update_notified", ""), "")[:64]
+
+    @_log_setter("update_notified")
+    def set_update_notified(self, fp: str) -> bool:
+        v = _coerce_str(fp, "")[:64]
+        with self._lock:
+            self._data["update_notified"] = v
+        self._dirty = True
+        self._save_async_worker(self._data)
+        return True
+
+    @_log_call
+    def update_failed(self) -> str:
+        """Fingeravtryck för en uppdatering som fick appen att inte starta (och därför återställdes)."""
+        with self._lock:
+            return _coerce_str(self._data.get("update_failed", ""), "")[:64]
+
+    @_log_setter("update_failed")
+    def set_update_failed(self, fp: str) -> bool:
+        v = _coerce_str(fp, "")[:64]
+        with self._lock:
+            self._data["update_failed"] = v
+        self._dirty = True
+        self._save_async_worker(self._data)
+        return True
+
+    @_log_call
+    def update_auto_install(self) -> bool:
+        """Installera en ny version tyst och starta om automatiskt (efter den tysta kollen)?"""
+        with self._lock:
+            return bool(self._data.get("update_auto_install", True))
+
+    @_log_setter("update_auto_install")
+    def set_update_auto_install(self, enabled: bool) -> bool:
+        v = _coerce_bool(enabled, True)
+        with self._lock:
+            self._data["update_auto_install"] = v
+        self._dirty = True
+        self._save_async_worker(self._data)
+        return True
+
+    @_log_call
+    def restart_hidden_until(self) -> float:
+        """Epoch-sekunder: tyst omstart efter uppdatering → starta gömd till tray till dess."""
+        with self._lock:
+            try:
+                return float(self._data.get("restart_hidden_until", 0) or 0)
+            except (TypeError, ValueError):
+                return 0.0
+
+    def set_restart_hidden_until(self, ts: float) -> bool:
+        with self._lock:
+            self._data["restart_hidden_until"] = float(ts or 0)
+        self._dirty = True
+        self._save_async_worker(self._data)
+        return True
+
+    def update_auto_fp(self) -> str:
+        """Fingeravtryck för den uppdatering som senast installerades automatiskt."""
+        with self._lock:
+            return _coerce_str(self._data.get("update_auto_fp", ""), "")[:64]
+
+    @_log_setter("update_auto_fp")
+    def set_update_auto_fp(self, fp: str) -> bool:
+        v = _coerce_str(fp, "")[:64]
+        with self._lock:
+            self._data["update_auto_fp"] = v
+        self._dirty = True
+        self._save_async_worker(self._data)
+        return True
+
+    @_log_call
+    def addon_xpi_seen(self) -> str:
+        """Fingeravtryck för den Thunderbird-.xpi användaren bekräftat installerad."""
+        with self._lock:
+            return _coerce_str(self._data.get("addon_xpi_seen", ""), "")[:64]
+
+    @_log_setter("addon_xpi_seen")
+    def set_addon_xpi_seen(self, fp: str) -> bool:
+        v = _coerce_str(fp, "")[:64]
+        with self._lock:
+            self._data["addon_xpi_seen"] = v
+        self._dirty = True
+        self._save_async_worker(self._data)
+        return True
+
+    @_log_call
+    def addon_xpi_notified(self) -> str:
+        """Fingeravtryck för den .xpi vi redan visat en notis om."""
+        with self._lock:
+            return _coerce_str(self._data.get("addon_xpi_notified", ""), "")[:64]
+
+    @_log_setter("addon_xpi_notified")
+    def set_addon_xpi_notified(self, fp: str) -> bool:
+        v = _coerce_str(fp, "")[:64]
+        with self._lock:
+            self._data["addon_xpi_notified"] = v
+        self._dirty = True
+        self._save_async_worker(self._data)
+        return True
+
     @_log_call
     def push_show_hotkey(self) -> str:
         """NY v7-fix69: hotkey för push-to-show (t.ex. 'Ctrl+Alt+V')."""
@@ -2725,6 +3077,152 @@ class Settings(QObject):
         self._save_async_worker(self._data)
         return True
 
+    @_log_call
+    def top_toggle_enabled(self) -> bool:
+        """Snabbtangenten 'Alltid överst' på/av."""
+        with self._lock:
+            return bool(self._data.get("top_toggle_enabled", True))
+
+    @_log_setter("top_toggle_enabled")
+    def set_top_toggle_enabled(self, enabled: bool) -> bool:
+        v = _coerce_bool(enabled, True)
+        with self._lock:
+            self._data["top_toggle_enabled"] = v
+        self._dirty = True
+        self._save_async_worker(self._data)
+        return True
+
+    @_log_call
+    def top_toggle_hotkey(self) -> str:
+        """Snabbtangent som slår Alltid överst på/av (default Ctrl+Alt+T)."""
+        with self._lock:
+            return str(self._data.get("top_toggle_hotkey", "Ctrl+Alt+T"))[:40]
+
+    @_log_setter("top_toggle_hotkey")
+    def set_top_toggle_hotkey(self, combo: str) -> bool:
+        v = _coerce_str(combo, "Ctrl+Alt+T")[:40]
+        with self._lock:
+            self._data["top_toggle_hotkey"] = v
+        self._dirty = True
+        self._log.info(f"{LOG_PREFIX} top_toggle_hotkey: {v}")
+        self._save_async_worker(self._data)
+        return True
+
+    @_log_call
+    def top_toggle_prev_mode(self) -> str:
+        """Läget som återställs när 'Alltid överst' slås av (above|behind)."""
+        with self._lock:
+            v = str(self._data.get("top_toggle_prev_mode", "behind"))
+        return v if v in ("above", "behind") else "behind"
+
+    @_log_setter("top_toggle_prev_mode")
+    def set_top_toggle_prev_mode(self, mode: str) -> bool:
+        v = str(mode) if str(mode) in ("above", "behind") else "behind"
+        with self._lock:
+            self._data["top_toggle_prev_mode"] = v
+        self._dirty = True
+        self._save_async_worker(self._data)
+        return True
+
+    @_log_call
+    def edge_dock_enabled(self) -> bool:
+        """Dockning vid skärmkant: dra fönstret mot en kant så glider det ut."""
+        with self._lock:
+            return bool(self._data.get("edge_dock_enabled", True))
+
+    @_log_setter("edge_dock_enabled")
+    def set_edge_dock_enabled(self, enabled: bool) -> bool:
+        v = _coerce_bool(enabled, True)
+        with self._lock:
+            self._data["edge_dock_enabled"] = v
+        self._dirty = True
+        self._save_async_worker(self._data)
+        return True
+
+    def edge_dock_edge(self) -> str:
+        """Kanten fönstret är dockat vid ("left"/"right"/"top"), tom = inte dockat."""
+        with self._lock:
+            v = str(self._data.get("edge_dock_edge", ""))
+        return v if v in ("left", "right", "top") else ""
+
+    def set_edge_dock_edge(self, edge: str) -> bool:
+        v = str(edge) if str(edge) in ("left", "right", "top") else ""
+        with self._lock:
+            if self._data.get("edge_dock_edge", "") == v:
+                return True
+            self._data["edge_dock_edge"] = v
+        self._dirty = True
+        self._save_async_worker(self._data)
+        return True
+
+    # Geometrifilter: dockat och gömt fönster ligger utanför skärmen — det som sparas ska ändå vara
+    # det SYNLIGA läget, oavsett vilken väg i appen som sparar positionen.
+    def set_geometry_filter(self, wid: str, fn: Any) -> None:
+        filters = getattr(self, "_geometry_filters", None)
+        if filters is None:
+            filters = self._geometry_filters = {}
+        if fn is None:
+            filters.pop(wid, None)
+        else:
+            filters[wid] = fn
+
+    def _filter_geometry(self, wid: str, x: int, y: int, w: Any = None, h: Any = None) -> tuple:
+        fn = (getattr(self, "_geometry_filters", None) or {}).get(wid)
+        if fn is not None:
+            try:
+                r = fn(x, y, w, h)
+                if r:
+                    return r
+            except Exception as e:
+                self._log.debug(f"{LOG_PREFIX} geometrifilter: {e}")
+        return (x, y, w, h)
+
+    @_log_call
+    def links_fetch_titles(self) -> bool:
+        """Hämta sidans titel när en länk läggs till (ett anrop till just den sidan)."""
+        with self._lock:
+            return bool(self._data.get("links_fetch_titles", True))
+
+    @_log_setter("links_fetch_titles")
+    def set_links_fetch_titles(self, enabled: bool) -> bool:
+        v = _coerce_bool(enabled, True)
+        with self._lock:
+            self._data["links_fetch_titles"] = v
+        self._dirty = True
+        self._save_async_worker(self._data)
+        return True
+
+    @_log_call
+    def clip_task_enabled(self) -> bool:
+        """Snabbtangenten 'Lägg till från urklipp' på/av."""
+        with self._lock:
+            return bool(self._data.get("clip_task_enabled", True))
+
+    @_log_setter("clip_task_enabled")
+    def set_clip_task_enabled(self, enabled: bool) -> bool:
+        v = _coerce_bool(enabled, True)
+        with self._lock:
+            self._data["clip_task_enabled"] = v
+        self._dirty = True
+        self._save_async_worker(self._data)
+        return True
+
+    @_log_call
+    def clip_task_hotkey(self) -> str:
+        """Snabbtangent som gör markerad text/urklipp till en uppgift (default Ctrl+Alt+K)."""
+        with self._lock:
+            return str(self._data.get("clip_task_hotkey", "Ctrl+Alt+K"))[:40]
+
+    @_log_setter("clip_task_hotkey")
+    def set_clip_task_hotkey(self, combo: str) -> bool:
+        v = _coerce_str(combo, "Ctrl+Alt+K")[:40]
+        with self._lock:
+            self._data["clip_task_hotkey"] = v
+        self._dirty = True
+        self._log.info(f"{LOG_PREFIX} clip_task_hotkey: {v}")
+        self._save_async_worker(self._data)
+        return True
+
     @_log_setter("shortcuts")
     def set_shortcut(self, action: str, seq: str) -> bool:
         """
@@ -2764,6 +3262,33 @@ class Settings(QObject):
             self._data["tray_lift_seconds"] = v
         self._dirty = True
         self._log.info(f"{LOG_PREFIX} tray_lift_seconds: {v}")
+        return True
+
+    def pref(self, key: str) -> Any:
+        """Inställning ur ``prefs`` (core/prefs.py) — alltid ett giltigt värde (standardvärde om det saknas)."""
+        from core import prefs as _prefs
+        with self._lock:
+            raw = self._data.get("prefs")
+        return _prefs.get(raw, key)
+
+    def set_pref(self, key: str, value: Any) -> bool:
+        """Sätt en inställning (rensas av core/prefs.py) och spara. Okänd nyckel → False."""
+        from core import prefs as _prefs
+        try:
+            v = _prefs.coerce(key, value)
+        except KeyError:
+            self._log.warning(f"{LOG_PREFIX} set_pref: okänd nyckel {key!r}")
+            return False
+        with self._lock:
+            d = self._data.get("prefs")
+            if not isinstance(d, dict):
+                d = self._data["prefs"] = {}
+            if key in d and d[key] == v:
+                return True
+            d[key] = v
+        self._dirty = True
+        self._log.info(f"{LOG_PREFIX} pref {key}: {v!r}")
+        self.save_async()
         return True
 
     @_log_call
