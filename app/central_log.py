@@ -9,6 +9,7 @@ import threading
 from collections import deque
 from dataclasses import dataclass
 from dataclasses import field
+from datetime import datetime
 from typing import Any, Callable, Dict, Final, List, Optional
 
 from app.constants import LOG_PREFIX, LogLevel
@@ -233,9 +234,11 @@ def get_recent_app_events(
     Returns:
         Lista av event-dicts, sorterade i kronologisk ordning (äldsta först)
     """
+    midnight = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
+    if count <= 0:
+        return []
     with _central_events_lock:
-        # Senaste N events (fran slutet av deque)
-        events_snapshot = list(_central_events)[-count:]
+        events_snapshot = [event for event in _central_events if event.timestamp >= midnight][-count:]
     # Filtrera
     level_priority = {
         "DEBUG": 10, "TRACE": 5, "INFO": 20, "WARNING": 30,
@@ -267,8 +270,9 @@ def get_central_log_stats() -> Dict[str, Any]:
           - newest_timestamp: Unix time for senaste eventet
           - listener_count: antal aktiva listeners
     """
+    midnight = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
     with _central_events_lock:
-        events_snapshot = list(_central_events)
+        events_snapshot = [event for event in _central_events if event.timestamp >= midnight]
     with _central_listeners_lock:
         n_listeners = len(_central_listeners)
     by_level: Dict[str, int] = {}

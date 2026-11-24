@@ -24,6 +24,7 @@ Format (en post):
 from __future__ import annotations
 
 import atexit
+import hashlib
 import json
 import logging
 import os
@@ -83,7 +84,8 @@ class ErrorLogWriter:
         self._lock = threading.RLock()
         self._session_written = False
         self._last_tidy = 0.0
-        self._seen: Dict[Tuple[int, str, str], List[float]] = {}   # nyckel → [första/senaste skrivna ts, tyst antal, senaste ts]
+        self._last_key: Optional[Tuple[int, str, str, str]] = None
+        self._last_slot: Optional[List[float]] = None
         self.written = 0
 
     # -- låg nivå ------------------------------------------------------------------------------------------------
@@ -99,7 +101,8 @@ class ErrorLogWriter:
     def _append(self, text: str) -> bool:
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)
-            self._rotate_if_needed()
+            if not text.startswith("    ↳ "):
+                self._rotate_if_needed()
             if not self._session_written:
                 try:       # platshållartexten "Inga fel loggade" ska inte ligga kvar när det kommer ett fel
                     if self.path.exists() and self.path.stat().st_size == len(PLACEHOLDER.encode("utf-8")) \
@@ -134,48 +137,46 @@ class ErrorLogWriter:
         try:
             level = record.levelno if record.levelno in _LEVELS else (logging.CRITICAL if record.levelno > logging.CRITICAL else logging.ERROR if record.levelno > logging.WARNING else logging.WARNING)
             msg = record.getMessage()
-            trace = ""
-            if record.exc_info and record.exc_info[0] is not None:
-                import traceback
-                trace = "".join(traceback.format_exception(*record.exc_info))
-            elif record.exc_text:
-                trace = record.exc_text
             where = f"{record.name} ({record.filename}:{record.lineno})"
             now = record.created or time.time()
             with self._lock:
-                key = _norm_key(level, record.name, msg)
-                slot = self._seen.get(key)
-                if slot is not None and now - slot[0] < DEDUPE_WINDOW_SEC:
+                issue_key = getattr(record, "issue_key", "")
+                key = _norm_key(level, where, msg) + (str(issue_key),)
+                slot = self._last_slot
+                if (key == self._last_key and slot is not None
+                        and 0 <= now - slot[0] < DEDUPE_WINDOW_SEC
+                        and time.localtime(now)[:3] == time.localtime(slot[0])[:3]):
                     slot[1] += 1
                     slot[2] = now
                     return
-                if slot is not None and slot[1] > 0:
-                    self._append(self._summary_line(slot, key))
-                self._seen[key] = [now, 0, now]
-                if len(self._seen) > 500:               # håll minnet nere
-                    for k in sorted(self._seen, key=lambda x: self._seen[x][0])[:250]:
-                        s = self._seen.pop(k)
-                        if s[1] > 0:
-                            self._append(self._summary_line(s, k))
-                self._append(self.format_entry(now, _LEVELS[level], where, msg, trace))
+                self.flush_summaries()
+                self._last_key = self._last_slot = None
+                trace = record.exc_text or ""
+                if record.exc_info and record.exc_info[0] is not None:
+                    import traceback
+                    trace = "".join(traceback.format_exception(*record.exc_info))
+                marker = _issue_marker(str(issue_key)) if issue_key else ""
+                if self._append(self.format_entry(now, _LEVELS[level], where, msg, trace) + marker):
+                    self._last_key = key
+                    self._last_slot = [now, 0, now]
         except Exception:
             pass
 
-    @staticmethod
-    def _summary_line(slot: List[float], key: Tuple[int, str, str]) -> str:
-        return (f"    ↳ ovanstående upprepades {int(slot[1])} gång(er) till, senast "
-                f"{time.strftime('%H:%M:%S', time.localtime(slot[2]))}\n")
-
     def flush_summaries(self) -> None:
         with self._lock:
-            for key, slot in list(self._seen.items()):
-                if slot[1] > 0:
-                    self._append(self._summary_line(slot, key))
-                    slot[1] = 0
+            slot = self._last_slot
+            if slot is not None and slot[1] > 0:
+                line = (f"    ↳ Upprepades {int(slot[1])} gång(er), senast "
+                        f"{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(slot[2]))}\n")
+                count, slot[1] = slot[1], 0
+                if not self._append(line):
+                    slot[1] = count
 
     # -- import --------------------------------------------------------------------------------------------------
     def write_imported(self, ts: float, source: str, message: str, trace: str = "") -> None:
         with self._lock:
+            self.flush_summaries()
+            self._last_key = self._last_slot = None
             self._append(self.format_entry(ts, "IMPORT", source, message, trace))
 
 
@@ -459,6 +460,18 @@ def parse_blocks(text: str) -> List[Dict[str, str]]:
     return blocks
 
 
+def _issue_marker(key: str) -> str:
+    digest = hashlib.sha256(key.encode("utf-8", "replace")).hexdigest()
+    return f"    [fel-id:{digest}]\n"
+
+
+def resolve_issue(data_dir: Path, key: str) -> int:
+    marker = _issue_marker(key)
+    return _archive_selected(Path(data_dir), lambda blocks: [
+        i for i, block in enumerate(blocks) if marker in block["text"]
+    ], "Bekräftat åtgärdade {when} ({n} fel)", time.time())
+
+
 def is_error_block(b: Dict[str, str]) -> bool:
     """FEL, KRASCH och IMPORT (fel hämtade ur andra loggar) är felposter; bara VARNING är en varning."""
     return b["kind"] == "entry" and b["level"] != "VARNING"
@@ -505,11 +518,18 @@ def tidy(data_dir: Path, today: Optional[date] = None, cap_bytes: Optional[int] 
     if _tidy_sig.get(str(p)) == sig:
         return res
     with _writer_lock():
+        writer = _writer if _writer is not None and _writer.path == p else None
+        if writer is not None:
+            writer.flush_summaries()
         try:
             text = p.read_text(encoding="utf-8", errors="replace")
         except OSError:
             return res
-        blocks = parse_blocks(text)
+        clean = "".join(line for line in text.splitlines(keepends=True)
+                        if not line.lstrip().startswith("↳ ovanstående upprepades "))
+        if any(_ANY_ENTRY_RX.match(line) for line in clean.splitlines()):
+            clean = clean.removeprefix(PLACEHOLDER)
+        blocks = parse_blocks(clean)
         keep = [True] * len(blocks)
         old_warn: Dict[str, str] = {}
         for i, b in enumerate(blocks):
@@ -531,7 +551,7 @@ def tidy(data_dir: Path, today: Optional[date] = None, cap_bytes: Optional[int] 
                     res["overflow"] += 1
             if overflow:
                 _drop_empty_headers(blocks, keep, today_iso)
-        if all(keep):
+        if all(keep) and clean == text:
             st2 = p.stat()
             _tidy_sig[str(p)] = (st2.st_mtime_ns // 1_000_000, st2.st_size, today_iso)
             return res
@@ -550,6 +570,8 @@ def tidy(data_dir: Path, today: Optional[date] = None, cap_bytes: Optional[int] 
         except OSError:
             res["warnings"] = res["overflow"] = 0
             return res
+        if writer is not None:
+            writer._last_key = writer._last_slot = None
         _unseen_cache.clear()
         _open_cache.clear()
         st3 = p.stat()
@@ -584,6 +606,9 @@ def _archive_selected(data_dir: Path, select, title: str, now: float) -> int:
     """
     p = log_path(data_dir)
     with _writer_lock():
+        w = _writer if _writer is not None and _writer.path == p else None
+        if w is not None:
+            w.flush_summaries()
         try:
             blocks = parse_blocks(p.read_text(encoding="utf-8", errors="replace"))
         except OSError:
@@ -604,10 +629,8 @@ def _archive_selected(data_dir: Path, select, title: str, now: float) -> int:
             _write_atomic(p, rest if rest.strip() else PLACEHOLDER)
         except OSError:
             return 0
-        w = _writer
         if w is not None:
-            w.flush_summaries()
-            w._seen.clear()                 # ett fel som kommer tillbaka efter markeringen ska loggas igen
+            w._last_key = w._last_slot = None
             w._session_written = False      # nytt sessionshuvud vid nästa post
         _unseen_cache.clear()
         _open_cache.clear()
@@ -658,7 +681,7 @@ def _block_key(b: Dict[str, str]) -> str:
     return _VOLATILE_RX.sub("#", f"{m.group(3)}|{m.group(4)}") if m else ""
 
 
-def auto_resolve(data_dir: Path, now: Optional[float] = None, days: int = AUTO_RESOLVE_DAYS) -> Dict[str, int]:
+def auto_resolve(data_dir: Path, now: Optional[float] = None, days: Optional[int] = None) -> Dict[str, int]:
     """
     Städa bort felposter som är åtgärdade — de flyttas till arkiv/fel_atgardade.log (ingenting raderas):
       * ``known``: posten matchar ett fel som rättats i koden (``KNOWN_FIXED``);
@@ -669,7 +692,7 @@ def auto_resolve(data_dir: Path, now: Optional[float] = None, days: int = AUTO_R
     try:
         data_dir = Path(data_dir)
         now = time.time() if now is None else now
-        cutoff = now - days * 86400
+        cutoff = now - days * 86400 if days is not None else None
         found: Dict[str, int] = {"known": 0, "quiet": 0}
 
         def select(blocks: List[Dict[str, str]]) -> List[int]:
@@ -690,13 +713,12 @@ def auto_resolve(data_dir: Path, now: Optional[float] = None, days: int = AUTO_R
                     found["known"] += 1
                     continue
                 ts, k = _block_ts(b), _block_key(b)
-                if ts is not None and k and last.get(k, ts) < cutoff:
+                if cutoff is not None and ts is not None and k and last.get(k, ts) < cutoff:
                     out.append(i)
                     found["quiet"] += 1
             return out
 
-        n = _archive_selected(data_dir, select, "Automatiskt åtgärdade {when} ({n} fel: rättade i koden eller inte återkomna på "
-                              f"{days} dagar)", now)
+        n = _archive_selected(data_dir, select, "Automatiskt arkiverade {when} ({n} fel)", now)
         if n:
             res = found
     except Exception:

@@ -41,14 +41,14 @@ def make_zip(files):
     with zipfile.ZipFile(bio, "w") as z:
         for k, v in files.items():
             z.writestr("Tokke2-TaskBord-abc1234/" + k, v)
-        z.comment = b"abc1234def5678abc1234def5678abc1234def56"
+        z.comment = b"abc1234000000000000000000000000000000000"
     return bio.getvalue()
 
 
 def http(zip_bytes):
     def _get(url, max_bytes, timeout=20.0, accept="", progress=None):
-        if url == updater.LATEST_API:
-            return json.dumps({"tag_name": "v1.0.0", "zipball_url": "https://api.github.com/z"}).encode()
+        if url == updater.BRANCH_API:
+            return json.dumps({"name": updater.UPDATE_BRANCH, "commit": {"sha": "abc1234000000000000000000000000000000000"}}).encode()
         return zip_bytes
     return _get
 
@@ -147,6 +147,14 @@ for rel in ("js/active.json", "data/todo_app.log", ".git/config", ".venv/x.py", 
     put(app, rel)
 updater.write_manifest(app, ["main.pyw", "js/active.json", "data/todo_app.log", ".git/config", ".venv/x.py", "venv/y.py",
                              "core/__pycache__/a.pyc", "../utanfor.txt", "/etc/passwd", "C:/x.txt"])
+try:
+    check_release(app, {"main.pyw": b"print(1)\n"})
+except updater.UpdateError:
+    check("git-arbetskopian skyddas", (app / ".git" / "config").is_file())
+else:
+    check("git-arbetskopian skyddas", False)
+(app / ".git" / "config").unlink()
+(app / ".git").rmdir()
 info = check_release(app, {"main.pyw": b"print(1)\n"})
 check("skyddade mappar och osäkra sökvägar tas aldrig bort", info.removed == [], info.removed)
 check("…så releasen räknas som aktuell", info.up_to_date)

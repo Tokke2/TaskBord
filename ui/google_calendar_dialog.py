@@ -264,10 +264,12 @@ if _QT_AVAILABLE:
     class _JobDialog(QDialog):
         """Liten ruta som visar att något händer (och vad som händer)."""
 
-        def __init__(self, titel: str, beskrivning: str, parent: Optional[QWidget] = None):
+        def __init__(self, titel: str, beskrivning: str, parent: Optional[QWidget] = None,
+                     keep_open: bool = False):
             super().__init__(parent)
             self.setWindowTitle(titel)
             self.setModal(True)
+            self._keep_open = keep_open
             self.setMinimumWidth(460)
             self.setMinimumHeight(220)
 
@@ -298,8 +300,13 @@ if _QT_AVAILABLE:
                 "Stänger rutan men jobbet fortsätter i bakgrunden."
             )
             self.btn_stang.clicked.connect(self.reject)
+            self.btn_stang.setVisible(not keep_open)
             rad.addWidget(self.btn_stang)
             rot.addLayout(rad)
+
+        def reject(self) -> None:
+            if not self._keep_open:
+                super().reject()
 
         def skriv(self, text: str) -> None:
             self.logg.appendPlainText(str(text))
@@ -312,6 +319,8 @@ def run_google_job(
     beskrivning: str = "",
     on_done: Optional[Callable[[Any], None]] = None,
     on_error: Optional[Callable[[str, str], None]] = None,
+    *,
+    keep_open: bool = False,
 ) -> bool:
     """
     Kör `fn(logga)` i bakgrunden med en väntruta.
@@ -333,8 +342,9 @@ def run_google_job(
             on_done(resultat)
         return False
 
-    dlg = _JobDialog(titel, beskrivning, parent)
-    trad = _JobThread(fn, parent)
+    dlg = _JobDialog(titel, beskrivning, parent, keep_open=keep_open)
+    # En Qt-förälder skulle förstöra QThread även medan nätverksjobbet kör.
+    trad = _JobThread(fn)
     _AKTIVA_TRADAR.add(trad)
 
     def _skriv(text: str) -> None:
@@ -371,6 +381,8 @@ def run_google_job(
     trad.finished.connect(_stada)
     trad.finished.connect(trad.deleteLater)
 
+    dlg.ensurePolished()
+    dlg.adjustSize()
     trad.start()
     dlg.exec()  # väntrutan är modal medan jobbet kör
     return True
@@ -1134,6 +1146,7 @@ if _QT_AVAILABLE:
                     "Godkänn åtkomsten där — den här rutan stängs sedan av sig själv."
                 ),
                 on_done=klart,
+                keep_open=True,
             )
 
         def _on_testa(self) -> None:
@@ -1500,7 +1513,8 @@ def push_task_with_dialog(
         else:
             _visa_info(parent, "☁️ Kunde inte skicka", str(r.get("message") or "Okänt fel"))
 
-    run_google_job(parent, "Skickar till Google Calendar", jobb, on_done=klart)
+    run_google_job(parent, "Skickar till Google Calendar", jobb,
+                   on_done=klart, keep_open=behover_koppling)
     return True
 
 

@@ -2,9 +2,7 @@
 """
 updater.py — Ledgebord: "🔄 Sök ny version" (uppdatering inifrån appen).
 
-Hämtar GitHub-releasen märkt *Latest* och jämför FILINNEHÅLL (sha256) med den
-installerade mappen. Versionsnumret behöver alltså inte ändras — releasen får
-heta v1.0.0 även när koden under den uppdateras.
+Hämtar en verifierad commit från uppdateringsbranchen och jämför filinnehåll.
 
 Säkerhet / regler:
   * Hämtar BARA från api.github.com / codeload.github.com över https.
@@ -14,9 +12,9 @@ Säkerhet / regler:
     inte skriva över en fungerande app.
   * Ersatta filer sparas i ``data/backups/app-update/<tid>/`` (kan återställas), och
     om något går fel under skrivningen rullas redan ersatta filer tillbaka.
-  * Filer som finns lokalt men inte i releasen tas INTE bort.
-  * Källan är alltid den senaste RELEASEN (aldrig main eller git pull) — också i en git-mapp,
-    där ``.git`` lämnas orörd (filerna syns då som ändrade i git).
+  * Bara kända programfiler som inte längre finns i branchen kan tas bort.
+  * Källan är den konfigurerade uppdateringsbranchen, aldrig main eller senaste release.
+    Git-arbetskopior uppdateras inte av appen.
 
 Allt utom ``schedule_restart`` är ren Python utan Qt och testas i
 ``tester/updater_test.py``.
@@ -43,7 +41,9 @@ logger = logging.getLogger("Updater")
 LOG_PREFIX = "[UPDATE]"
 
 GITHUB_REPO = "Tokke2/TaskBord"
-LATEST_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+UPDATE_BRANCH = "arena/5502c203-taskbord"
+BRANCH_API = f"https://api.github.com/repos/{GITHUB_REPO}/branches/{UPDATE_BRANCH.replace('/', '%2F')}"
+
 ALLOWED_HOSTS = frozenset({"api.github.com", "codeload.github.com", "github.com"})
 USER_AGENT = "Ledgebord-updater"
 
@@ -133,7 +133,7 @@ def _http_get(url: str, max_bytes: int, timeout: float = 20.0,
             data = bytes(buf)
     except urllib.error.HTTPError as e:
         if e.code == 404:
-            raise UpdateError("Hittade ingen release på GitHub.") from e
+            raise UpdateError("Hittade inte den angivna branchen eller dess arkiv på GitHub.") from e
         if e.code in (403, 429):
             raise UpdateError("GitHub nekade förfrågan (för många anrop?). Försök igen om en stund.") from e
         raise UpdateError(f"GitHub svarade med fel {e.code}.") from e
@@ -144,22 +144,30 @@ def _http_get(url: str, max_bytes: int, timeout: float = 20.0,
     return data
 
 
-def fetch_latest_release(
-    http_get: Callable[..., bytes] = _http_get,
-) -> Dict[str, str]:
-    """Metadata för releasen märkt Latest."""
-    raw = http_get(LATEST_API, 2 * 1024 * 1024, accept="application/vnd.github+json")
+def fetch_update_branch(http_get: Callable[..., bytes] = _http_get) -> Dict[str, str]:
+    """Hämta exakt branch och lås nedladdningen till dess commit. Ingen fallback."""
+    raw = http_get(BRANCH_API, 2 * 1024 * 1024, accept="application/vnd.github+json")
     try:
-        d = json.loads(raw.decode("utf-8", "replace"))
-        return {
-            "tag": str(d.get("tag_name") or ""),
-            "name": str(d.get("name") or ""),
-            "published_at": str(d.get("published_at") or ""),
-            "html_url": str(d.get("html_url") or ""),
-            "zip_url": str(d.get("zipball_url") or ""),
-        }
-    except Exception as e:
-        raise UpdateError("Oväntat svar från GitHub.") from e
+        meta = json.loads(raw)
+        commit = meta["commit"]["sha"]
+        if meta["name"] != UPDATE_BRANCH or len(commit) != 40 or any(c not in "0123456789abcdef" for c in commit):
+            raise ValueError("fel branch eller commit")
+    except (ValueError, TypeError, KeyError) as exc:
+        raise UpdateError("Kunde inte verifiera uppdateringsbranchen. Ingen uppdatering installerades.") from exc
+    return {
+        "tag": UPDATE_BRANCH,
+        "name": UPDATE_BRANCH,
+        "published_at": "",
+        "html_url": f"https://github.com/{GITHUB_REPO}/tree/{commit}",
+        "zip_url": f"https://api.github.com/repos/{GITHUB_REPO}/zipball/{commit}",
+        "commit": commit,
+    }
+
+
+def _assert_update_checkout(app_dir: Path) -> None:
+    # Git-checkouts administreras via git, inte genom att skriva över arbetskopian.
+    if any((p / ".git").exists() for p in (app_dir.resolve(), *app_dir.resolve().parents)):
+        raise UpdateError("Appuppdatering är avstängd i Git-arbetskopior. Uppdatera via Git på rätt branch.")
 
 
 # ---------------------------------------------------------------------------
@@ -382,13 +390,12 @@ def check_for_update(
     http_get: Callable[..., bytes] = _http_get,
     progress: Optional[ProgressCb] = None,
 ) -> UpdateInfo:
-    """Hämta senaste releasen och räkna ut vad som skiljer. Skriver inget till disk."""
+    """Jämför appfilerna mot en verifierad commit från uppdateringsbranchen."""
     app_dir = Path(app_dir)
-    # Uppdateringen hämtas ALLTID från den senaste GitHub-releasen (aldrig från main/git pull) —
-    # även i en git-mapp. .git rörs inte (PROTECTED_TOP).
+    _assert_update_checkout(app_dir)
     _p: ProgressCb = progress or (lambda *_a: None)
     _p("release", 0, 0)
-    meta = fetch_latest_release(http_get)
+    meta = fetch_update_branch(http_get)
     if not meta["zip_url"]:
         raise UpdateError("Releasen saknar nedladdningsbar källkod.")
     _p("download", 0, 0)
@@ -400,7 +407,10 @@ def check_for_update(
     else:
         zip_bytes = http_get(meta["zip_url"], MAX_ZIP_BYTES, timeout=60.0)
     _p("compare", 0, 0)
-    files, commit = read_release_zip(zip_bytes)
+    files, archive_commit = read_release_zip(zip_bytes)
+    commit = meta["commit"]
+    if archive_commit != commit:
+        raise UpdateError("Arkivet matchar inte uppdateringsbranchens verifierade commit.")
     changed, new = compare(app_dir, files)
     removed = find_removed(app_dir, files)
     _p("validate", 0, 0)
@@ -433,6 +443,7 @@ def apply_update(app_dir: Path, info: UpdateInfo,
     Vid fel rullas allt tillbaka och UpdateError kastas.
     """
     app_dir = Path(app_dir)
+    _assert_update_checkout(app_dir)
     if not info.changed and not info.removed:
         raise UpdateError("Inget att uppdatera.")
     stamp = time.strftime("%Y%m%d-%H%M%S")
@@ -637,10 +648,8 @@ def schedule_restart(app_dir: Path, delay_sec: int = RESTART_DELAY_SEC,
 
 def describe(info: UpdateInfo, max_files: int = 12) -> str:
     """Kort svensk sammanfattning för dialogen."""
-    pub = info.published_at[:10] if info.published_at else "?"
     lines = [
-        f"Release {info.tag or '?'} (publicerad {pub}"
-        + (f", commit {info.commit[:7]}" if info.commit else "") + ")",
+        f"Branch {info.tag or '?'}" + (f" (commit {info.commit[:7]})" if info.commit else ""),
         f"{len(info.changed)} fil(er) skiljer sig från din installation"
         + (f", varav {len(info.new_files)} nya." if info.new_files else "."),
         "",

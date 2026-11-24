@@ -725,7 +725,7 @@ def run() -> int:
     try:
         from core import error_log
         error_log.tidy(LOGS_DIR)                   # gamla varningar → arkiv/ (felposter ligger kvar tills de åtgärdats)
-        error_log.auto_resolve(LOGS_DIR)           # åtgärdade fel (rättade i koden / tysta i 14 dagar) → arkiv/fel_atgardade.log
+        error_log.auto_resolve(LOGS_DIR)           # åtgärdade fel (rättade i koden) → arkiv/fel_atgardade.log
         error_log.install(LOGS_DIR)
         error_log.import_in_background(LOGS_DIR, delay=10.0)
         from core import log_archive

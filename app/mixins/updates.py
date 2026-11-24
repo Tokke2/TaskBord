@@ -138,11 +138,11 @@ class UpdateMixin:
         if getattr(self, "_update_available", False) and info is not None:
             n = len(getattr(info, "changed", []) or []) + len(getattr(info, "removed", []) or [])
             return "available", (
-                f"Ny version finns: {n} fil(er) skiljer sig (release {info.tag}, commit {(info.commit or '?')[:7]}).\n"
+                f"Ny version finns: {n} fil(er) skiljer sig (branch {info.tag}, commit {(info.commit or '?')[:7]}).\n"
                 "Klicka för att uppdatera — dina uppgifter rörs inte och appen startar om."), n
         if time.monotonic() < getattr(self, "_update_current_until", 0.0):
             return "current", f"Du har senaste versionen (kollat {when}). Klicka för att kolla igen.", 0
-        return "idle", (f"Sök ny version — jämför dina filer mot senaste releasen.\n"
+        return "idle", (f"Sök ny version — jämför dina filer mot uppdateringsbranchen.\n"
                         f"Senast kollat: {when}. Appen kollar själv 2 gånger per dygn."), 0
 
     def _push_update_state(self) -> None:

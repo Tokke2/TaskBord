@@ -278,6 +278,9 @@ class WindowsMixin:
                             f"i self._widgets"
                         )
                         self._widgets[wid] = w
+                        with suppress(Exception):
+                            self._watch_widget_screen(w)
+                            w._last_auto_scale = round(float(w._auto_scale_factor()), 2)
                         # FIX v7-fix18: winId() får ALDRIG tvinga fram
                         # fönster-skapande (CreateWindowEx-storm-vektor)
                         _hwnd_txt = "?"
@@ -1088,6 +1091,16 @@ class WindowsMixin:
         except Exception as e:
             self._log.debug(f"{LOG_PREFIX} _refit_windows_to_screens: {e}")
 
+    def _watch_widget_screen(self, widget: Any) -> None:
+        """Fånga också flytt mellan befintliga skärmar med olika DPI."""
+        timer = getattr(self, "_screen_watch_timer", None)
+        shell = getattr(widget, "_shell", None) or widget
+        handle = shell.windowHandle() if timer is not None else None
+        if handle is None or handle.property("_ledgeScreenWatch"):
+            return
+        handle.screenChanged.connect(lambda *_args: timer.start())
+        handle.setProperty("_ledgeScreenWatch", True)
+
     def _install_screen_watch(self) -> None:
         """Lyssna på skärmändringar (ansluten/bortkopplad skärm, upplösning, skalning) och passa in fönstret efteråt."""
         try:
@@ -1105,6 +1118,12 @@ class WindowsMixin:
                     with suppress(Exception):
                         getattr(scr, sig).connect(lambda *_a: kick())
 
+            with self._widget_lock:
+                widgets = list(self._widgets.values())
+            for widget in widgets:
+                with suppress(Exception):
+                    self._watch_widget_screen(widget)
+                    widget._last_auto_scale = round(float(widget._auto_scale_factor()), 2)
             for scr in self._app.screens():
                 _watch(scr)
             self._app.screenAdded.connect(lambda s: (_watch(s), kick()))

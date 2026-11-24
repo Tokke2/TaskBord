@@ -41,19 +41,18 @@ class LoggingTest(unittest.TestCase):
         active.write_text("yesterday-only\n", encoding="utf-8")
         old = time.time() - 2 * 86400
         os.utime(active, (old, old))
-        legacy = self.data / "todo_app.log.1"
-        legacy.write_text("older backup\n", encoding="utf-8")
+        from core import log_archive
+        self.assertTrue(log_archive.prepare_active(self.data))
+        self.assertEqual(log_archive.archive_dated_logs(self.data), 1)
         self.setup_logging()
         logging.info("today-only")
-        archive = self.data / "logs" / "archive"
-        self.assertEqual(len(list(archive.iterdir())), 2)
+        self.assertEqual(len(list((self.data / "arkiv").glob("*.zip"))), 1)
         self.assertFalse(logs.search_logs("yesterday-only", self.data))
         self.assertTrue(logs.search_logs("today-only", self.data))
         handler = next(h for h in logging.getLogger().handlers
                        if isinstance(h, logs.WinSafeTimedRotatingFileHandler))
         handler.rolloverAt = 0
         logging.info("after rollover")
-        self.assertEqual(len(list(archive.iterdir())), 3)
         self.assertFalse(logs.search_logs("today-only", self.data))
         self.assertTrue(logs.search_logs("after rollover", self.data))
 
@@ -76,10 +75,12 @@ class LoggingTest(unittest.TestCase):
         self.assertTrue(logs.search_logs("failed 1", self.data))
 
     def test_successful_inbox_retry_clears_its_failure(self):
+        from core import error_log
         from core.mail_bridge import InboxWatcher
         from core.store import TaskStore
 
         self.setup_logging()
+        error_log.install(self.data)
         watcher = InboxWatcher(TaskStore(data_dir_override=str(self.data)), self.data)
         path = self.data / "inbox" / "retry.json"
         path.write_text("not json", encoding="utf-8")
@@ -90,3 +91,6 @@ class LoggingTest(unittest.TestCase):
         with patch.object(watcher, "_service_create", return_value={"ok": True}):
             self.assertTrue(watcher._process(path))
         self.assertEqual(json.loads(issues.read_text(encoding="utf-8")), {})
+        self.assertNotIn("inte giltig JSON", (self.data / "fel.log").read_text(encoding="utf-8"))
+        archived = self.data / "arkiv" / error_log.RESOLVED_NAME
+        self.assertIn("inte giltig JSON", archived.read_text(encoding="utf-8"))

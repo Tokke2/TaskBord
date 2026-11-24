@@ -74,6 +74,12 @@ Ledgebord är gratis och utan reklam. Donationer är helt frivilliga och görs i
 (eller tray-ikonen) → **💖 Stöd Ledgebord…** (under hjälpen) → välj belopp och skanna Swish-QR-koden eller klicka på knappen för
 PayPal eller Ko-fi. Mottagarna är inbyggda och låsta.
 
+## Uppdateringar och felsökning
+
+Appuppdateraren hämtar bara verifierade versioner från `arena/5502c203-taskbord`, aldrig från `main` eller senaste GitHub-release. Git-arbetskopior uppdateras med Git, inte genom att appen skriver över filer.
+
+Dagens driftlogg ligger i `loggar/todo_app.log`. Äldre driftloggar sparas i `loggar/arkiv/`. `loggar/fel.log` samlar varningar och fel för felsökning; gamla varningar arkiveras och öppna fel ligger kvar tills de åtgärdats. Fel med verifierbar återhämtning, exempelvis en lyckad ny import av samma inkorgsfil, arkiveras automatiskt.
+
 ## 📄 Licens
 
 **MIT** — se [`LICENSE`](LICENSE). Du får använda, kopiera, ändra och dela Ledgebord **både privat och kommersiellt**

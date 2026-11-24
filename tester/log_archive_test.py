@@ -136,7 +136,7 @@ check("tidy: tre gamla varningar arkiverades", res["warnings"] == 3, res)
 check("tidy: ALLA felposter ligger kvar (även från förrgår)", all(x in left for x in ("gammalt fel", "igårs krasch", "dagens fel", "importerat fel")))
 check("tidy: dagens varning ligger kvar", "dagens varning" in left)
 check("tidy: gamla varningar är borta ur fel.log", not any(x in left for x in ("gammal varning", "igårs varning 1", "igårs varning 2")))
-check("tidy: följdrader och ↳-rad följde med felet", "ValueError" in left and "upprepades 2 gång(er)" in left)
+check("tidy: följdrader och ↳-rad följde med felet", "ValueError" in left and "ovanstående upprepades" not in left)
 check("tidy: gamla varningar finns i dagens zip (fel-varningar.log)", "igårs varning 1" in zread(LA.day_zip(d5, iso(Y)), "fel-varningar.log") and "gammal varning" in zread(LA.day_zip(d5, iso(Y2)), "fel-varningar.log"))
 check("tidy: sessionshuvud utan kvarvarande poster försvann, dagens finns kvar", f"startad {iso(TODAY)}" in left and f"startad {iso(Y2)}" in left and f"startad {iso(Y)}" in left)  # alla tre har kvarvarande fel
 res2 = EL.tidy(d5, TODAY)

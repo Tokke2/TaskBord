@@ -4,7 +4,7 @@
 logger_setup.py — Centraliserad loggning (NYTT v6.4) — v6.4.1 v7 (EN fil, AI-säker)
 =====================================================================================================
 ALLT hamnar i EN fil (Rickard 2026-09-22):
-  • data/todo_app.log                (alla events, DEBUG+, daglig rotation, arkiv i data/logs/archive/)
+  • data/todo_app.log                (alla events, DEBUG+, daglig rotation, arkiv i loggar/arkiv/)
 
 Ingen app_*.log / debug_*.log / session_*.log längre.
 
@@ -27,9 +27,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 import tempfile
-import uuid
 import io
 import logging
 import logging.handlers
@@ -568,23 +566,25 @@ class WinSafeTimedRotatingFileHandler(logging.handlers.TimedRotatingFileHandler)
             f"nivå2={_describe_logger_exception(err2) if err2 else 'ok'}"
         )
 
+    # --------------------------------------------------------- doRollover --
     def doRollover(self) -> None:
-        if self.stream:
-            self.stream.close()
-            self.stream = None
-        source = Path(self.baseFilename)
+        """Stdlib-rollover med hårt skal — kraschar ALDRIG emit-pipelinen."""
         try:
-            if source.exists():
-                day = datetime.fromtimestamp(source.stat().st_mtime).strftime("%Y%m%d")
-                archive = source.parent / "logs" / "archive"
-                archive.mkdir(parents=True, exist_ok=True)
-                target = _archive_target(archive, f"{source.name}.{day}")
-                self.rotate(str(source), str(target))
-        except OSError as exc:
-            self._rotate_failed_reason = str(exc)
-        self.rolloverAt = self.computeRollover(int(time.time()))
+            super().doRollover()
+        except OSError as e:
+            # T.ex. backup-städning (os.remove på låst gammal .log.N).
+            # Avanza rolloverAt så vi inte retry-spammar vid varje emit.
+            self.rolloverAt = self.computeRollover(time.time())
+            self._warn_rollover(
+                f"rotation misslyckades (backup-städning?): "
+                f"{_describe_logger_exception(e)} — loggen fortsätter"
+            )
+            return
         if self._rotate_failed_reason:
-            self._warn_rollover(self._rotate_failed_reason)
+            self._warn_rollover(
+                f"loggfil låst av annan process — fortsätter i befintlig "
+                f"fil ({self._rotate_failed_reason})"
+            )
 
     # ----------------------------------------------------------- varning ---
     def _warn_rollover(self, message: str) -> None:
@@ -616,28 +616,6 @@ class WinSafeTimedRotatingFileHandler(logging.handlers.TimedRotatingFileHandler)
 # SETUP: Allt-i-ett
 # ===========================================================================
 
-def _archive_target(archive: Path, name: str) -> Path:
-    target = archive / name
-    if target.exists():
-        target = archive / f"{name}.{uuid.uuid4().hex}"
-    return target
-
-
-def _archive_legacy_logs(data_dir: Path) -> None:
-    logs = data_dir / "logs"
-    archive = logs / "archive"
-    for folder in (data_dir, logs):
-        for source in folder.iterdir() if folder.is_dir() else ():
-            if not re.fullmatch(
-                r"todo_app\.log\.(?:\d+|\d{4}-\d{2}-\d{2})|"
-                r"(?:app|debug|session)_\d{8}(?:_\d{6})?\.log",
-                source.name,
-            ) or not source.is_file():
-                continue
-            archive.mkdir(parents=True, exist_ok=True)
-            source.rename(_archive_target(archive, source.name))
-
-
 class UnresolvedIssueHandler(logging.Handler):
     """Beständig felsökningslogg, separat från den dagliga historiken."""
 
@@ -645,7 +623,7 @@ class UnresolvedIssueHandler(logging.Handler):
         super().__init__(logging.ERROR)
         self.path = path
 
-    def update(self, key: str, record: Optional[logging.LogRecord] = None) -> None:
+    def update(self, key: str, record: Optional[logging.LogRecord] = None) -> bool:
         with self.lock:
             try:
                 issues = json.loads(self.path.read_text(encoding="utf-8"))
@@ -653,7 +631,7 @@ class UnresolvedIssueHandler(logging.Handler):
                 issues = {}
             if record is None:
                 if key not in issues:
-                    return
+                    return False
                 del issues[key]
             else:
                 stamp = datetime.fromtimestamp(record.created).isoformat(timespec="seconds")
@@ -676,6 +654,7 @@ class UnresolvedIssueHandler(logging.Handler):
                 finally:
                     output.close()
                     temp.unlink(missing_ok=True)
+            return True
 
     def emit(self, record: logging.LogRecord) -> None:
         key = getattr(record, "issue_key", None)
@@ -695,7 +674,12 @@ def resolve_log_issue(issue_key: str) -> None:
     for handler in logging.getLogger().handlers:
         if getattr(handler, "name", None) == "taskbord.unresolved_issues":
             try:
-                handler.update(issue_key)
+                if handler.update(issue_key):
+                    try:
+                        from core import error_log
+                        error_log.resolve_issue(handler.path.parent, issue_key)
+                    except ImportError:
+                        pass
             except (OSError, ValueError):
                 _module_logger.warning("Kunde inte rensa felsökningsloggen: %s", issue_key)
 
@@ -770,22 +754,12 @@ def setup_full_logging(
     )
     file_handler.setLevel(logging.DEBUG)  # Fånga ALLT
     file_handler.setFormatter(detailed_fmt)
-    try:
-        last_day = datetime.fromtimestamp(log_path.stat().st_mtime).date()
-    except OSError:
-        last_day = None
-    if last_day is not None and last_day < datetime.now().date():
-        file_handler.doRollover()
+    file_handler.suffix = "%Y%m%d"
     root.addHandler(file_handler)
     issues = UnresolvedIssueHandler(data_dir / "felsokning.json")
     issues.set_name("taskbord.unresolved_issues")
     issues.setFormatter(detailed_fmt)
     root.addHandler(issues)
-    try:
-        _archive_legacy_logs(data_dir)
-    except OSError as exc:
-        _module_logger.warning("Kunde inte arkivera äldre loggar: %s", exc)
-
     # 8. === STDOUT/STDERR → fil (om aktiverat) ===
     if capture_stdout:
         # Specifik logger för print()-output
@@ -1137,7 +1111,7 @@ def create_log_snapshot(logs_dir: Optional[Path] = None) -> Dict[str, Any]:
     single = _resolve_log_file(logs_dir)
     # "session_count" = antal roterade backup-filer (todo_app.log.*)
     backups = (
-        list((single.parent / "logs" / "archive").glob(f"{SINGLE_LOG_NAME}.*"))
+        list((single.parent / "arkiv").glob("*.zip"))
         if single is not None
         else []
     )

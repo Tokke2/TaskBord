@@ -346,11 +346,20 @@ class RenderMixin:
                 archive = self.store.archive_tasks()
             else:
                 archive = []
-            self._render_tasks(active, archived=False)
-            self._render_tasks(archive, archived=True)
-            self._reapply_flash()
-            self._build_search_index()
-            self._refresh_calendar()
+            # Båda listorna byggs synkront. Måla fönstret en gång när hela
+            # layouten är klar i stället för att invalidera varje kort separat.
+            repaint = self.updatesEnabled()
+            if repaint:
+                self.setUpdatesEnabled(False)
+            try:
+                self._render_tasks(active, archived=False)
+                self._render_tasks(archive, archived=True)
+                self._reapply_flash()
+                self._build_search_index()
+                self._refresh_calendar()
+            finally:
+                if repaint:
+                    self.setUpdatesEnabled(True)
             duration = (time.perf_counter() - start) * 1000
             self._render_count += 1
             if duration > 50.0:

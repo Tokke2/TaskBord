@@ -175,7 +175,7 @@ def make_zip(files):
     with zipfile.ZipFile(bio, "w") as z:
         for k, v in files.items():
             z.writestr("Tokke2-TaskBord-abc1234/" + k, v)
-        z.comment = b"abc1234def5678abc1234def5678abc1234def56"
+        z.comment = b"abc1234000000000000000000000000000000000"
     return bio.getvalue()
 
 STATE = {"zip": make_zip({"main.pyw": b"print('v2')\n", "core/x.py": b"A=1\n"}), "fail": False, "slow": 0.0}
@@ -183,8 +183,8 @@ STATE = {"zip": make_zip({"main.pyw": b"print('v2')\n", "core/x.py": b"A=1\n"}),
 def fake_http(url, max_bytes, timeout=20.0, accept="*/*", progress=None):
     if STATE["fail"]:
         raise updater.UpdateError("Kunde inte nå GitHub. Kontrollera internetanslutningen.")
-    if url == updater.LATEST_API:
-        return json.dumps({"tag_name": "v1.0.0", "zipball_url": "https://api.github.com/z"}).encode()
+    if url == updater.BRANCH_API:
+        return json.dumps({"name": updater.UPDATE_BRANCH, "commit": {"sha": "abc1234000000000000000000000000000000000"}}).encode()
     data = STATE["zip"]
     if progress:
         for i in range(0, len(data), 1000):
@@ -268,13 +268,6 @@ run(s4)
 check("aktuell: ingen notis", not s4._tray.msgs)
 check("aktuell: markering rensas", s4._update_available is False and s4._update_action_text().startswith("🔄"))
 (APP / "main.pyw").write_bytes(b"print('v1')\n")
-
-# 8. git-mapp -> automatisk koll görs ändå (mot releasen, inte main)
-(APP / ".git").mkdir()
-s5 = Stub()
-s5._auto_update_check()
-check("git-mapp: automatisk koll mot releasen görs", getattr(s5, "_update_busy", False) is True)
-(APP / ".git").rmdir()
 
 # 9. manuell uppdatering: förlopp i båda faserna + installation + omstart
 STATE["zip"] = make_zip({"main.pyw": b"print('v2')\n", "core/x.py": b"A=1\n", "core/y.py": b"B=1\n"})

@@ -25,7 +25,7 @@ from core import updater  # noqa: E402
 from core.updater import UpdateError  # noqa: E402
 
 
-def make_zip(files, top="Tokke2-TaskBord-abc1234", comment=b"abc1234def5678abc1234def5678abc1234def56"):
+def make_zip(files, top="Tokke2-TaskBord-abc1234", comment=b"abc1234000000000000000000000000000000000"):
     bio = io.BytesIO()
     with zipfile.ZipFile(bio, "w") as z:
         z.writestr(top + "/", "")
@@ -37,11 +37,9 @@ def make_zip(files, top="Tokke2-TaskBord-abc1234", comment=b"abc1234def5678abc12
 
 def fake_http(zip_bytes, tag="v1.0.0"):
     def _get(url, max_bytes, timeout=20.0, accept="", progress=None):
-        if url == updater.LATEST_API:
+        if url == updater.BRANCH_API:
             return json.dumps({
-                "tag_name": tag, "name": "Ledgebord " + tag, "published_at": "2026-10-13T08:28:09Z",
-                "html_url": "https://github.com/x/y/releases/tag/" + tag,
-                "zipball_url": "https://api.github.com/repos/x/y/zipball/" + tag,
+                "name": updater.UPDATE_BRANCH, "commit": {"sha": "abc1234000000000000000000000000000000000"},
             }).encode()
         if progress:
             for i in range(0, len(zip_bytes), 200):
@@ -73,7 +71,7 @@ with tempfile.TemporaryDirectory() as d:
     (app / "lokal_extra.txt").write_bytes(b"min fil")          # finns inte i releasen
 
     info = updater.check_for_update(app, fake_http(make_zip(REL)))
-    check("tag + commit lästes", info.tag == "v1.0.0" and info.commit.startswith("abc1234"))
+    check("tag + commit lästes", info.tag == updater.UPDATE_BRANCH and info.commit.startswith("abc1234"))
     check("toppmappen togs bort", "main.pyw" in info.files and not any(k.startswith("Tokke2") for k in info.files))
     check("js/ och data/ ingår aldrig", not any(k.startswith(("js/", "data/")) for k in info.files))
     check("pycache hoppas över", not any("__pycache__" in k for k in info.files))
@@ -127,22 +125,29 @@ with tempfile.TemporaryDirectory() as d:
         check("zip-slip nekas", True)
     check("inget skrevs utanför", not (Path(d).parent / "evil.py").exists())
 
-# git-mapp: uppdateras från RELEASEN (inte main/git pull); .git rörs inte
+# Git-arbetskopior skrivs aldrig över av appen.
 with tempfile.TemporaryDirectory() as d:
     gd = Path(d)
     (gd / ".git").mkdir()
-    (gd / ".git" / "HEAD").write_text("ref: refs/heads/main\n")
     (gd / "main.pyw").write_bytes(b"print('gammal')\n")
     try:
-        gi = updater.check_for_update(gd, fake_http(make_zip(REL)))
-        check("git-mapp: söker i releasen", bool(gi.changed))
-        updater.apply_update(gd, gi)
-        check("git-mapp: release-filerna installeras", (gd / "main.pyw").read_bytes() != b"print('gammal')\n")
-        check("git-mapp: .git orörd", (gd / ".git" / "HEAD").read_text() == "ref: refs/heads/main\n"
-              and sorted(p.name for p in (gd / ".git").iterdir()) == ["HEAD"])
-    except UpdateError as e:
-        check("git-mapp uppdateras från release", False)
-        print("   ", e)
+        updater.check_for_update(gd, lambda *a, **k: (_ for _ in ()).throw(AssertionError("nätverksanrop")))
+        check("git-mapp: blockerad", False)
+    except UpdateError:
+        check("git-mapp: blockerad", (gd / "main.pyw").read_bytes() == b"print('gammal')\n")
+
+# Branchmetadata kan inte styra vilken URL som hämtas eller falla tillbaka på main.
+_calls = []
+def _wrong_branch(url, *args, **kwargs):
+    _calls.append(url)
+    return json.dumps({"name": "main", "commit": {"sha": "a" * 40}}).encode()
+with tempfile.TemporaryDirectory() as d:
+    try:
+        updater.check_for_update(Path(d), _wrong_branch)
+    except UpdateError:
+        check("fel branch: stoppar före nedladdning", _calls == [updater.BRANCH_API])
+    else:
+        check("fel branch: stoppar före nedladdning", False)
 
 # bara GitHub över https
 for bad_url in ("http://api.github.com/x", "https://evil.example.com/x", "file:///etc/passwd"):

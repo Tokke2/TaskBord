@@ -78,7 +78,7 @@ t = read(d)
 check("likadana fel skrivs en gång", t.count("nekad förfrågan") == 1, t)
 w.flush_summaries()
 t = read(d)
-check("…med 'upprepades 5 gång(er)'", "upprepades 5 gång(er) till" in t, t)
+check("…med 'upprepades 5 gång(er)'", "Upprepades 5 gång(er)" in t, t)
 check("annat fel skrivs separat", "något annat" in t)
 
 # 3. maskning
@@ -229,6 +229,18 @@ check("bootstrap använder qt_msg_level", "qt_msg_level(mode)" in _bs and "QtInf
 _ft = (ROOT / "ui" / "widget_parts" / "focus_timers.py").read_text(encoding="utf-8")
 check("kortkommandon som hanteras annorstädes varnar inte", "_SHORTCUTS_HANDLED_ELSEWHERE" in _ft and "toggle_inbox" in _ft)
 
+# Två olika fel får inte dela en sammanfattning.
+with tempfile.TemporaryDirectory() as _dedupe_tmp:
+    _dedupe_path = Path(_dedupe_tmp)
+    _dedupe_writer = EL.ErrorLogWriter(_dedupe_path)
+    for _message in ("första felet", "första felet", "andra felet", "andra felet"):
+        _dedupe_writer.write_record(logging.LogRecord("test", logging.ERROR, "test.py", 1, _message, (), None))
+    _dedupe_writer.flush_summaries()
+    _dedupe_text = _dedupe_writer.path.read_text(encoding="utf-8")
+    _dedupe_blocks = [b for b in EL.parse_blocks(_dedupe_text) if b["kind"] == "entry"]
+    check("upprepningar hör till respektive fel", len(_dedupe_blocks) == 2 and
+          all("Upprepades 1" in b["text"] for b in _dedupe_blocks))
+
 # --- Automatiskt åtgärdade fel -----------------------------------------------------------------------------------
 def _entry(ts, level, where, msg):
     return f"{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(ts))} | {level:<8} | {where} | {msg}\n"
@@ -249,7 +261,7 @@ _txt = (_hdr(_now - 40 * _day)
         + _entry(_now - 30 * _day, "VARNING", "Widget (r.py:1)", "gammal varning rörs inte här"))
 (_ad / "fel.log").write_text(_txt, encoding="utf-8")
 EL._writer = None
-_r = EL.auto_resolve(_ad, now=_now)
+_r = EL.auto_resolve(_ad, now=_now, days=14)
 check("auto: ett känt rättat fel och ett tyst gammalt fel arkiveras", _r == {"known": 1, "quiet": 1}, _r)
 _left = (_ad / "fel.log").read_text(encoding="utf-8")
 check("auto: nya fel ligger kvar", "nytt fel" in _left)
@@ -257,16 +269,16 @@ check("auto: fel som återkommit nyligen ligger kvar (alla förekomster)", "åte
 check("auto: det tysta felet och KRASCH-raden är borta ur fel.log", "gammalt fel" not in _left and "multimedia" not in _left and "Traceback" not in _left)
 check("auto: varningar rörs inte här", "gammal varning" in _left)
 _arch = (_ad / "arkiv" / EL.RESOLVED_NAME).read_text(encoding="utf-8")
-check("auto: arkivet har posterna + stacktrace + rubrik", "Automatiskt åtgärdade" in _arch and "multimedia" in _arch and "gammalt fel" in _arch and "Traceback" in _arch, _arch[:300])
-check("auto: andra körningen gör inget", EL.auto_resolve(_ad, now=_now) == {"known": 0, "quiet": 0})
+check("auto: arkivet har posterna + stacktrace + rubrik", "Automatiskt arkiverade" in _arch and "multimedia" in _arch and "gammalt fel" in _arch and "Traceback" in _arch, _arch[:300])
+check("auto: andra körningen gör inget", EL.auto_resolve(_ad, now=_now, days=14) == {"known": 0, "quiet": 0})
 check("auto: öppna fel räknas om", EL.open_error_count(_ad) == 3, EL.open_error_count(_ad))
-check("auto: 10 dagar senare (13 dagar sedan senaste) ligger de kvar", EL.auto_resolve(_ad, now=_now + 10 * _day) == {"known": 0, "quiet": 0})
-check("auto: 13 dagar senare (16 dagar) arkiveras resten", EL.auto_resolve(_ad, now=_now + 13 * _day) == {"known": 0, "quiet": 3})
+check("auto: 10 dagar senare (13 dagar sedan senaste) ligger de kvar", EL.auto_resolve(_ad, now=_now + 10 * _day, days=14) == {"known": 0, "quiet": 0})
+check("auto: 13 dagar senare (16 dagar) arkiveras resten", EL.auto_resolve(_ad, now=_now + 13 * _day, days=14) == {"known": 0, "quiet": 3})
 # allt åtgärdat → fel.log får den trevliga platshållaren
 _ad2 = Path(tempfile.mkdtemp(prefix="ledgebord_autores_"))
 (_ad2 / "fel.log").write_text(_hdr(_now - 50 * _day) + _entry(_now - 50 * _day, "FEL", "A (a.py:1)", "urgammalt fel"), encoding="utf-8")
-check("auto: allt åtgärdat → platshållaren 'Inga fel loggade'", EL.auto_resolve(_ad2, now=_now)["quiet"] == 1 and (_ad2 / "fel.log").read_text(encoding="utf-8") == EL.PLACEHOLDER)
-check("auto: ingen fel.log alls ger inget fel", EL.auto_resolve(_ad2 / "finns_inte", now=_now) == {"known": 0, "quiet": 0})
+check("auto: allt åtgärdat → platshållaren 'Inga fel loggade'", EL.auto_resolve(_ad2, now=_now, days=14)["quiet"] == 1 and (_ad2 / "fel.log").read_text(encoding="utf-8") == EL.PLACEHOLDER)
+check("auto: ingen fel.log alls ger inget fel", EL.auto_resolve(_ad2 / "finns_inte", now=_now, days=14) == {"known": 0, "quiet": 0})
 # manuella 'markera som åtgärdade' fungerar som förut (delad hjälpfunktion)
 _ad3 = Path(tempfile.mkdtemp(prefix="ledgebord_autores_"))
 (_ad3 / "fel.log").write_text(_hdr(_now) + _entry(_now, "FEL", "A (a.py:1)", "nyss") + _entry(_now, "VARNING", "A (a.py:2)", "varning"), encoding="utf-8")

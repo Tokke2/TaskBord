@@ -160,7 +160,7 @@ väntar (t.ex. när `requirements.txt` ändrats och tyst installation därför i
   trasig ut. Borttagna filer sparas i backupen först, återställs om installationen eller starten misslyckas och
   räknas som en riktig uppdatering (”N filer”) även om inget annat ändrats.
 * Appen startar om automatiskt. Ändras `requirements.txt` ska du köra `FORSTA_START.bat`.
-* Uppdateringen hämtas alltid från den senaste **releasen** på GitHub – aldrig från `main` och aldrig via `git pull` – även om mappen är en git-mapp (`.git` lämnas orörd; filerna syns då som ändrade i git).
+* Appuppdateringar hämtas endast från `arena/5502c203-taskbord`, låst till en verifierad commit. Ingen reservväg via `main` eller GitHub Releases. Appen skriver inte över Git-arbetskopior; uppdatera dem med Git på rätt branch.
 
 ## 🖥️ Windows · macOS · Linux
 
