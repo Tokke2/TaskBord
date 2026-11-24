@@ -915,6 +915,8 @@ def authenticate_google_calendar(
         f"port={port or 'valfri'}) — öppnar webbläsaren"
     )
     try:
+        # Bibliotekets HTTP-logg innehåller hela callback-URL:en med OAuth-kod.
+        logging.getLogger("google_auth_oauthlib.flow").disabled = True
         creds = flow.run_local_server(
             # IP-literalen 127.0.0.1 i stället för "localhost": RFC 8252
             # rekommenderar den för loopback, och den strular inte på
@@ -923,9 +925,7 @@ def authenticate_google_calendar(
             host="127.0.0.1",
             port=port or 0,
             open_browser=open_browser,
-            authorization_prompt_message=(
-                "Öppna den här adressen i webbläsaren för att koppla Ledgebord:\n{url}\n"
-            ),
+            authorization_prompt_message=None,
             success_message=(
                 "Ledgebord är kopplat! Du kan stänga den här fliken och gå "
                 "tillbaka till appen."

@@ -121,9 +121,13 @@ def install_global_exception_hook() -> None:
         # Om root-logger saknar handlers, lägg till en basic file-handler som
         # alltid skriver till loggar/todo_app.log (även vid tyst crash)
         root = logging.getLogger()
-        if not any(isinstance(h, logging.handlers.RotatingFileHandler) for h in root.handlers):
+        log_path = LOGS_DIR / "todo_app.log"
+        if not any(
+            isinstance(h, logging.FileHandler)
+            and Path(h.baseFilename).resolve() == log_path.resolve()
+            for h in root.handlers
+        ):
             try:
-                log_path = LOGS_DIR / "todo_app.log"
                 log_path.parent.mkdir(parents=True, exist_ok=True)
                 fallback_handler = logging.handlers.RotatingFileHandler(
                     log_path,
