@@ -333,6 +333,13 @@ class UpdateMixin:
         silent=True (automatisk uppdatering): inga fönster alls — omstarten sker också tyst.
         """
         from core import updater
+        reason = self._update_busy_reason()
+        if reason:
+            self._update_finish()
+            self._notify_update_available(info)
+            if not silent:
+                self._update_dialog("info", "Uppdatering väntar", f"Installationen startades inte: {reason}. Försök igen när du är klar.")
+            return
         n = len(info.changed) + len(getattr(info, "removed", []) or [])
         self._update_busy = True
         self._update_silent = bool(silent)
@@ -401,7 +408,7 @@ class UpdateMixin:
                 return  # tyst: inget har ändrats; nästa koll försöker igen
             self._update_dialog(
                 "warn", "Uppdatering misslyckades",
-                f"{payload}\n\nInget har ändrats — din installation är som förut.",
+                str(payload),
             )
             return
         self._update_available = False
@@ -409,6 +416,12 @@ class UpdateMixin:
         self._log.info(
             f"{LOG_PREFIX} uppdaterad till {info.tag} ({info.commit[:7]}), backup {payload}"
         )
+        reason = self._update_busy_reason()
+        if reason:
+            self._log.info(f"{LOG_PREFIX} omstart uppskjuten: {reason}")
+            if not silent:
+                self._update_dialog("info", "Uppdaterad", "Starta om Ledgebord när du är klar. Uppdateringen är installerad.")
+            return
         if silent:
             # Tyst omstart: inga dialoger. Uppgifter och fönsterläge sparas, väktaren startar den nya
             # versionen (och återställer den gamla om den inte kommer igång inom 60 s).
@@ -575,6 +588,12 @@ class UpdateMixin:
 
     def _update_busy_reason(self) -> str:
         """Pågår något där en omstart skulle störa? (tom sträng = lugnt)"""
+        try:
+            from ui import google_calendar_dialog
+            if getattr(google_calendar_dialog, "_AKTIVA_TRADAR", ()):
+                return "ett Google Kalender-jobb pågår"
+        except ImportError:
+            pass
         try:
             app = self._app
             if app.activeModalWidget() is not None:

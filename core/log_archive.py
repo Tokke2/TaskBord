@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # Copyright © Rickard Längkvist, 2025–2026
 """
-log_archive.py — loggar från dagar före dagens datum arkiveras (zip) i loggar/arkiv/. Inget raderas.
+log_archive.py — loggar från dagar före dagens datum arkiveras (zip) i loggar/arkiv/ i sju dagar.
 
     loggar/arkiv/2026-11-03.zip      allt som loggades den dagen:
         todo_app.log                 dagens huvudlogg (todo_app.log.20261103)
@@ -20,7 +20,7 @@ import re
 import threading
 import time
 import zipfile
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
@@ -155,11 +155,33 @@ def archive_dated_logs(logs_dir, today: Optional[date] = None) -> int:
     return n
 
 
+def prune_archives(logs_dir, today: Optional[date] = None) -> int:
+    """Ta bort dagsarkiv som är minst sju dagar gamla, inte öppna fel."""
+    cutoff = (today or date.today()) - timedelta(days=7)
+    removed = 0
+    folder = archive_dir(logs_dir)
+    if folder.is_symlink():
+        return 0
+    with _LOCK:
+        for path in folder.glob("*.zip"):
+            if not re.fullmatch(r"\d{4}-\d{2}-\d{2}\.zip", path.name) or path.is_symlink():
+                continue
+            try:
+                if date.fromisoformat(path.stem) <= cutoff and path.is_file():
+                    path.unlink()
+                    removed += 1
+            except (ValueError, OSError):
+                continue
+    return removed
+
+
 def archive_day_logs(logs_dir, today: Optional[date] = None) -> Dict[str, int]:
     """Allt som loggats före dagens datum arkiveras. Returnerar {'files': n, 'watchdog_lines': n}."""
     with _LOCK:
         try:
-            return {"files": archive_dated_logs(logs_dir, today), "watchdog_lines": archive_watchdog_log(logs_dir, today)}
+            result = {"files": archive_dated_logs(logs_dir, today), "watchdog_lines": archive_watchdog_log(logs_dir, today)}
+            prune_archives(logs_dir, today)
+            return result
         except Exception:
             return {"files": 0, "watchdog_lines": 0}
 

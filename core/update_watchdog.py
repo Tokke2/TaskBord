@@ -288,6 +288,22 @@ def do_rollback(app_dir: Path, backup_root: Path, reason: str) -> Dict[str, obje
     return info
 
 
+def remove_confirmed_backup(app_dir: Path, backup_root: Path) -> bool:
+    """Radera bara den egna uppdateringsbackupen, aldrig användarens säkerhetskopior."""
+    app_dir = Path(app_dir).resolve()
+    parent = app_dir / "data" / "backups" / "app-update"
+    backup = Path(os.path.abspath(backup_root))
+    try:
+        if (parent.resolve() != parent or backup.parent != parent
+                or backup.resolve() != backup or not (backup / MANIFEST_NAME).is_file()):
+            return False
+        shutil.rmtree(backup)
+        return True
+    except OSError as exc:
+        _log(app_dir, f"kunde inte städa bekräftad uppdateringsbackup: {exc}")
+        return False
+
+
 def supervise(app_dir: Path, backup_root: Path, exe: str, script: Path,
               delay_sec: float = RESTART_DELAY_SEC, timeout_sec: float = GUARD_TIMEOUT_SEC,
               ports: Sequence[int] = DEFAULT_PORTS, grace_sec: float = 3.0, poll_sec: float = 0.5) -> str:
@@ -296,6 +312,10 @@ def supervise(app_dir: Path, backup_root: Path, exe: str, script: Path,
     eller 'rolled_back'.
     """
     app_dir, backup_root = Path(app_dir), Path(backup_root)
+    pending = read_pending(app_dir) or {}
+    expected_backup = pending.get("backup")
+    owns_pending = (isinstance(expected_backup, str) and bool(expected_backup)
+                    and Path(expected_backup).resolve() == backup_root.resolve())
     _log(app_dir, f"start: väntar {delay_sec}s, vaktar {timeout_sec}s ({script})")
     time.sleep(max(0.0, delay_sec))
     try:
@@ -310,6 +330,8 @@ def supervise(app_dir: Path, backup_root: Path, exe: str, script: Path,
     while True:
         if read_pending(app_dir) is None:
             _log(app_dir, "bekräftad: appen kom igång")
+            if owns_pending and remove_confirmed_backup(app_dir, backup_root):
+                _log(app_dir, "bekräftad uppdateringsbackup borttagen")
             return "healthy"
         rc = proc.poll()
         now = time.monotonic()

@@ -29,6 +29,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.request
@@ -446,19 +447,34 @@ def apply_update(app_dir: Path, info: UpdateInfo,
     _assert_update_checkout(app_dir)
     if not info.changed and not info.removed:
         raise UpdateError("Inget att uppdatera.")
+    app_dir = app_dir.resolve()
+    for rel in (*info.changed, *info.removed):
+        if _safe_rel(rel) != rel or rel.split('/')[0].casefold() in PROTECTED_TOP:
+            raise UpdateError(f"Otillåten uppdateringssökväg: {rel}")
+        target = app_dir / rel
+        if target.resolve() != target or any(part.is_symlink() for part in (target, *target.parents) if part != app_dir):
+            raise UpdateError(f"Uppdateringen får inte följa länkar: {rel}")
     stamp = time.strftime("%Y%m%d-%H%M%S")
-    backup_root = app_dir / "data" / "backups" / "app-update" / stamp
+    backup_parent = app_dir / "data" / "backups" / "app-update"
+    if backup_parent.resolve() != backup_parent:
+        raise UpdateError("Säkerhetskopians sökväg får inte vara en länk.")
+    try:
+        backup_parent.mkdir(parents=True, exist_ok=True)
+        backup_root = Path(tempfile.mkdtemp(prefix=stamp + "-", dir=backup_parent))
+    except OSError as exc:
+        raise UpdateError("Kunde inte skapa en säkerhetskopia. Inga programfiler ändrades.") from exc
     written: List[Tuple[Path, bool]] = []   # (sökväg, fanns innan)
     _p: ProgressCb = progress or (lambda *_a: None)
     total = len(info.changed) + len(info.removed)
     removed_done: List[Path] = []           # borttagna filer (finns i backupen → kan läggas tillbaka)
     # Väktaren (self-healing): en kopia av den NUVARANDE, fungerande koden läggs i backupen INNAN
     # något byts, så att den inte påverkas om den nya koden är trasig.
-    guard_ok = False
     try:
-        guard_ok = _watchdog().copy_self_to(backup_root)
-    except Exception as e:
-        logger.warning(f"{LOG_PREFIX} kunde inte lägga väktaren i backupen: {e}")
+        guard = _watchdog()
+        if not guard.copy_self_to(backup_root):
+            raise OSError("återställningsväktaren kunde inte kopieras")
+    except Exception as exc:
+        raise UpdateError("Kunde inte förbereda återställning. Inga programfiler ändrades.") from exc
     try:
         for i, rel in enumerate(info.changed, 1):
             _p("install", i - 1, total)
@@ -469,9 +485,17 @@ def apply_update(app_dir: Path, info: UpdateInfo,
                 bk.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(target, bk)
             target.parent.mkdir(parents=True, exist_ok=True)
-            tmp = target.with_name(target.name + ".update.tmp")
-            tmp.write_bytes(info.files[rel])
-            os.replace(tmp, target)
+            with tempfile.NamedTemporaryFile(dir=target.parent, delete=False) as output:
+                tmp = Path(output.name)
+                try:
+                    output.write(info.files[rel])
+                    output.close()
+                    if existed:
+                        shutil.copymode(target, tmp)
+                    os.replace(tmp, target)
+                finally:
+                    output.close()
+                    tmp.unlink(missing_ok=True)
             written.append((target, existed))
         # Filer som releasen inte längre har: kopiera till backupen, radera, städa tomma mappar
         for j, rel in enumerate(info.removed, 1):
@@ -491,24 +515,18 @@ def apply_update(app_dir: Path, info: UpdateInfo,
                     break
                 parent.rmdir()
                 parent = parent.parent
+        guard.write_manifest(backup_root, {
+            "tag": info.tag, "commit": info.commit, "fingerprint": fingerprint(info),
+            "stamp": stamp,
+            "replaced": ([t.relative_to(app_dir).as_posix() for t, existed in written if existed]
+                         + [t.relative_to(app_dir).as_posix() for t in removed_done]),   # borttagna återställs ur backupen
+            "removed": [t.relative_to(app_dir).as_posix() for t in removed_done],
+            "new": [t.relative_to(app_dir).as_posix() for t, existed in written if not existed],
+        })
     except Exception as e:
         logger.error(f"{LOG_PREFIX} installation misslyckades: {e} — rullar tillbaka")
         rollback(app_dir, backup_root, written, removed_done)
-        raise UpdateError(f"Installationen misslyckades och återställdes: {e}") from e
-    (backup_root).mkdir(parents=True, exist_ok=True)
-    if guard_ok:
-        try:
-            _watchdog().write_manifest(backup_root, {
-                "tag": info.tag, "commit": info.commit, "fingerprint": fingerprint(info),
-                "stamp": stamp,
-                "replaced": ([t.relative_to(app_dir).as_posix() for t, existed in written if existed]
-                             + [t.relative_to(app_dir).as_posix() for t in removed_done]),   # borttagna återställs ur backupen
-                "removed": [t.relative_to(app_dir).as_posix() for t in removed_done],
-                "new": [t.relative_to(app_dir).as_posix() for t, existed in written if not existed],
-            })
-        except Exception as e:
-            logger.warning(f"{LOG_PREFIX} kunde inte skriva manifest: {e}")
-            guard_ok = False
+        raise UpdateError(f"Installationen misslyckades och återställning försöktes: {e}") from e
     _p("done", total, total)
     try:
         (backup_root / "UPPDATERING.txt").write_text(

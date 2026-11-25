@@ -66,7 +66,7 @@ uppgifterna, kopiera `js\` först.
 - [Manual](docs/MANUAL.md) — alla funktioner, genvägar och inställningar
 - [Thunderbird-tillägget](THUNDERBIRD.md) — skicka mail till Ledgebord
 - [Google Calendar](GOOGLE_CALENDAR.md) — koppla kalendern
-- [Logotyp som SVG för tryck](https://github.com/Tokke2/TaskBord/releases/latest) (under *Assets* på releasen) · [Ikoner](docs/MANUAL.md#-namn-och-ikon) · [Kodstruktur](docs/MANUAL.md#-kodstruktur-för-den-som-ändrar-koden)
+- [Redigerbara logotyper i SVG för tryck](icon/svg/) · [Ikoner](docs/MANUAL.md#-namn-och-ikon) · [Kodstruktur](docs/MANUAL.md#-kodstruktur-för-den-som-ändrar-koden)
 
 ## 💖 Stöd projektet
 
@@ -78,7 +78,7 @@ PayPal eller Ko-fi. Mottagarna är inbyggda och låsta.
 
 Appuppdateraren hämtar bara verifierade versioner från `arena/5502c203-taskbord`, aldrig från `main` eller senaste GitHub-release. Git-arbetskopior uppdateras med Git, inte genom att appen skriver över filer.
 
-Dagens driftlogg ligger i `loggar/todo_app.log`. Äldre driftloggar sparas i `loggar/arkiv/`. `loggar/fel.log` samlar varningar och fel för felsökning; gamla varningar arkiveras och öppna fel ligger kvar tills de åtgärdats. Fel med verifierbar återhämtning, exempelvis en lyckad ny import av samma inkorgsfil, arkiveras automatiskt.
+Dagens driftlogg ligger i `loggar/todo_app.log`. Äldre driftloggar sparas i daterade zipfiler i `loggar/arkiv/` och tas bort när datumet är sju dagar gammalt. `loggar/fel.log` samlar varningar och fel för felsökning; gamla varningar arkiveras och öppna fel ligger kvar tills de åtgärdats. Fel med verifierbar återhämtning, exempelvis en lyckad ny import av samma inkorgsfil, arkiveras automatiskt.
 
 ## 📄 Licens
 

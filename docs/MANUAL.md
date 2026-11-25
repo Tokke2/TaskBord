@@ -491,21 +491,17 @@ påverkas inte).
 ## 🎨 Namn och ikon
 
 Appen heter **Ledgebord** (tidigare TaskBord). Ikonen – en indigo ruta med en gul *kantlist* och ett bockat
-uppgiftskort – ligger i `icon\ledgebord.ico` och används överallt: fönster, tray, aktivitetsfält, Alt+Tab,
+checklista – ligger i `icon\ledgebord.ico` och används överallt: fönster, tray, aktivitetsfält, Alt+Tab,
 genvägen som `INSTALLERA.bat` skapar, autostart-genvägen och README-bilderna. Appen ger sig själv ett eget
 *AppUserModelID* (annars visar Windows Pythons ikon för `pythonw.exe`).
 
-* **Logotyp som vektor (för tryck):** ligger som filer på **GitHub-releasen** (under *Assets*), inte i appens mapp eller i
-  nedladdningen av programmet: `Ledgebord-logotyp.zip` (alla logotyper som **SVG** + PNG) samt `ledgebord-logo.svg` och
-  `ledgebord-ikon.svg` direkt. Ikon, liggande och stående logotyp finns i färg, vit (för mörk botten) och svart
-  (enfärgat tryck). SVG:erna är rena former och toningar (inga filter, inga bilder, ingen typsnittsfil): ordet
-  "Ledgebord" är omritat till banor (Inter ExtraBold, SIL OFL 1.1), så filerna ser likadana ut överallt och kan
-  skickas direkt till tryckeriet. Färger: indigo `#4F46E5`, violett `#7C3AED`, mörk indigo `#2A2370`, gul `#FBBF24`/`#F59E0B`.
-  För CMYK-tryck: öppna SVG:n i Inkscape/Illustrator och konvertera till tryckeriets färgprofil.
-* **Allt byggs från en ritning:** `icon/ledgebord_svg.py` (ren text, inga paket). `python icon/bygg_ikoner.py` (kräver
-  `pip install pillow resvg-py`, bara för den som ändrar ikonen) skriver om `icon/ledgebord.ico` + `.png`, bygger tryckfilerna i `logotyp/` (mappen ligger i `.gitignore`)
-  (varje storlek ritas direkt från vektorn; 16–64 px använder en grövre variant som syns i aktivitetsfältet),
-  Thunderbird-tilläggets `icon-16…128.png` och README-bilderna `docs/img/ikon.png` och `docs/img/banner.png`.
+* **Logotyp som redigerbar vektor för tryck:** välj ikon, liggande eller stående logotyp i [`icon/svg/`](../icon/svg/).
+  Alla tre finns i färg, vitt för mörk bakgrund och svart för vit bakgrund. Symbolens former kan redigeras var för sig.
+  Ordmärket är gjort av banor (Inter ExtraBold, SIL OFL 1.1) och kräver inget installerat typsnitt. Färgerna är mörk
+  indigo `#25205C`, gul `#F8C454` och vit `#FFFFFF`. Fråga tryckeriet vilken CMYK-profil de vill ha innan konvertering.
+* **Allt byggs från samma vektororiginal:** `python icon/bygg_ikoner.py` (kräver `pillow` och `resvg-py`) bygger SVG,
+  appens ICO/PNG, Thunderbird-ikoner och README-bilder. Små ikoner har grövre streck och rastreras direkt från vektorn.
+  Det genererar även ett valfritt SVG/PNG-paket under `logotyp/`. Kör `python skapa_xpi.py` efteråt för att bygga om XPI-filen.
 * **Reservikon:** saknas ikonfilen eller går den inte att läsa ritar appen en liknande ikon själv
   (`core/icon_art.py`, bara standardbiblioteket) till `data/ledgebord.ico` — aldrig en Python-ikon.
 * **Aktivitetshanteraren:** i *Processer* och *Detaljer* kommer ikonen från programfilen `pythonw.exe`, som Windows

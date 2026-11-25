@@ -168,7 +168,7 @@ class MaintenanceMixin:
 
     def _run_log_archive(self, at_startup: bool = False) -> None:
         """
-        Loggar från dagar före idag arkiveras (zip i loggar/arkiv/) — ingenting raderas. Kallas vid start och var 5:e
+        Loggar från dagar före idag arkiveras (zip i loggar/arkiv/) — dagsarkiv sparas i sju dagar. Kallas vid start och var 5:e
         minut (billig om det inte finns något att göra), så även en app som står öppen över midnatt arkiverar igår.
         Gamla VARNINGAR i fel.log arkiveras också; felposter ligger kvar tills de markerats som åtgärdade.
         """

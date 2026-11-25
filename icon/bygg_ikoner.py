@@ -25,7 +25,7 @@ import struct
 import sys
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageDraw, ImageFont
 
 import resvg_py
 
@@ -126,15 +126,9 @@ def banner(w: int = 1280, h: int = 320) -> Image.Image:
             t = (x / w) * 0.75 + (y / h) * 0.25
             px[x, y] = tuple(int(top[i] + (bot[i] - top[i]) * t) for i in range(3))
     d = ImageDraw.Draw(bg)
-    # mjuk dekorcirkel till höger
-    glow = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    ImageDraw.Draw(glow).ellipse((w - 520, -160, w + 160, 520), fill=(167, 139, 250, 55))
-    bg = Image.alpha_composite(bg.convert("RGBA"), glow)
+    bg = bg.convert("RGBA")
     ic = raster(S.ikon(), 200)
-    shadow = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    ImageDraw.Draw(shadow).rounded_rectangle((86, 74, 286, 274), 44, fill=(0, 0, 0, 90))
-    bg = Image.alpha_composite(bg, shadow.filter(ImageFilter.GaussianBlur(14)))
-    bg.paste(ic, (80, 60), ic)
+    bg.alpha_composite(ic, (80, 60))
     d = ImageDraw.Draw(bg)
     sc = 0.05    # samma omritade ord som i logotypen (Inter ExtraBold)
     ww, wh = int(S.WORD_ADV * sc) + 4, 150
@@ -149,6 +143,10 @@ def banner(w: int = 1280, h: int = 320) -> Image.Image:
 
 def main(argv=None) -> int:
     names = write_logotyp(ROOT / "logotyp")
+    vectors = ROOT / "icon" / "svg"
+    vectors.mkdir(parents=True, exist_ok=True)
+    for name, svg in S.alla().items():
+        (vectors / f"{name}.svg").write_text(svg, encoding="utf-8")
     (ROOT / "icon" / "ledgebord.ico").write_bytes(build_ico())
     sized(256).save(ROOT / "icon" / "ledgebord.png", optimize=True)
     for s_ in ADDON_SIZES:
