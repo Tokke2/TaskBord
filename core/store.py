@@ -1973,6 +1973,8 @@ class TaskStore(QObject):
         subtasks: Optional[List[Dict[str, Any]]] = None,
         pinned: bool = False,
         recurring: Optional[Dict[str, Any]] = None,
+        *,
+        start_date: Optional[str] = None,
     ) -> Optional[str]:
         """Lägg till ny task. Returnerar task-id (None vid fel)."""
         nt = _normalize_title(title)
@@ -2004,6 +2006,8 @@ class TaskStore(QObject):
                 "created": _now_iso(),
                 "completed": None,
             }
+            if (start := _coerce_str_or_none(start_date)):
+                task["start_date"] = start
             self._active_tasks.append(task)
             # FIX v7-fix11: _index_task() uppdaterar INTE _active_index —
             # utan denna rad kan nyligen tillagda tasks inte arkiveras,

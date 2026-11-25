@@ -673,8 +673,12 @@ def parse_natural_input(text: str, *, date_as_start: bool = False) -> Dict[str, 
             if time_part else due_day.isoformat()
         )
     elif time_part:
-        # Bara tid utan datum → idag
-        out["due_date"] = f"{today.isoformat()}T{time_part}"
+        # Bara tid utan datum → idag, eller uttryckligen angiven startdag.
+        day = out.get("start_date") if date_as_start else None
+        day = day or today.isoformat()
+        out["due_date"] = f"{day}T{time_part}"
+        if date_as_start:
+            out["start_date"] = day
 
     # Städa titeln: multipla mellanslag + runt kommatecken/punkter
     s = re.sub(r"\s{2,}", " ", s)

@@ -324,10 +324,8 @@ class TaskActionsMixin:
                 )
             tid = self.store.add_task(
                 _title, priority=_prio,
-                due_date=_due, tags=_tags,
+                due_date=_due, tags=_tags, start_date=_start,
             )
-            if tid and _start and hasattr(self.store, "set_start_date"):
-                self.store.set_start_date(tid, _start)  # NY v8: valfritt startdatum
             if tid and _urls:
                 self._add_links_to_task(tid, _urls)
             if tid and _start:

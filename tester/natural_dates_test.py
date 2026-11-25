@@ -140,6 +140,14 @@ def main() -> None:
     r = pn("vanlig titel utan datum", date_as_start=True)
     ck("snabbinmatning: utan datum finns inget startdatum", r["start_date"] is None, repr(r))
 
+    r = pn("9 december julmiddag hemma hos hasse kl 18", date_as_start=True)
+    ck("snabbinmatning: datum och klockslag", r["start_date"][5:] == "12-09"
+       and r["due_date"] == r["start_date"] + "T18:00"
+       and r["title"] == "julmiddag hemma hos hasse", repr(r))
+    r = pn("julmiddag kl 18", date_as_start=True)
+    ck("snabbinmatning: bara klockslag använder idag", r["start_date"] == today.isoformat()
+       and r["due_date"] == today.isoformat() + "T18:00", repr(r))
+
     doc = (ROOT / "docs" / "MANUAL.md").read_text(encoding="utf-8")
     ck("MANUAL beskriver naturliga datum", "Naturliga datum" in doc and "nästa mån" in doc)
 

@@ -414,6 +414,20 @@ with tempfile.TemporaryDirectory() as tmpdir:
     # --- 8. Händelsens innehåll -------------------------------------------
     print("\n8. Händelsen som skickas till Google")
     body = gc.build_event_body(UPPGIFT, color_by_priority=True)
+    timed = gc.build_event_body({**UPPGIFT, "start_date": "2026-12-09",
+                                 "due_date": "2026-12-09T18:30"})
+    start = datetime.fromisoformat(timed["start"]["dateTime"])
+    end = datetime.fromisoformat(timed["end"]["dateTime"])
+    check("klockslag → tidsatt händelse med lokal tidszon",
+          start == datetime(2026, 12, 9, 18, 30).astimezone()
+          and end - start == timedelta(hours=1))
+    overnight = gc.build_event_body({**UPPGIFT, "start_date": "2026-12-09",
+                                      "due_date": "2026-12-09T23:30"})
+    check("sluttid passerar midnatt", overnight["end"]["dateTime"].startswith("2026-12-10T00:30"))
+    span = gc.build_event_body({**UPPGIFT, "start_date": "2026-12-08",
+                                "due_date": "2026-12-09T18:30"})
+    check("flerdagarsperiod förblir heldagar", span["start"] == {"date": "2026-12-08"}
+          and span["end"] == {"date": "2026-12-10"})
     check("sammanfattning = titeln", body["summary"] == UPPGIFT["title"])
     check("heldagshändelse (date, inte dateTime)", "date" in body["start"] and "dateTime" not in body["start"])
     check("start = förfallodatumet", body["start"]["date"] == "2026-10-13")

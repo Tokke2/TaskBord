@@ -1142,8 +1142,8 @@ def build_event_body(
     done_style: str = DEFAULT_DONE_STYLE,
 ) -> Dict[str, Any]:
     """
-    Bygg Google-händelsen för en uppgift (heldagshändelse; från startdatum till
-    förfallodatum om båda finns, annars en dag).
+    Bygg Google-händelsen. Ett klockslag på uppgiftens startdag ger en
+    tidsatt händelse; en flerdagarsperiod exporteras fortfarande som heldagar.
 
     Händelsen märks med uppgiftens id i `extendedProperties`, så att vi
     alltid kan hitta tillbaka till den — även om mappningen på disk
@@ -1171,6 +1171,23 @@ def build_event_body(
         },
     }
 
+    # Snabbinmatningen lagrar datumet separat och bevarar klockslaget
+    # i förfallofältet, som även används för lokala påminnelser.
+    due = str(task.get("due_date") or "")
+    if _parse_iso_date(task.get("start_date")) == d == sista and "T" in due:
+        try:
+            start_time = _datetime.fromisoformat(due)
+        except ValueError:
+            pass
+        else:
+            local_time = start_time.tzinfo is None
+            if local_time:
+                start_time = start_time.astimezone()
+            end_time = start_time.astimezone(_timezone.utc) + _timedelta(hours=1)
+            end_time = end_time.astimezone(None if local_time else start_time.tzinfo)
+            body["start"] = {"dateTime": start_time.isoformat()}
+            body["end"] = {"dateTime": end_time.isoformat()}
+
     beskrivning = _task_description(task)
     if beskrivning:
         body["description"] = beskrivning
@@ -1180,7 +1197,7 @@ def build_event_body(
         if färg:
             body["colorId"] = färg
 
-    # Heldagshändelser från Ledgebord ska aldrig bokas som "upptagen"
+    # Händelser från Ledgebord ska aldrig bokas som "upptagen"
     # (gäller både aktiva och klara uppgifter).
     body["transparency"] = "transparent"
     if task.get("done"):
