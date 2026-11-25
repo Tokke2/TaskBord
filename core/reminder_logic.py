@@ -12,6 +12,8 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 OVERDUE = "overdue"
 TODAY = "today"
+EVENT_TODAY = "event_today"
+EVENT_TOMORROW = "event_tomorrow"
 
 # Påminnelsetider på själva förfallodagen
 MORNING_HOUR = 8            # första påminnelsen på morgonen (08:00)
@@ -46,10 +48,7 @@ def classify(task: Dict[str, Any], now: Optional[datetime] = None) -> Optional[T
     """
     now = now or datetime.now()
     try:
-        if not task.get("id") or task.get("done"):
-            return None
-        days = [d for d in [_day(task.get("due_date"))] + remind_days(task) if d is not None]
-        if not days:
+        if not task.get("id") or task.get("done") or task.get("reminders_muted"):
             return None
         sn = task.get("snoozed_until")
         if sn:
@@ -60,11 +59,20 @@ def classify(task: Dict[str, Any], now: Optional[datetime] = None) -> Optional[T
                 pass
     except (ValueError, TypeError):
         return None
-    delta = max((now.date() - d).days for d in days)       # äldsta obesvarade datumet styr "försenad N dagar"
-    if delta > 0:
-        return (OVERDUE, delta)
-    if delta == 0:
-        return (TODAY, 0)
+    start = _day(task.get("start_date"))
+    due = _day(task.get("due_date"))
+    days = remind_days(task)
+    # Samma datum i båda fälten används av snabbinmatningen för klockslag.
+    # Ett separat slutdatum och manuella/mailimporterade datum behåller sin logik.
+    if due is not None and due != start:
+        days.append(due)
+    if any(d <= now.date() for d in days):
+        delta = (now.date() - min(days)).days
+        return (OVERDUE, delta) if delta else (TODAY, 0)
+    if start == now.date():
+        return (EVENT_TODAY, 0)
+    if start is not None and (start - now.date()).days == 1:
+        return (EVENT_TOMORROW, 0)
     return None
 
 
@@ -82,7 +90,7 @@ def due_items(tasks: Iterable[Dict[str, Any]], now: Optional[datetime] = None) -
 def count_due(tasks: Iterable[Dict[str, Any]], now: Optional[datetime] = None) -> Tuple[int, int]:
     """(antal försenade, antal som förfaller idag)."""
     items = due_items(tasks, now)
-    return (sum(1 for _, k, _ in items if k == OVERDUE), sum(1 for _, k, _ in items if k == TODAY))
+    return (sum(1 for _, k, _ in items if k == OVERDUE), sum(1 for _, k, _ in items if k in (TODAY, EVENT_TODAY)))
 
 
 def event_time(task: Dict[str, Any]) -> Optional[Tuple[int, int]]:
@@ -139,15 +147,19 @@ def reminder_due(task: Dict[str, Any], now: datetime, last_shown: Optional[datet
     if quiet is not None:
         if quiet.weekends and quiet.is_weekend(now):
             return None
-    start, end = day_window(task if c[0] == TODAY else {}, now, quiet)
+    timed_today = c[0] == TODAY or (c[0] == EVENT_TODAY
+                                  and _day(task.get("due_date")) == now.date())
+    start, end = day_window(task if timed_today else {}, now, quiet)
     if now < start or now >= end:
         return None
     if quiet is not None and quiet.is_quiet(now):   # (t.ex. tyst mitt på dagen)
         return None
     if last_shown is None or last_shown.date() < now.date():
         return c                                   # första påminnelsen i dag
+    if c[0] == EVENT_TOMORROW:
+        return None  # en förvarning; återkommande påminnelser på händelsedagen
     et = event_time(task)
-    if et and c[0] == TODAY:
+    if et and timed_today:
         ev = now.replace(hour=et[0], minute=et[1], second=0, microsecond=0)
         if last_shown < ev <= now:
             return c                               # exakt vid klockslaget
@@ -217,6 +229,11 @@ def plan_done(task: Dict[str, Any], today: date) -> Dict[str, Any]:
 def detail_text(task: Dict[str, Any], kind: str, days: int, now: Optional[datetime] = None) -> str:
     """Raden under titeln på påminnelsekortet ('förfaller idag kl 15:00', 'tiden har passerat', 'försenad 2 dagar')."""
     now = now or datetime.now()
+    if kind == EVENT_TODAY:
+        et = event_time(task) if _day(task.get("due_date")) == now.date() else None
+        return f"händelse idag kl {et[0]:02d}:{et[1]:02d}" if et else "händelse idag"
+    if kind == EVENT_TOMORROW:
+        return "händelse imorgon"
     note = mail_note(task, now)
     if note:
         nxt = next_remind_date(task, now.date())
@@ -236,6 +253,10 @@ def detail_text(task: Dict[str, Any], kind: str, days: int, now: Optional[dateti
 
 def status_text(kind: str, days: int) -> str:
     """Kort svensk text: 'förfaller idag' / 'försenad 1 dag' / 'försenad 3 dagar'."""
+    if kind == EVENT_TODAY:
+        return "händelse idag"
+    if kind == EVENT_TOMORROW:
+        return "händelse imorgon"
     if kind == TODAY:
         return "förfaller idag"
     if days <= 0:

@@ -203,7 +203,8 @@ class RemindersMixin:
             pop = getattr(self, "_reminder_popup", None)
             if pop is None:
                 from ui.reminder_popup import ReminderPopup
-                pop = ReminderPopup(self._reminder_done, self._reminder_snooze, self._reminder_open)
+                pop = ReminderPopup(self._reminder_done, self._reminder_snooze, self._reminder_open,
+                                    on_mute=self._reminder_mute)
                 self._reminder_popup = pop
             pop.show_items(items)
             return True
@@ -218,6 +219,8 @@ class RemindersMixin:
         for kind, head, icon in (
             (_rl.OVERDUE, "⚠ {n} uppgift(er) har passerat förfallodatum:", self._QSystemTrayIcon.MessageIcon.Warning),
             (_rl.TODAY, "📅 {n} uppgift(er) förfaller idag:", self._QSystemTrayIcon.MessageIcon.Information),
+            (_rl.EVENT_TODAY, "📅 {n} händelse(r) idag:", self._QSystemTrayIcon.MessageIcon.Information),
+            (_rl.EVENT_TOMORROW, "📅 {n} händelse(r) imorgon:", self._QSystemTrayIcon.MessageIcon.Information),
         ):
             sel = [t for t, k, _d in new_items if k == kind]
             if not sel:
@@ -225,6 +228,11 @@ class RemindersMixin:
             titles = ", ".join(f"'{t.get('title', '?')[:25]}'" for t in sel[:3])
             extra = f" (+{len(sel) - 3} till)" if len(sel) > 3 else ""
             self._tray.showMessage(APP_NAME, head.format(n=len(sel)) + f"\n{titles}{extra}", icon, 8000)
+
+    def _reminder_mute(self, task_id: str) -> None:
+        if self.store.set_task_metadata(task_id, "reminders_muted", True):
+            self.store.save()
+            self._update_tray_badge()
 
     def _reminder_done(self, task_id: str) -> None:
         """

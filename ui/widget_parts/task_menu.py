@@ -179,6 +179,12 @@ class TaskMenuMixin:
                 act.triggered.connect(
                     lambda _c, _t=str(task.get("title") or ""): self._on_open_payment_plan(_plan_base_title(_t))
                 )
+            if not self._task_is_archived(tid) and any(
+                task.get(key) for key in ("start_date", "due_date", "remind_dates", "reminders_muted")
+            ):
+                muted = bool(task.get("reminders_muted"))
+                act = menu.addAction("Slå på lokala påminnelser" if muted else "Stäng av lokala påminnelser")
+                act.triggered.connect(lambda _c: self.store.set_task_metadata(tid, "reminders_muted", not muted))
             if task.get("remind_dates"):
                 act = menu.addAction("🔔 Påminnelsedatum…")
                 act.setToolTip("Datum som appen hittade i mailet — ta bort eller lägg till")

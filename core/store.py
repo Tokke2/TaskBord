@@ -1217,6 +1217,8 @@ def _coerce_task(raw: Any, idx: int = 0) -> Optional[Dict[str, Any]]:
         if isinstance(val, str) and val.strip():
             out[key] = val[:_EXTRA_TASK_MAX_LEN]
     # Påminnelsedatum från datum i importerade mail (listor) — sparas bara om de finns
+    if raw.get("reminders_muted") is True:
+        out["reminders_muted"] = True
     rdates = _coerce_remind_dates(raw.get("remind_dates"))
     if rdates:
         out["remind_dates"] = rdates

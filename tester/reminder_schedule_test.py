@@ -42,6 +42,28 @@ def schedule_tests() -> None:
     t_date = {"id": "a", "title": "Fakturera", "due_date": "2026-10-30"}
     t_time = {"id": "b", "title": "Möte", "due_date": "2026-10-30T15:00"}
 
+    event = {"id": "c", "title": "Julmiddag", "start_date": "2026-10-30"}
+    yesterday = at(8) - timedelta(days=1)
+    check("startdatum: ingen notis två dagar innan", rl.reminder_due(event, yesterday - timedelta(days=1), None) is None)
+    check("startdatum: förvarning dagen innan", rl.reminder_due(event, yesterday, None) == (rl.EVENT_TOMORROW, 0))
+    check("startdatum: upprepar inte förvarningen samma dag", rl.reminder_due(event, yesterday + timedelta(hours=1), yesterday) is None)
+    check("startdatum: dagens första notis", rl.reminder_due(event, at(8), yesterday) == (rl.EVENT_TODAY, 0))
+    check("startdatum: upprepar efter 30 minuter", rl.reminder_due(event, at(8, 30), at(8)) == (rl.EVENT_TODAY, 0))
+    check("startdatum: slutar vid nattfönstret", rl.reminder_due(event, at(22), None) is None)
+    check("startdatum: ingen notis dagen efter", rl.reminder_due(event, at(8) + timedelta(days=1), None) is None)
+    check("startdatum: avstängd uppgift är tyst", rl.reminder_due({**event, "reminders_muted": True}, at(8), None) is None)
+    check("startdatum: klar uppgift är tyst", rl.reminder_due({**event, "done": True}, at(8), None) is None)
+    timed_event = {**event, "due_date": "2026-10-30T18:15"}
+    check("tidsatt start: påminner även vid klockslaget", rl.reminder_due(timed_event, at(18, 15), at(18)) == (rl.EVENT_TODAY, 0))
+    from core.store import TaskStore
+    with tempfile.TemporaryDirectory() as tmp:
+        store = TaskStore(data_dir_override=tmp)
+        tid = store.add_task("Julmiddag", start_date="2026-10-30")
+        store.set_task_metadata(tid, "reminders_muted", True)
+        store.save()
+        restored = TaskStore(data_dir_override=tmp)
+        check("lokal avstängning överlever omladdning", (restored.find_task(tid) or {}).get("reminders_muted") is True)
+
     check("datum utan tid: ingen påminnelse före 08:00", rl.reminder_due(t_date, at(7, 59), None) is None)
     check("datum utan tid: första påminnelsen kl 08:00", rl.reminder_due(t_date, at(8, 0), None) == (rl.TODAY, 0))
     check("…inte igen efter 10 min", rl.reminder_due(t_date, at(8, 10), at(8, 0)) is None)

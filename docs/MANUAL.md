@@ -729,6 +729,9 @@ finns i två mixins (annars vinner en tyst), inga odefinierade namn, sökvägar 
 
 I huvudfönstrets uppgiftsfält blir ett datum som `9 december julmiddag hemma hos Hasse` uppgiftens **startdatum**. Uppgiften sparas lokalt och skickas direkt i bakgrunden till vald Google-kalender om kontot är kopplat. Datum utan klockslag blir en heldagshändelse. Med `kl 18` börjar händelsen kl. 18 i datorns lokala tidszon och varar en timme. Anger du bara ett klockslag används dagens datum. Om Google inte är kopplat eller exporten misslyckas finns uppgiften kvar lokalt.
 
+Ledgebord påminner lokalt dagen före startdatumet och sedan ungefär var 30:e minut på själva dagen under tillåtna påminnelsetider. Appen måste vara igång och lokala påminnelser aktiverade. Välj **Stäng av** på påminnelsekortet för att tysta just den uppgiften utan att bocka av den. I uppgiftens högerklicksmeny kan du slå på påminnelserna igen. Google Kalenders aviseringar påverkas inte.
+
+
 
 Överallt där du skriver ett datum för hand förstår Ledgebord vanlig svenska — i fältet för ny uppgift, i hotkey-rutan och i **📅 → ✍️ Skriv datum…**:
 

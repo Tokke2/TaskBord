@@ -16,7 +16,7 @@ from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
-from core.reminder_logic import OVERDUE, status_text
+from core.reminder_logic import EVENT_TODAY, EVENT_TOMORROW, OVERDUE, TODAY, status_text
 
 Item = Tuple[Any, ...]  # (task_id, titel, kind, dagar[, rad under titeln])
 
@@ -50,7 +50,8 @@ class ReminderPopup(QWidget):
     WIDTH = 380
 
     def __init__(self, on_done: Callable[[str], None], on_snooze: Callable[[str], None],
-                 on_open: Callable[[], None], timeout_ms: int = 30_000, hover_ms: int = 8_000) -> None:
+                 on_open: Callable[[], None], timeout_ms: int = 30_000, hover_ms: int = 8_000, *,
+                 on_mute: Optional[Callable[[str], None]] = None) -> None:
         super().__init__(None, Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint
                          | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.WindowDoesNotAcceptFocus)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
@@ -58,6 +59,7 @@ class ReminderPopup(QWidget):
         self.setObjectName("ReminderPopup")
         self.setStyleSheet(STYLE)
         self._on_done, self._on_snooze, self._on_open = on_done, on_snooze, on_open
+        self._on_mute = on_mute
         self._timeout_ms, self._hover_ms = timeout_ms, hover_ms
         self._items: Dict[str, Item] = {}
         self._card: Optional[QFrame] = None
@@ -97,12 +99,18 @@ class ReminderPopup(QWidget):
             return
         items = sorted(self._items.values(), key=lambda i: (0 if i[2] == OVERDUE else 1, -i[3]))
         n_over = sum(1 for i in items if i[2] == OVERDUE)
-        n_today = len(items) - n_over
+        n_today = sum(1 for i in items if i[2] == TODAY)
+        n_events = sum(1 for i in items if i[2] == EVENT_TODAY)
+        n_tomorrow = sum(1 for i in items if i[2] == EVENT_TOMORROW)
         parts = []
         if n_over:
             parts.append(f"{n_over} försenad{'e' if n_over > 1 else ''}")
         if n_today:
             parts.append(f"{n_today} förfaller idag")
+        if n_events:
+            parts.append(f"{n_events} idag")
+        if n_tomorrow:
+            parts.append(f"{n_tomorrow} imorgon")
         card = QFrame(self)
         card.setObjectName("card")
         lay = QVBoxLayout(card)
@@ -160,6 +168,12 @@ class ReminderPopup(QWidget):
             row.addWidget(b)
         b_done.clicked.connect(lambda _c=False, i=tid: self._act(i, self._on_done))
         b_snz.clicked.connect(lambda _c=False, i=tid: self._act(i, self._on_snooze))
+        if self._on_mute is not None:
+            b_mute = QPushButton("Stäng av", parent)
+            b_mute.setToolTip("Stäng av Ledgebords påminnelser för den här uppgiften")
+            b_mute.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            b_mute.clicked.connect(lambda _c=False, i=tid: self._act(i, self._on_mute))
+            row.addWidget(b_mute)
         return row
 
     # ------------------------------------------------------------------ handlingar
