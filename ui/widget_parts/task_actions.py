@@ -310,7 +310,7 @@ class TaskActionsMixin:
                 return
             # NY v7-fix65: naturligt språk — tolka datum/tid/prio/taggar
             # ("mjölk imorgon 15:00 !hög #hem"). Utan match = som förr.
-            _nl = parse_natural_input(text)
+            _nl = parse_natural_input(text, date_as_start=True)
             _title = _nl.get("title") or text
             _prio = _nl.get("priority") or current
             _due = _nl.get("due_date")
@@ -330,6 +330,19 @@ class TaskActionsMixin:
                 self.store.set_start_date(tid, _start)  # NY v8: valfritt startdatum
             if tid and _urls:
                 self._add_links_to_task(tid, _urls)
+            if tid and _start:
+                try:
+                    from core.gcal_autosync import options_from_settings
+                    from core.job_templates import export_async
+
+                    task = self.store.find_task(tid)
+                    if task and task.get("start_date") == _start:
+                        data_dir = self.store.data_dir
+                        opts = options_from_settings(self.settings, data_dir)
+                        export_async(data_dir, self.store.find_task, [tid], opts, _title)
+                except Exception:
+                    logger.warning("%s Kunde inte starta kalenderexport; uppgiften finns kvar lokalt.",
+                                   LOG_PREFIX, exc_info=True)
             if tid:
                 self.input_field.clear()
                 # Återställ pending priority till "none"

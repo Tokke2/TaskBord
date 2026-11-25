@@ -727,6 +727,9 @@ finns i två mixins (annars vinner en tyst), inga odefinierade namn, sökvägar 
 
 ## 🗣 Naturliga datum (fre 14, om 3 dagar, nästa mån)
 
+I huvudfönstrets uppgiftsfält blir ett datum som `9 december julmiddag hemma hos Hasse` uppgiftens **startdatum**. Uppgiften sparas lokalt och skickas direkt i bakgrunden till vald Google-kalender om kontot är kopplat. Datum utan klockslag blir en heldagshändelse. Om Google inte är kopplat eller exporten misslyckas finns uppgiften kvar lokalt.
+
+
 Överallt där du skriver ett datum för hand förstår Ledgebord vanlig svenska — i fältet för ny uppgift, i hotkey-rutan och i **📅 → ✍️ Skriv datum…**:
 
 | Skriv | Betyder |

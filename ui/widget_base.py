@@ -505,7 +505,7 @@ def _resolve_day_expr(expr: str, today: Any) -> Any:
     return _nd.parse_date(e, today)
 
 
-def parse_natural_input(text: str) -> Dict[str, Any]:
+def parse_natural_input(text: str, *, date_as_start: bool = False) -> Dict[str, Any]:
     """
     NY v7-fix65: tolka naturligt språk i uppgifts-input.
 
@@ -662,7 +662,12 @@ def parse_natural_input(text: str) -> Dict[str, Any]:
                 s = re.sub(rf"\b{name}\b", " ", s, count=1, flags=re.I)
                 break
 
-    if due_day is not None:
+    if due_day is not None and date_as_start and not out.get("start_date"):
+        out["start_date"] = due_day.isoformat()
+        # Bevara angivet klockslag i uppgiftens befintliga påminnelsefält.
+        if time_part:
+            out["due_date"] = f"{due_day.isoformat()}T{time_part}"
+    elif due_day is not None:
         out["due_date"] = (
             f"{due_day.isoformat()}T{time_part}"
             if time_part else due_day.isoformat()

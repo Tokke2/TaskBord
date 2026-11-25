@@ -133,6 +133,13 @@ def main() -> None:
     r = pn("vanlig titel utan datum")
     ck("inmatning: ingen gissning i vanlig titel", r["due_date"] is None and r["title"] == "vanlig titel utan datum", repr(r))
 
+    r = pn("9 december julmiddag hemma hos hasse", date_as_start=True)
+    ck("snabbinmatning: datum blir startdatum och titeln behålls",
+       r["start_date"][5:] == "12-09" and r["due_date"] is None
+       and r["title"] == "julmiddag hemma hos hasse", repr(r))
+    r = pn("vanlig titel utan datum", date_as_start=True)
+    ck("snabbinmatning: utan datum finns inget startdatum", r["start_date"] is None, repr(r))
+
     doc = (ROOT / "docs" / "MANUAL.md").read_text(encoding="utf-8")
     ck("MANUAL beskriver naturliga datum", "Naturliga datum" in doc and "nästa mån" in doc)
 
