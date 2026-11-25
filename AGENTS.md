@@ -27,7 +27,8 @@ Läs den här filen innan arbete påbörjas i en ny kodsession. Reglerna gäller
 - Där appen har kolumner: ge användaren möjlighet att sortera och flytta dem. Gör inte om en vy till tabell bara för att uppfylla den här regeln.
 - Håll gränssnittet snabbt och energisnålt, särskilt när appen är dold. Mät innan du påstår att minne, hastighet eller energiförbrukning har förbättrats.
 - Använd samma skarpa logotyp och ikonfamilj i appen, tillägget och dokumentationen. Behåll redigerbara SVG-original för tryck.
-- Produktönskemål att följa upp: egen underflik **Profiler** i inställningarna; återställ valet av ruta i projektskaparen från ttk-versionen efter att beteendet verifierats. Dokumentation av önskemålen betyder inte att de är implementerade.
+- **Profiler:** Endast appar som faktiskt använder profiler ska ha en egen underflik **Profiler** i inställningarna, där användaren kan skapa profiler. Lägg inte till en tom profilflik eller ett profilsystem bara för att uppfylla denna regel.
+- Produktönskemål att följa upp: återställ valet av ruta i projektskaparen från ttk-versionen efter att beteendet verifierats. Dokumentation av önskemålet betyder inte att det är implementerat.
 
 ## Förslagslistor i chatt
 
