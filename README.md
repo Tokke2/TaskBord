@@ -78,6 +78,8 @@ PayPal eller Ko-fi. Mottagarna är inbyggda och låsta.
 
 Appuppdateraren hämtar bara verifierade versioner från `arena/5502c203-taskbord`, aldrig från `main` eller senaste GitHub-release. Git-arbetskopior uppdateras med Git, inte genom att appen skriver över filer.
 
+Varje push till branchen publicerar automatiskt en GitHub-release märkt **Latest**, låst till samma commit. Det ger även äldre installationer, som fortfarande läser **Latest**, en väg till den nya uppdateraren. Appen jämför programfilerna, inte release- eller versionsnumret.
+
 Dagens driftlogg ligger i `loggar/todo_app.log`. Äldre driftloggar sparas i daterade zipfiler i `loggar/arkiv/` och tas bort när datumet är sju dagar gammalt. `loggar/fel.log` samlar varningar och fel för felsökning; gamla varningar arkiveras och öppna fel ligger kvar tills de åtgärdats. Fel med verifierbar återhämtning, exempelvis en lyckad ny import av samma inkorgsfil, arkiveras automatiskt.
 
 ## 📄 Licens

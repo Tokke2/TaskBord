@@ -1,0 +1,42 @@
+name: Publish latest Ledgebord release
+
+on:
+  push:
+    branches: [arena/5502c203-taskbord]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ledgebord-latest-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/arena/5502c203-taskbord'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish current branch commit as Latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          UPDATE_BRANCH: arena/5502c203-taskbord
+        shell: bash
+        run: |
+          set -euo pipefail
+          head=$(gh api "repos/$GH_REPO/branches/${UPDATE_BRANCH//\//%2F}" --jq '.commit.sha')
+          if [[ "$head" != "$GITHUB_SHA" ]]; then
+            echo 'A newer push superseded this run; not publishing an older Latest release.'
+            exit 0
+          fi
+          tag="build-$head"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            tagged=$(gh api "repos/$GH_REPO/commits/$tag" --jq '.sha')
+            [[ "$tagged" == "$head" ]]
+            gh release edit "$tag" --latest --draft=false --prerelease=false
+          else
+            gh release create "$tag" --target "$head" --latest \
+              --title "Ledgebord ${head:0:12}" \
+              --notes "Automatisk release från $UPDATE_BRANCH (commit $head). Appuppdateraren jämför filinnehåll."
+          fi
